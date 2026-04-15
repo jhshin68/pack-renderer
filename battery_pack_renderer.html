@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Battery Pack Intelligence — SL Power</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* ─── Canvas & App ─── */
+  --bg:       #EDF1F7;
+  --canvas:   #FFFFFF;
+  --border-l: #D1DBE8;
+
+  /* ─── Sidebar ─── */
+  --sb:       #141E30;
+  --sb2:      #1A2840;
+  --sb3:      #1F3050;
+  --sb4:      #243662;
+  --sb-bdr:   #243250;
+
+  /* ─── Accent ─── */
+  --accent:   #2563EB;
+  --accent-h: #1D4ED8;
+  --accent-l: rgba(37,99,235,.15);
+  --accent-g: rgba(37,99,235,.08);
+  --green:    #059669;
+  --amber:    #D97706;
+  --red:      #DC2626;
+
+  /* ─── Text on dark (sidebar) ─── */
+  --dt:       #E2EBF5;
+  --dt2:      #94A3B8;
+  --dt3:      #5A7A9A;
+
+  /* ─── Text on light (canvas) ─── */
+  --lt:       #1E3A5F;
+  --lt2:      #475569;
+  --lt3:      #94A3B8;
+
+  --r: 6px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Inter', sans-serif;
+  background: var(--bg);
+  color: var(--dt);
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ── APP SHELL ──────────────────────────────── */
+.app {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ── SIDEBAR ──────────────────────────────── */
+.sidebar {
+  background: var(--sb);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--sb-bdr) transparent;
+  border-right: 1px solid var(--sb-bdr);
+}
+
+/* Logo */
+.logo {
+  padding: 18px 16px 14px;
+  border-bottom: 1px solid var(--sb-bdr);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.logo-icon {
+  width: 32px; height: 32px;
+  background: var(--accent);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+  box-shadow: 0 0 12px rgba(37,99,235,.4);
+}
+.logo-text {}
+.logo-brand {
+  font-size: 14px; font-weight: 700; letter-spacing: -.2px;
+  color: #F1F5F9;
+}
+.logo-sub {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8px; letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--dt2); margin-top: 1px;
+}
+.logo-ver {
+  margin-left: auto;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8px; color: var(--dt3); letter-spacing: .5px;
+  flex-shrink: 0;
+}
+
+/* Sidebar body */
+.sidebar-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 12px; flex: 1; }
+
+/* Section label */
+.ctrl-label {
+  font-size: 9px; letter-spacing: 1.8px; text-transform: uppercase;
+  color: var(--dt2); font-family: 'JetBrains Mono', monospace;
+  margin-bottom: 4px;
+}
+
+/* Segmented control */
+.seg {
+  display: flex; gap: 2px;
+  background: var(--sb2); border: 1px solid var(--sb-bdr);
+  border-radius: var(--r); padding: 2px;
+}
+.seg-btn {
+  flex: 1; padding: 5px 4px; border: none;
+  background: transparent; color: var(--dt2);
+  font-family: 'JetBrains Mono', monospace; font-size: 10px;
+  border-radius: 4px; cursor: pointer; transition: all .15s;
+  white-space: nowrap;
+}
+.seg-btn.active {
+  background: var(--accent); color: #fff;
+  box-shadow: 0 1px 6px rgba(37,99,235,.4);
+}
+.seg-btn:hover:not(.active) { background: var(--sb3); color: var(--dt); }
+
+/* Number stepper */
+.num-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.num-pair { display: flex; align-items: center; gap: 4px; }
+.num-tag {
+  font-family: 'JetBrains Mono', monospace; font-size: 8px;
+  color: var(--dt2); min-width: 12px;
+}
+.num-val {
+  font-family: 'JetBrains Mono', monospace; font-size: 18px; font-weight: 500;
+  color: #F1F5F9; min-width: 30px; text-align: center;
+}
+.num-btn {
+  width: 24px; height: 24px; border: 1px solid var(--sb-bdr);
+  background: var(--sb2); color: var(--dt2); font-size: 14px;
+  border-radius: 5px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .15s; user-select: none;
+}
+.num-btn:hover { border-color: var(--accent); color: var(--accent); }
+.num-btn:active { transform: scale(.9); }
+.sp-sep { width: 1px; height: 20px; background: var(--sb-bdr); margin: 0 2px; }
+
+/* Toggle */
+.toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 2px 0; }
+.toggle-label { font-size: 11px; color: var(--dt2); }
+.toggle {
+  width: 34px; height: 18px; background: var(--sb-bdr);
+  border-radius: 9px; cursor: pointer; position: relative;
+  transition: background .2s; border: none; flex-shrink: 0;
+}
+.toggle.on { background: var(--accent); }
+.toggle::after {
+  content: ''; position: absolute; top: 2px; left: 2px;
+  width: 14px; height: 14px; background: #fff; border-radius: 50%;
+  transition: left .2s; box-shadow: 0 1px 3px rgba(0,0,0,.3);
+}
+.toggle.on::after { left: 18px; }
+
+/* Custom textarea */
+#customRows {
+  width: 100%; background: var(--sb2); color: var(--dt);
+  border: 1px solid var(--sb-bdr); border-radius: 5px;
+  padding: 6px 8px; font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  resize: vertical; transition: border-color .15s;
+}
+#customRows:focus { outline: none; border-color: var(--accent); }
+.hint { font-size: 9px; color: var(--dt3); font-family: 'JetBrains Mono', monospace; line-height: 1.5; }
+
+/* Render button */
+.render-btn {
+  padding: 11px 14px; border: none; border-radius: var(--r); cursor: pointer;
+  font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600;
+  letter-spacing: .2px; color: #fff;
+  background: var(--accent);
+  box-shadow: 0 2px 12px rgba(37,99,235,.35);
+  transition: all .18s;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.render-btn:hover { background: var(--accent-h); box-shadow: 0 4px 20px rgba(37,99,235,.5); transform: translateY(-1px); }
+.render-btn:active { transform: translateY(0); }
+
+/* Info box */
+.info-box {
+  background: var(--sb2); border: 1px solid var(--sb-bdr);
+  border-radius: var(--r); padding: 10px 12px;
+  font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--dt2);
+  line-height: 1.8;
+}
+.info-box .row { display: flex; justify-content: space-between; align-items: baseline; gap: 4px; }
+.info-box .key { color: var(--dt3); flex-shrink: 0; }
+.info-box .val { color: #F1F5F9; font-weight: 500; text-align: right; }
+.info-box .val.green { color: #34D399; }
+.info-box .val.amber { color: #FBBF24; }
+.info-box .divider { border-top: 1px solid var(--sb-bdr); margin: 5px 0; }
+.info-title {
+  font-size: 8px; letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--dt3); margin-bottom: 5px;
+}
+
+/* Download */
+.dl-btn {
+  padding: 9px 14px; background: transparent;
+  border: 1px solid var(--sb-bdr); color: var(--dt2);
+  border-radius: var(--r); font-family: 'Inter', sans-serif; font-size: 11px;
+  cursor: pointer; transition: all .15s; text-align: center;
+}
+.dl-btn:hover { border-color: var(--green); color: #34D399; }
+
+/* Footer tag */
+.theory-tag {
+  font-family: 'JetBrains Mono', monospace; font-size: 8px;
+  color: var(--dt3); text-align: center;
+  padding: 8px 0 10px; border-top: 1px solid var(--sb-bdr);
+  letter-spacing: .8px;
+}
+
+/* ── MAIN PANEL ──────────────────────────────── */
+.main { display: flex; flex-direction: column; overflow: hidden; height: 100vh; }
+
+/* Toolbar */
+.toolbar {
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border-l);
+  display: flex; align-items: center; gap: 6px;
+  background: var(--canvas);
+  min-height: 44px; flex-shrink: 0;
+}
+.face-btn {
+  padding: 5px 14px;
+  border: 1px solid var(--border-l);
+  background: transparent; color: var(--lt2);
+  font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: .3px;
+  border-radius: 20px; cursor: pointer; transition: all .14s;
+}
+.face-btn.active {
+  background: var(--accent); border-color: var(--accent); color: #fff;
+  box-shadow: 0 1px 8px rgba(37,99,235,.3);
+}
+.face-btn:hover:not(.active) { border-color: var(--accent); color: var(--accent); }
+.toolbar-sep { width: 1px; height: 20px; background: var(--border-l); margin: 0 4px; }
+.toolbar-info {
+  margin-left: auto;
+  font-family: 'JetBrains Mono', monospace; font-size: 10px;
+  color: var(--lt3); letter-spacing: .3px;
+}
+
+/* Canvas — 중앙 정렬, SVG 자연 크기로 표시 */
+.canvas-wrap {
+  flex: 1;
+  overflow: auto;
+  padding: 28px;
+  background: var(--bg);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+/* SVG card — 자연 크기 (width:auto, viewBox 기준) */
+.svg-container {
+  background: var(--canvas);
+  border: 1px solid var(--border-l);
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 1px 6px rgba(0,0,0,.06), 0 4px 20px rgba(0,0,0,.04);
+  max-width: calc(100vw - 260px - 56px);
+}
+.svg-container svg { display: block; max-width: 100%; height: auto; }
+
+/* Empty state */
+.empty {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  width: calc(100vw - 260px - 56px);
+  height: calc(100vh - 44px - 56px);
+  gap: 12px; color: var(--lt3);
+}
+.empty-icon { font-size: 48px; opacity: .25; }
+.empty-text {
+  font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  letter-spacing: 2px; text-transform: uppercase; color: var(--lt3);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-l); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--lt3); }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ── SIDEBAR ─────────────────────────────── -->
+  <div class="sidebar">
+    <div class="logo">
+      <div class="logo-icon">⚡</div>
+      <div class="logo-text">
+        <div class="logo-brand">SL Power</div>
+        <div class="logo-sub">Pack Intelligence</div>
+      </div>
+      <div class="logo-ver">v0.2.18</div>
+    </div>
+
+    <div class="sidebar-body">
+
+      <!-- Cell Type -->
+      <div>
+        <div class="ctrl-label">Cell Type</div>
+        <div class="seg">
+          <button class="seg-btn" id="btn18650" onclick="setCellType('18650')">18650</button>
+          <button class="seg-btn active" id="btn21700" onclick="setCellType('21700')">21700</button>
+        </div>
+      </div>
+
+      <!-- S / P -->
+      <div>
+        <div class="ctrl-label">Configuration</div>
+        <div class="num-row">
+          <div class="num-pair">
+            <button class="num-btn" onclick="adj('S',-1)">−</button>
+            <div class="num-val" id="valS">3</div>
+            <button class="num-btn" onclick="adj('S',1)">+</button>
+            <div class="num-tag">S</div>
+          </div>
+          <div class="sp-sep"></div>
+          <div class="num-pair">
+            <button class="num-btn" onclick="adj('P',-1)">−</button>
+            <div class="num-val" id="valP">3</div>
+            <button class="num-btn" onclick="adj('P',1)">+</button>
+            <div class="num-tag">P</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Arrangement -->
+      <div>
+        <div class="ctrl-label">Arrangement</div>
+        <div class="seg">
+          <button class="seg-btn active" id="btnSquare" onclick="setArrangement('square')">정배열</button>
+          <button class="seg-btn" id="btnStag"   onclick="setArrangement('staggered')">엇배열</button>
+          <button class="seg-btn" id="btnCustom" onclick="setArrangement('custom')">커스텀</button>
+        </div>
+      </div>
+
+      <!-- Custom rows -->
+      <div id="customGroup" style="display:none">
+        <div class="ctrl-label">Custom rows (행별 셀 수)</div>
+        <textarea id="customRows" rows="3" placeholder="예: 8,8,10,13,13,13">8,8,10,13,13,13</textarea>
+        <div class="hint" style="margin-top:4px">쉼표로 구분 · 각 값 = 해당 행 셀 수</div>
+        <div class="ctrl-label" style="margin-top:10px">Row Alignment</div>
+        <div class="seg">
+          <button class="seg-btn" id="btnAlignLeft"   onclick="setCustomAlign('left')">◀ Left</button>
+          <button class="seg-btn active" id="btnAlignCenter" onclick="setCustomAlign('center')">Center</button>
+          <button class="seg-btn" id="btnAlignRight"  onclick="setCustomAlign('right')">Right ▶</button>
+        </div>
+        <div class="toggle-row" style="margin-top:10px">
+          <span class="toggle-label">엇배열 (Staggered)</span>
+          <button class="toggle" id="togCustomStagger" onclick="toggleCustomStagger()"></button>
+        </div>
+        <!-- 엇배열 방향 — 엇배열 ON일 때만 표시 -->
+        <div id="stagDirGroup" style="display:none;margin-top:8px">
+          <div class="ctrl-label">2번째 행 방향 (하단 기준)</div>
+          <div class="seg">
+            <button class="seg-btn" id="btnStagL" onclick="setCustomStaggerDir('L')">◀ 왼쪽</button>
+            <button class="seg-btn active" id="btnStagR" onclick="setCustomStaggerDir('R')">오른쪽 ▶</button>
+          </div>
+          <div class="hint" style="margin-top:4px">2번째 행 시작점: 1번째(하단) 대비 좌·우</div>
+        </div>
+        <div class="ctrl-label" style="margin-top:10px">Series (S)</div>
+        <div class="num-pair">
+          <button class="num-btn" onclick="adj('S',-1)">−</button>
+          <div class="num-val" id="valScustom">13</div>
+          <button class="num-btn" onclick="adj('S',1)">+</button>
+          <div class="num-tag">S</div>
+        </div>
+      </div>
+
+      <!-- Gap -->
+      <div>
+        <div class="ctrl-label">Gap (mm)</div>
+        <div class="num-pair">
+          <button class="num-btn" onclick="adjGap(-0.5)">−</button>
+          <div class="num-val" id="valGap">0.0</div>
+          <button class="num-btn" onclick="adjGap(0.5)">+</button>
+          <div class="num-tag">mm</div>
+        </div>
+      </div>
+
+      <!-- Max Plate Types K -->
+      <div>
+        <div class="ctrl-label">Max Plate Types (K)</div>
+        <div class="num-pair">
+          <button class="num-btn" onclick="adjK(-1)">−</button>
+          <div class="num-val" id="valK" style="font-size:13px;min-width:40px">auto</div>
+          <button class="num-btn" onclick="adjK(1)">+</button>
+          <div class="num-tag">K</div>
+        </div>
+        <div class="hint" style="margin-top:4px">원칙 20·21 · ₩20M/종</div>
+      </div>
+
+      <!-- Options -->
+      <div>
+        <div class="ctrl-label">Display Options</div>
+        <div class="toggle-row">
+          <span class="toggle-label">Nickel plate</span>
+          <button class="toggle on" id="togNickel" onclick="toggleOpt('nickel')"></button>
+        </div>
+        <div class="toggle-row">
+          <span class="toggle-label">Terminals B+ / B−</span>
+          <button class="toggle on" id="togTerm" onclick="toggleOpt('term')"></button>
+        </div>
+        <div class="toggle-row">
+          <span class="toggle-label">Emboss · no-mirror</span>
+          <button class="toggle on" id="togEmboss" onclick="toggleOpt('emboss')"></button>
+        </div>
+      </div>
+
+      <!-- BMS Position (원칙 16) -->
+      <div>
+        <div class="ctrl-label">BMS Position (원칙 16)</div>
+        <div class="seg">
+          <button class="seg-btn" id="bmsEdgeTop"    onclick="setBmsEdge('top')">Top</button>
+          <button class="seg-btn active" id="bmsEdgeBottom" onclick="setBmsEdge('bottom')">Bot</button>
+          <button class="seg-btn" id="bmsEdgeLeft"   onclick="setBmsEdge('left')">Left</button>
+          <button class="seg-btn" id="bmsEdgeRight"  onclick="setBmsEdge('right')">Right</button>
+        </div>
+        <div class="num-pair" style="margin-top:8px">
+          <button class="num-btn" onclick="adjBmsPos(-0.1)">−</button>
+          <div class="num-val" id="valBmsPos" style="font-size:13px;min-width:40px">50%</div>
+          <button class="num-btn" onclick="adjBmsPos(0.1)">+</button>
+          <div class="num-tag">pos</div>
+        </div>
+        <div class="hint" style="margin-top:4px">BMS 모듈 위치 (엣지 · 비율 0–100%)</div>
+      </div>
+
+      <!-- Render -->
+      <button class="render-btn" onclick="doRender()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        Generate Layout
+      </button>
+
+      <!-- Info panel -->
+      <div class="info-box">
+        <div class="info-title">Pack Summary</div>
+        <div class="row"><span class="key">cells</span><span class="val" id="iCells">—</span></div>
+        <div class="row"><span class="key">nickel</span><span class="val" id="iNickel">—</span></div>
+        <div class="row"><span class="key">layout</span><span class="val" id="iLayout">—</span></div>
+        <div class="row"><span class="key">B+</span><span class="val" id="iBplus">—</span></div>
+        <div class="row"><span class="key">B−</span><span class="val" id="iBminus">—</span></div>
+        <div class="divider"></div>
+        <div class="row"><span class="key">m_min <span style="font-size:8px;opacity:.6">(est.)</span></span><span class="val amber" id="iMmin">—</span></div>
+        <div class="row"><span class="key">mold cost</span><span class="val green" id="iMold">—</span></div>
+        <div class="row"><span class="key">reuse</span><span class="val" id="iReuse">—</span></div>
+        <div class="row"><span class="key">feasible</span><span id="iFeas">—</span></div>
+        <div class="divider"></div>
+        <div class="info-title">BMS Wire (원칙 16)</div>
+        <div class="row"><span class="key">edge · pos</span><span class="val" id="iBmsEdge">—</span></div>
+        <div class="row"><span class="key">dist B+</span><span class="val green" id="iDistBp">—</span></div>
+        <div class="row"><span class="key">dist B−</span><span class="val green" id="iDistBm">—</span></div>
+        <div class="row"><span class="key">total wire</span><span class="val" id="iDistTotal">—</span></div>
+      </div>
+
+      <!-- Download -->
+      <button class="dl-btn" onclick="downloadSVG()">↓ &nbsp;Export SVG</button>
+
+      <div class="theory-tag">SELA · SL Power Co., Ltd. · 이론 v0.2.18</div>
+    </div>
+  </div>
+
+  <!-- ── MAIN ──────────────────────────────────── -->
+  <div class="main">
+    <div class="toolbar">
+      <button class="face-btn active" id="faceAll"    onclick="setFace('all')">Both Faces</button>
+      <button class="face-btn"        id="faceTop"    onclick="setFace('top')">Top Face</button>
+      <button class="face-btn"        id="faceBottom" onclick="setFace('bottom')">Bottom Face</button>
+      <div class="toolbar-sep"></div>
+      <div class="toolbar-info" id="toolInfo">—</div>
+    </div>
+
+    <div class="canvas-wrap">
+      <div id="emptyState" class="empty">
+        <div class="empty-icon">⬡</div>
+        <div class="empty-text">Configure &amp; Generate</div>
+      </div>
+      <div class="svg-container" id="svgContainer" style="display:none">
+        <div id="svgOutput"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+<script>var _cbv=Date.now();document.write('<scr'+'ipt src="renderer.js?v='+_cbv+'"><\/scr'+'ipt><scr'+'ipt src="app.js?v='+_cbv+'"><\/scr'+'ipt>');</script>
+</body>
+</html>
