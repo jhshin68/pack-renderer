@@ -51,6 +51,15 @@
  *                          캐노니컬 서명 σ(set) = min{회전k(점집합) : k ∈ 0..5}  (거울반사 제거).
  *                          정배열은 k ∈ 0..3. 변환군 크기 |T| = 12 → 6 (hex) 또는 8 → 4 (rect).
  *                          좌·우 대칭 배치 플레이트는 실제로 거울상이면 별도 금형 필요 → 회전 대칭 우선 설계.
+ *   v0.3.1  (2026-04-15): ★ 범용 엔진 1순위 — P값 기반 블록 타입 선택 + Type-A geometry.
+ *                          selectBlockType(P): P→블록타입 라우팅 진입점.
+ *                          calcTypeAGeometry() + drawNickelTypeA(): 결론.md 확정 스펙 구현.
+ *                            trunk(수평bar) + dual feed + branch(등임피던스폭보정) + fuse neck.
+ *                          buildSnakeLayout(S,P): S×P→직렬순서(grid_row,grid_col) 반환.
+ *                          calcNickelPattern(S,P): P 파라미터 추가, block_type 포함.
+ *                          drawFace(): TypeA dispatcher + 직렬bridge 추가.
+ *                          DEFAULT_PARAMS: trunk_w_mm, branch_w_ratio_center/outer, fuse_neck_w/l.
+ *                          기존 I/U 동작 완전 유지 (P≠5 폴백).
  *   v0.2.18 (2026-04-14): ★ 원칙 22 — 사각 정배열 컬럼 파티션 최적성 정리.
  *                          N=S×P 사각 정배열 + 컬럼 단위 직렬 연결 시 m_distinct 하한:
  *                          m_min = 1 (S 짝수, 전면 ㄷ자 쌍)
@@ -68,7 +77,7 @@
  * 본 파일은 md 이론문서와 버전을 동기화한다. md 수정 시 js도 함께 버전업.
  */
 
-const RENDERER_VERSION = 'v0.2.18+ArrangementModes';
+const RENDERER_VERSION = 'v0.3.1+TypeAEngine';
 
 // 원칙 20 — 목적함수 가중치 (낮을수록 우선)
 const OBJECTIVE_WEIGHTS = {
@@ -119,6 +128,27 @@ const NICKEL_FILL   = '#888888';
 const NICKEL_STROKE = '#555555';
 const NICKEL_SW     = 0.7;
 
+// ═══════════════════════════════════════════════
+// P값 → 블록 타입 선택 (범용 엔진 진입점)
+// 결론.md 확정: P=5 → Type-A, P=4 → U형, P=2 → I형
+// P=3/P=6: 설계 문서 미확정 → geometry_ready=false 반환
+// ═══════════════════════════════════════════════
+function selectBlockType(P) {
+  switch (P) {
+    case 1:
+    case 2: return { block_type: 'I',         geometry_ready: true  };
+    case 4: return { block_type: 'U',         geometry_ready: true  };
+    case 5: return { block_type: 'TypeA',     geometry_ready: true  };
+    case 3: return { block_type: 'Compact-H', geometry_ready: false,
+      error: 'P=3 Compact-H geometry spec not finalized — 결론.md 수준 문서 대기' };
+    case 6: return { block_type: 'Extended',  geometry_ready: false,
+      error: 'P=6 Extended geometry spec not finalized — 결론.md 수준 문서 대기' };
+    default:
+      return { block_type: 'Unknown', geometry_ready: false,
+        error: `P=${P} block type not defined` };
+  }
+}
+
 // + 양극 캡 실치수 (이론 §5, v0.2.3)
 const PLUS_CAP_DIAMETER_MM = 10.0;
 
@@ -149,6 +179,12 @@ const DEFAULT_PARAMS = {
   // bar_h_mm 폐기 (v0.2.7): 가로 브리지 두께 = 세로 스파인 두께 = nickel_w_mm
   margin_mm:     12.0,
   gap_section:   60,
+  // ── Type-A (P=5) 전용 파라미터 (결론.md 확정 스펙) ──
+  trunk_w_mm:            null,  // null = auto (nickel_w_mm × 1.5)
+  branch_w_ratio_center: 0.75,  // 중앙 셀 branch 폭 비율 — 등임피던스 보정
+  branch_w_ratio_outer:  1.30,  // 외곽 셀 branch 폭 비율 — 등임피던스 보정
+  fuse_neck_w_mm:        1.5,   // 퓨즈 neck 폭 (mm)
+  fuse_neck_l_mm:        3.0,   // 퓨즈 neck 길이 (mm)
 };
 
 // ═══════════════════════════════════════════════
@@ -193,18 +229,22 @@ function getCellPolarity(groupIndex, face) {
   return face === 'top' ? (topIsPlus ? '+' : '-') : (topIsPlus ? '-' : '+');
 }
 
-function calcNickelPattern(S) {
+function calcNickelPattern(S, P) {
+  // P가 전달되지 않은 경우 기본 block_type은 I (하위 호환)
+  const blockInfo = (P != null) ? selectBlockType(P) : { block_type: 'I', geometry_ready: true };
+  const btype = blockInfo.geometry_ready ? blockInfo.block_type : 'I';
+
   const top = [], bot = [];
-  top.push({ type: 'I', groups: [0], isTerminal: true, terminal: 'B+' });
+  top.push({ type: 'I', block_type: btype, groups: [0], isTerminal: true, terminal: 'B+' });
   for (let g = 1; g < S - 1; g += 2)
-    top.push({ type: 'U', groups: [g, g + 1], isTerminal: false, terminal: null });
+    top.push({ type: 'U', block_type: btype, groups: [g, g + 1], isTerminal: false, terminal: null });
   if (S % 2 === 0)
-    top.push({ type: 'I', groups: [S - 1], isTerminal: false, terminal: null });
+    top.push({ type: 'I', block_type: btype, groups: [S - 1], isTerminal: false, terminal: null });
 
   for (let g = 0; g < S - 1; g += 2)
-    bot.push({ type: 'U', groups: [g, g + 1], isTerminal: false, terminal: null });
+    bot.push({ type: 'U', block_type: btype, groups: [g, g + 1], isTerminal: false, terminal: null });
   if (S % 2 !== 0)
-    bot.push({ type: 'I', groups: [S - 1], isTerminal: true, terminal: 'B-' });
+    bot.push({ type: 'I', block_type: btype, groups: [S - 1], isTerminal: true, terminal: 'B-' });
   else if (bot.length > 0) {
     bot[bot.length - 1].isTerminal = true;
     bot[bot.length - 1].terminal   = 'B-';
@@ -286,6 +326,149 @@ function drawNickelU(cx_colL, cx_colR, cy_arr, R, nw, barH, arrangement, fill) {
   return parts.join('');
 }
 
+/**
+ * Type-A 블록 geometry 계산 (P=5 전용, 결론.md 확정 스펙)
+ *   셀 배치: P개 세로 컬럼 → 중앙 기준 2-3 분할 (trunk 위치 결정)
+ *   등임피던스: 거리 비례 branch 폭 보정 (중앙 ×0.75, 외곽 ×1.30)
+ *   반환: trunk 위치, feed 좌표, branch 배열
+ */
+function calcTypeAGeometry(cx_col, cy_arr, R, nw, params) {
+  const P = cy_arr.length;
+  // 2-3 분할: 위쪽 2셀 / 아래쪽 3셀 (P=5 기준)
+  const split = Math.floor(P / 2);
+  const trunk_y = (cy_arr[split - 1] + cy_arr[split]) / 2;
+  const trunk_w = ((params.trunk_w_mm || params.nickel_w_mm * 1.5)) * params.scale;
+
+  // trunk X 범위: 셀 클러스터 바깥으로 feed_extend 연장 (dual feed 연결점)
+  const feed_extend = nw * 1.5;
+  const min_x = Math.min(...cx_col);
+  const max_x = Math.max(...cx_col);
+  const trunk_x1 = min_x - feed_extend;
+  const trunk_x2 = max_x + feed_extend;
+
+  // 등임피던스 branch 폭: 거리 비례 보정
+  const distances  = cy_arr.map(cy => Math.abs(cy - trunk_y));
+  const max_dist   = Math.max(...distances) || 1;
+  const c_ratio    = params.branch_w_ratio_center != null ? params.branch_w_ratio_center : 0.75;
+  const o_ratio    = params.branch_w_ratio_outer  != null ? params.branch_w_ratio_outer  : 1.30;
+  const neck_w_px  = (params.fuse_neck_w_mm || 1.5) * params.scale;
+  const neck_l_px  = (params.fuse_neck_l_mm || 3.0) * params.scale;
+
+  const branches = cy_arr.map((cy, i) => {
+    const dist_ratio = distances[i] / max_dist;
+    const w_ratio    = c_ratio + (o_ratio - c_ratio) * dist_ratio;
+    return {
+      cell_x:      cx_col[i],
+      cell_y:      cy,
+      branch_w:    nw * w_ratio,
+      neck_w:      neck_w_px,
+      neck_l:      neck_l_px,
+      above_trunk: cy < trunk_y,
+    };
+  });
+
+  return { trunk_y, trunk_w, trunk_x1, trunk_x2, feed_xs: [trunk_x1, trunk_x2], branches };
+}
+
+/**
+ * Type-A SVG 렌더링 (결론.md: trunk + dual feed + branch + fuse neck)
+ *   ① horizontal trunk (중앙 수평 bar)
+ *   ② branch (trunk → 셀, 폭 보정 적용)
+ *   ③ fuse neck (branch 말단, 셀 접점 직전)
+ *   trunk이 셀 영역과 겹치는 내측 셀은 branch/neck 생략 (trunk이 직접 접촉)
+ */
+function drawNickelTypeA(cx_col, cy_arr, R, nw, params, fill) {
+  const fc  = fill || NICKEL_FILL;
+  const sw  = NICKEL_SW;
+  const geo = calcTypeAGeometry(cx_col, cy_arr, R, nw, params);
+  const parts = [];
+
+  // ① trunk
+  parts.push(
+    `<rect x="${geo.trunk_x1.toFixed(1)}" y="${(geo.trunk_y - geo.trunk_w / 2).toFixed(1)}"` +
+    ` width="${(geo.trunk_x2 - geo.trunk_x1).toFixed(1)}" height="${geo.trunk_w.toFixed(1)}"` +
+    ` rx="1" fill="${fc}" stroke="${NICKEL_STROKE}" stroke-width="${sw}"/>`
+  );
+
+  // ② branch + ③ fuse neck (셀마다)
+  for (const b of geo.branches) {
+    // trunk edge → cell contact 방향의 이용 가능 공간
+    const trunk_edge   = b.above_trunk
+      ? geo.trunk_y - geo.trunk_w / 2   // trunk 상단
+      : geo.trunk_y + geo.trunk_w / 2;  // trunk 하단
+    const cell_contact = b.above_trunk
+      ? b.cell_y + R   // 셀 하단 (trunk 방향)
+      : b.cell_y - R;  // 셀 상단 (trunk 방향)
+    const available = b.above_trunk
+      ? trunk_edge - cell_contact        // 양수 = 공간 존재
+      : cell_contact - trunk_edge;
+
+    if (available <= 0) continue;  // trunk이 셀 영역 포함 → 직접 접촉, 생략
+
+    const neck_size  = Math.min(b.neck_l, available);
+    const branch_h   = available - neck_size;
+
+    // ③ fuse neck (셀 접점 쪽)
+    const neck_y = b.above_trunk ? cell_contact : cell_contact - neck_size;
+    parts.push(
+      `<rect x="${(b.cell_x - b.neck_w / 2).toFixed(1)}" y="${neck_y.toFixed(1)}"` +
+      ` width="${b.neck_w.toFixed(1)}" height="${neck_size.toFixed(1)}"` +
+      ` rx="0.5" fill="${fc}" stroke="${NICKEL_STROKE}" stroke-width="${sw}"/>`
+    );
+
+    // ② branch body (neck → trunk 사이)
+    if (branch_h > 0.5) {
+      const neck_trunk_end = b.above_trunk ? cell_contact + neck_size : cell_contact - neck_size;
+      const branch_top     = b.above_trunk ? neck_trunk_end : trunk_edge;
+      parts.push(
+        `<rect x="${(b.cell_x - b.branch_w / 2).toFixed(1)}" y="${branch_top.toFixed(1)}"` +
+        ` width="${b.branch_w.toFixed(1)}" height="${branch_h.toFixed(1)}"` +
+        ` fill="${fc}" stroke="${NICKEL_STROKE}" stroke-width="${sw}"/>`
+      );
+    }
+  }
+
+  return parts.join('\n');
+}
+
+/**
+ * S×P Snake 배치 순서 반환 (결론.md: 2열 Snake, centroid 직렬 연결 기준)
+ *   기본 2행: 첫 행 ceil(S/2)개 좌→우, 둘째 행 floor(S/2)개 우→좌
+ *   options.max_rows: 최대 행 수 (기본 2, 공간 제약 시 3 이상 가능)
+ *
+ *   반환: {
+ *     blocks: [{ serial_idx, grid_row, grid_col }],  // 전기 직렬 순서
+ *     rows:   [rowSize, ...],                         // 행별 블록 수
+ *     total:  S,
+ *   }
+ */
+function buildSnakeLayout(S, P, options) {
+  const max_rows = (options && options.max_rows) || 2;
+
+  // S개 블록을 max_rows 행으로 분배 (앞 행이 ceil)
+  const rows = [];
+  let remaining = S;
+  for (let r = 0; r < max_rows && remaining > 0; r++) {
+    const size = Math.ceil(remaining / (max_rows - r));
+    rows.push(size);
+    remaining -= size;
+  }
+
+  // 직렬 순서 → (grid_row, grid_col) 매핑
+  const blocks = [];
+  let serial = 0;
+  for (let rowIdx = 0; rowIdx < rows.length; rowIdx++) {
+    const ltr  = (rowIdx % 2 === 0);  // 짝수 행: 좌→우, 홀수 행: 우→좌
+    const size = rows[rowIdx];
+    for (let pos = 0; pos < size; pos++) {
+      const grid_col = ltr ? pos : (size - 1 - pos);
+      blocks.push({ serial_idx: serial++, grid_row: rowIdx, grid_col });
+    }
+  }
+
+  return { blocks, rows, total: S };
+}
+
 function drawTerminal(cx, cy_center, R, nw, side, label) {
   const tabW  = nw * 1.8, tabH = nw * 0.85, dotR = nw * 0.28, boxW = 38, boxH = 22;
   const isPlus = label === 'B+';
@@ -312,20 +495,53 @@ function drawFace(S, P, face, cx, cy, R, params) {
 
   // ★ 원칙 27: 레이어 순서 = 니켈(최하단) → 셀 → 단자탭(최상단)
   // 니켈 먼저 렌더 — 셀이 니켈 위에 표시되도록
+  const blockInfo = selectBlockType(P);
   if (params.show_nickel) {
-    const pattern = calcNickelPattern(S);
+    const pattern = calcNickelPattern(S, P);
     const nickels = face === 'top' ? pattern.top : pattern.bot;
-    let pi = 0;  // 원칙 26: plate index → 2색 팔레트 교번
-    for (const n of nickels) {
-      const fill = NICKEL_PALETTE[pi % 2].fill;
-      if (n.type === 'I') {
-        const g = n.groups[0];
-        lines.push(drawNickelI(cx[g], cy, R, nw, barH, arr, fill));
-      } else {
-        const gL = n.groups[0], gR = n.groups[1];
-        lines.push(drawNickelU(cx[gL], cx[gR], cy, R, nw, barH, arr, fill));
+
+    if (blockInfo.block_type === 'TypeA' && blockInfo.geometry_ready) {
+      // ── Type-A 모드: 그룹별 독립 TypeA 렌더 + 직렬 bridge ──
+      const drawnGroups = new Set();
+      for (const n of nickels) {
+        // 각 그룹에 TypeA block 1회 렌더
+        for (const g of n.groups) {
+          if (!drawnGroups.has(g)) {
+            lines.push(drawNickelTypeA(cx[g], cy, R, nw, params, NICKEL_FILL));
+            drawnGroups.add(g);
+          }
+        }
+        // U plate → 두 그룹 trunk 사이 직렬 연결 bridge
+        if (n.type === 'U') {
+          const gL = n.groups[0], gR = n.groups[1];
+          const split   = Math.floor(P / 2);
+          const trunk_y = (cy[split - 1] + cy[split]) / 2;
+          const feed_e  = nw * 1.5;
+          const x1      = Math.max(...cx[gL]) + feed_e;
+          const x2      = Math.min(...cx[gR]) - feed_e;
+          if (x2 > x1) {
+            lines.push(
+              `<rect x="${x1.toFixed(1)}" y="${(trunk_y - nw / 2).toFixed(1)}"` +
+              ` width="${(x2 - x1).toFixed(1)}" height="${nw.toFixed(1)}"` +
+              ` fill="${NICKEL_FILL}" stroke="${NICKEL_STROKE}" stroke-width="${NICKEL_SW}"/>`
+            );
+          }
+        }
       }
-      pi++;
+    } else {
+      // ── 기존 I/U dispatch (P≠5, 또는 geometry_ready=false) ──
+      let pi = 0;  // 원칙 26: plate index → 2색 팔레트 교번
+      for (const n of nickels) {
+        const fill = NICKEL_PALETTE[pi % 2].fill;
+        if (n.type === 'I') {
+          const g = n.groups[0];
+          lines.push(drawNickelI(cx[g], cy, R, nw, barH, arr, fill));
+        } else {
+          const gL = n.groups[0], gR = n.groups[1];
+          lines.push(drawNickelU(cx[gL], cx[gR], cy, R, nw, barH, arr, fill));
+        }
+        pi++;
+      }
     }
   }
 
@@ -337,7 +553,7 @@ function drawFace(S, P, face, cx, cy, R, params) {
 
   // 단자탭 (최상단)
   if (params.show_nickel && params.show_terminal) {
-    const pattern = calcNickelPattern(S);
+    const pattern = calcNickelPattern(S, P);
     const nickels = face === 'top' ? pattern.top : pattern.bot;
     for (const n of nickels) {
       if (n.terminal) {
