@@ -1,0 +1,54 @@
+configration 13s5p
+arrangement: 커스텀배열
+custom rows : 8,8,10,13,13,13
+row alignment : Right
+엇배열 : on
+bms position : Top
+
+
+
+
+ gstack 권장 워크플로우 순서
+                                                                                                                                                       1단계 — /office-hours (제일 먼저)                                                                                                                                                                                                                                                                         /office-hours                                                                                                                                                                                                                                                                                           
+  YC 스타일의 제품 질문 회의입니다.
+  "무엇을 만드는가", "왜 만드는가", "핵심 문제가 맞는가"를
+  강한 질문으로 파고들어 방향을 잡습니다.
+  코드를 짜기 전에 먼저 합니다.
+
+  ---
+  2단계 — 계획 검토 (3가지 중 선택)
+
+  /plan-ceo-review      ← CEO 시각: 범위가 맞는가, 더 단순하게 할 수 없는가
+  /plan-eng-review      ← 엔지니어 시각: 아키텍처, 테스트 계획
+  /plan-design-review   ← 디자이너 시각: UX, 화면 흐름
+
+  또는 세 가지를 한 번에:
+  /autoplan             ← CEO → 디자인 → 엔지니어 순서로 자동 실행
+
+  ---
+  3단계 — 구현
+
+  직접 코드 작성합니다. (gstack 스킬 없음)
+
+  ---
+  4단계 — 코드 리뷰
+
+  /review
+  변경된 코드를 시니어 엔지니어 시각으로 검토하고 자동 수정합니다.
+
+  ---
+  5단계 — 테스트
+
+  /qa https://localhost:3000
+  실제 브라우저로 동작을 검증하고 버그를 수정합니다.
+
+  ---
+  6단계 — 배포
+
+  /ship                 ← 테스트 → push → PR 오픈
+  /land-and-deploy      ← PR 머지 → 배포 → 운영 확인까지
+
+  ---
+  한 줄 요약
+
+  /office-hours → /plan-eng-review → 구현 → /review → /qa → /ship
