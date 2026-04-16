@@ -1,0 +1,109 @@
+<svg width="600" height="500" viewBox="0 0 600 500" xmlns="http://www.w3.org/2000/svg" font-family="Arial, sans-serif">
+
+  <rect width="600" height="500" fill="#1a1e2e"/>
+
+  <!-- 제목 -->
+  <text x="300" y="35" fill="#ffffff" font-size="16" font-weight="bold" text-anchor="middle">원칙 3 — ㄷ자 니켈이 어디까지 덮는가?</text>
+
+  <!-- ===================== 위쪽: 셀만 (니켈 없음) ===================== -->
+  <text x="300" y="68" fill="#aaaaaa" font-size="12" text-anchor="middle">① 먼저 셀만 본다 — G1(빨강)과 G2(파랑), 각 3개씩</text>
+
+  <!-- G1 셀 3개 (cx=150) -->
+  <circle cx="150" cy="100" r="32" fill="#ffffff" stroke="#C0392B" stroke-width="3"/>
+  <circle cx="150" cy="100" r="12" fill="#C0392B"/>
+  <circle cx="150" cy="164" r="32" fill="#ffffff" stroke="#C0392B" stroke-width="3"/>
+  <circle cx="150" cy="164" r="12" fill="#C0392B"/>
+  <circle cx="150" cy="228" r="32" fill="#ffffff" stroke="#C0392B" stroke-width="3"/>
+  <circle cx="150" cy="228" r="12" fill="#C0392B"/>
+  <text x="150" y="278" fill="#E07B26" font-size="13" font-weight="bold" text-anchor="middle">G1</text>
+  <text x="150" y="294" fill="#aaaaaa" font-size="11" text-anchor="middle">C1·C2·C3</text>
+
+  <!-- G2 셀 3개 (cx=294) -->
+  <circle cx="294" cy="100" r="32" fill="none" stroke="#333333" stroke-width="3"/>
+  <circle cx="294" cy="100" r="9"  fill="#333333"/>
+  <circle cx="294" cy="164" r="32" fill="none" stroke="#333333" stroke-width="3"/>
+  <circle cx="294" cy="164" r="9"  fill="#333333"/>
+  <circle cx="294" cy="228" r="32" fill="none" stroke="#333333" stroke-width="3"/>
+  <circle cx="294" cy="228" r="9"  fill="#333333"/>
+  <text x="294" y="278" fill="#1A75C0" font-size="13" font-weight="bold" text-anchor="middle">G2</text>
+  <text x="294" y="294" fill="#aaaaaa" font-size="11" text-anchor="middle">C4·C5·C6</text>
+
+  <!-- cx 점선 -->
+  <line x1="150" y1="78" x2="150" y2="68" stroke="#E07B26" stroke-width="1.5" stroke-dasharray="3 3"/>
+  <line x1="294" y1="78" x2="294" y2="68" stroke="#1A75C0" stroke-width="1.5" stroke-dasharray="3 3"/>
+
+  <!-- cx 라벨 -->
+  <text x="150" y="64" fill="#E07B26" font-size="11" text-anchor="middle">cx=150</text>
+  <text x="294" y="64" fill="#1A75C0" font-size="11" text-anchor="middle">cx=294</text>
+
+  <!-- ===================== 구분선 ===================== -->
+  <line x1="30" y1="315" x2="570" y2="315" stroke="#444" stroke-width="1" stroke-dasharray="6 4"/>
+
+  <!-- ===================== 아래쪽: 니켈 포함 ===================== -->
+  <text x="300" y="340" fill="#aaaaaa" font-size="12" text-anchor="middle">② ㄷ자 니켈이 두 그룹을 덮는다 — 어디서 어디까지?</text>
+
+  <!-- nickel_w = 40 가정
+       x_start = cx_left  - nw/2 = 150 - 20 = 130
+       x_end   = cx_right + nw/2 = 294 + 20 = 314 -->
+
+  <!-- ㄷ자 니켈 -->
+  <!-- 좌 세로 -->
+  <rect x="130" y="375" width="40" height="100" fill="#888888" stroke="#555" stroke-width="1"/>
+  <!-- 우 세로 -->
+  <rect x="274" y="375" width="40" height="100" fill="#888888" stroke="#555" stroke-width="1"/>
+  <!-- 상단 가로 브리지 -->
+  <rect x="130" y="355" width="184" height="38" fill="#888888" stroke="#555" stroke-width="1"/>
+  <!-- 중간 브리지 -->
+  <rect x="130" y="413" width="184" height="24" fill="#888888" stroke="#555" stroke-width="1"/>
+  <!-- 하단 브리지 -->
+  <rect x="130" y="455" width="184" height="20" fill="#888888" stroke="#555" stroke-width="1"/>
+
+  <!-- G1 셀 3개 (cx=150) — 니켈 위에 -->
+  <circle cx="150" cy="375" r="28" fill="#ffffff" stroke="#C0392B" stroke-width="3"/>
+  <circle cx="150" cy="375" r="10" fill="#C0392B"/>
+  <circle cx="150" cy="425" r="28" fill="#ffffff" stroke="#C0392B" stroke-width="3"/>
+  <circle cx="150" cy="425" r="10" fill="#C0392B"/>
+  <circle cx="150" cy="475" r="28" fill="#ffffff" stroke="#C0392B" stroke-width="3"/>
+  <circle cx="150" cy="475" r="10" fill="#C0392B"/>
+
+  <!-- G2 셀 3개 (cx=294) — 니켈 위에 -->
+  <circle cx="294" cy="375" r="28" fill="none" stroke="#333333" stroke-width="3"/>
+  <circle cx="294" cy="375" r="8"  fill="#333333"/>
+  <circle cx="294" cy="425" r="28" fill="none" stroke="#333333" stroke-width="3"/>
+  <circle cx="294" cy="425" r="8"  fill="#333333"/>
+  <circle cx="294" cy="475" r="28" fill="none" stroke="#333333" stroke-width="3"/>
+  <circle cx="294" cy="475" r="8"  fill="#333333"/>
+
+  <!-- 폭 치수 표시 -->
+  <!-- x_start=130 ~ cx_left=150: nw/2 -->
+  <line x1="130" y1="345" x2="150" y2="345" stroke="#ffffff" stroke-width="1.5"/>
+  <line x1="130" y1="341" x2="130" y2="349" stroke="#ffffff" stroke-width="1.5"/>
+  <line x1="150" y1="341" x2="150" y2="349" stroke="#ffffff" stroke-width="1.5"/>
+  <text x="140" y="340" fill="#ffffff" font-size="10" text-anchor="middle">nw/2</text>
+
+  <!-- cx_left=150 ~ cx_right=294: pitch -->
+  <line x1="150" y1="345" x2="294" y2="345" stroke="#cccccc" stroke-width="1.5"/>
+  <line x1="294" y1="341" x2="294" y2="349" stroke="#cccccc" stroke-width="1.5"/>
+  <text x="222" y="340" fill="#cccccc" font-size="10" text-anchor="middle">pitch (셀간 거리)</text>
+
+  <!-- cx_right=294 ~ x_end=314: nw/2 -->
+  <line x1="294" y1="345" x2="314" y2="345" stroke="#ffffff" stroke-width="1.5"/>
+  <line x1="314" y1="341" x2="314" y2="349" stroke="#ffffff" stroke-width="1.5"/>
+  <text x="304" y="340" fill="#ffffff" font-size="10" text-anchor="middle">nw/2</text>
+
+  <!-- 전체 폭 화살표 -->
+  <line x1="130" y1="492" x2="314" y2="492" stroke="#27AE60" stroke-width="2"/>
+  <line x1="130" y1="487" x2="130" y2="497" stroke="#27AE60" stroke-width="2"/>
+  <line x1="314" y1="487" x2="314" y2="497" stroke="#27AE60" stroke-width="2"/>
+  <text x="222" y="488" fill="#27AE60" font-size="12" font-weight="bold" text-anchor="middle">전체 폭 = pitch + nickel_w</text>
+
+  <!-- 핵심 설명 -->
+  <rect x="360" y="350" width="210" height="130" rx="6" fill="#0d1117" stroke="#444"/>
+  <text x="465" y="372" fill="#27AE60" font-size="12" font-weight="bold" text-anchor="middle">핵심</text>
+  <text x="370" y="392" fill="#ffffff" font-size="11">니켈의 왼쪽 끝 =</text>
+  <text x="370" y="408" fill="#E07B26" font-size="11">  G1 셀 중심 − 반폭</text>
+  <text x="370" y="428" fill="#ffffff" font-size="11">니켈의 오른쪽 끝 =</text>
+  <text x="370" y="444" fill="#1A75C0" font-size="11">  G2 셀 중심 + 반폭</text>
+  <text x="370" y="466" fill="#aaaaaa" font-size="10">→ 양쪽 셀을 딱 맞게 덮음</text>
+
+</svg>
