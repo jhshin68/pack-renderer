@@ -1,0 +1,62 @@
+========================================
+마지막 업데이트: 2026-04-16 (세션 종료)
+버전: renderer.js v0.3.1+TypeAEngine
+========================================
+
+## 오늘 한 일 (2026-04-16)
+- CLAUDE.md 한글 번역
+- CLAUDE.md에 세션 시작 6단계 루틴 추가
+  (1.위치확인 2.progress읽기 3.feature_list읽기 4.git log 5.init.sh 6.앱테스트)
+- CLAUDE.md에 세션 종료 의무 + 조기종료 방지 규칙 추가
+- claude-progress.txt 신규 생성 (세션 간 진행 관리 체계)
+- feature_list.json 전면 재작성
+  · 기존 15개 → 30개로 확장 (실제 코드 전체 분석 기반)
+  · 완료 22개 / 미완료 8개 정확히 반영
+  · 카테고리별 분류: 셀렌더링/배열/니켈블록/UI/알고리즘/테스트
+
+## 현재 상태
+- 구현 완성도: 22/30 기능 (73%)
+- 핵심 기능(TypeA P=5 닫힌 사다리, 정/엇/커스텀 배열, BMS, 비용모델) 전부 동작
+- 미완료 8개는 전부 feature_list.json에 passes:false로 기록됨
+
+완료 기능 요약:
+  F01-F02: 셀 렌더링 (18650/21700, +/- 심볼)
+  F03-F07: 배열 레이아웃 (정/엇/커스텀, 정렬, 엇배열방향)
+  F08-F10: 니켈 블록 (I형, U형, TypeA)
+  F15-F17: 단자 & 패턴 (B+/B-, 플레이트 병합, 직렬브리지)
+  F18-F20, F22-F23: UI (면필터, BMS마커, BMS거리, 비용모델, SVG다운로드)
+  F25-F28: 알고리즘 (SFMT, ICC, 엠보, 스네이크레이아웃)
+
+미완료 기능 (feature_list.json F11,F12,F13,F14,F21,F24,F29,F30):
+  F11: P=3 Compact-H 니켈 블록 (geometry spec 미확정)
+  F12: P=6 Extended 니켈 블록 (geometry spec 미확정)
+  F13: P=7이상 대형팩 블록 타입 정의
+  F14: renderer.js rows[] 파라미터 직접 지원 (현재 app.js 우회)
+  F21: 커스텀 배열 BMS 거리 계산 (현재 '—' 표시)
+  F24: PNG 내보내기 (현재 SVG만 가능)
+  F29: 전 S×P 조합 회귀 테스트 자동화
+  F30: TypeA 엣지케이스 검증 (S=2,3 초소형 / 엇배열 TypeA)
+
+## 다음 세션에서 할 일 (우선순위 순)
+
+[1순위] F11 — P=3 Compact-H 니켈 블록
+  · 결론.md 수준 형상 스펙 먼저 확정
+  · drawNickelCompactH() 구현
+  · selectBlockType(3): geometry_ready → true로 변경
+
+[2순위] F12 — P=6 Extended 니켈 블록
+  · F11 완료 후 동일 패턴으로 진행
+
+[3순위] F14 — renderer.js rows[] 직접 지원
+  · render() 함수 rows=[] 파라미터 추가
+  · 완료 시 app.js renderCustomLayout() 제거
+
+[4순위] F21 → F24 → F29/F30 순으로 진행
+
+## 작업 팁
+- 니켈 PNG는 반드시 png/ 서브폴더에 저장
+- renderer.js 수정 후 상단 버전 이력 주석 업데이트 필수
+- P=3,6 geometry 확정 전 하드코딩 금지
+- S×P 범용 설계 원칙 — 특정 조합 하드코딩 금지
+
+========================================
