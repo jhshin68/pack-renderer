@@ -1,8 +1,9 @@
 ========================================
-마지막 업데이트: 2026-04-17 (세션 12 — 개발 규율 2종 추가 / Superpowers 부분 채택)
+마지막 업데이트: 2026-04-17 (세션 13 — S15B enumerateCongruentPairs 실구현)
 버전: battery_pack_renderer.html v0.2.25 / renderer.js v0.3.1+TypeAEngine / generator.js v7-M7
 원칙 문서: v7.1 (원칙 4·17 B+/B-·홀더 Level 계층 추가, 원칙 15 Step C' 삽입)
 개발 규율: skills/tdd-first.md + skills/systematic-debug.md (커밋 522840b)
+테스트 상태: 178/178 PASS (test_s15b.js +12 신규)
 ========================================
 
 ## 🚨 새 세션 시작 시 반드시 이 순서로
@@ -13,31 +14,59 @@
    - `skills/systematic-debug.md` (5단계 디버깅 + "3회 같은 의도 수정 시 중단" 규칙)
 3. 작업 종류별 필독 파일(`nickel_plate_principles.md` / `nickel-plate-design.md` / `nickel_render_rules.md`)도 기존대로 유지.
 
-## 🎯 다음 세션 최우선 작업 — S15B `enumerateCongruentPairs`
+## 🎯 다음 세션 최우선 작업 — S15D `minimizeShapeCount`
 
-TDD-first 방식으로 진행. 구현 전 반드시 테스트부터.
+TDD-first. 구현 전 반드시 테스트부터.
 
 **진행 순서 (엄수)**
 1. `skills/tdd-first.md` 재독.
-2. `skills/nickel-plate-design.md` LAYER 3 원칙 15·22 재독 (회전 대칭 하 그룹 쌍 열거 맥락).
-3. `tests/test_s15b.js` 새로 생성:
-   - 케이스 A: square 3×3 + C4 대칭, 그룹 수 2 → 기대 쌍 목록
-   - 케이스 B: staggered 6개 셀 + C2 대칭, 그룹 수 3 → 기대 쌍 목록
-   - 케이스 C: custom 비대칭 → 빈 배열 반환
-   - 케이스 D: 단일 그룹 → 빈 배열 반환
-4. `node tests/test_s15b.js` 실행 → **FAIL 확인** (ReferenceError 허용).
-5. `src/generator.js`에 `enumerateCongruentPairs(ctx)` 실구현.
-   - 입력: S15A의 symmetryGroup 결과 + cells + group 배정
-   - 출력: `[{groupA, groupB, rotation}]` 형태
-6. `node tests/test_s15b.js` PASS → 기존 전체 테스트(test_generator_stub.js, test_m7_core.js 등) 전부 재실행해 회귀 없음 확인.
-7. 완료 후 `state/feature_list.json`·`claude-progress.txt` 업데이트 + 커밋.
+2. `skills/nickel-plate-design.md` LAYER 3 원칙 15 Step D + 원칙 12 (캐노니컬 서명) 재독.
+3. `tests/test_s15d.js` 새로 생성:
+   - 케이스 A: 동일 형상 5그룹 → m_distinct_min === 1
+   - 케이스 B: I형 vs 2×2 컴팩트 혼재 → m_distinct_min === 2
+   - 케이스 C: 빈 후보 배열 → m_distinct_min === null
+   - 케이스 D: 회전 합동 그룹(canonicalSig 동일) → 동일 종으로 축약
+4. `node tests/test_s15d.js` 실행 → **FAIL 확인**.
+5. `src/generator.js`의 `minimizeShapeCount(candidates)` 실구현.
+   - 기존 함수 `canonicalSig`(회전 대칭 하 캐노니컬 서명) 재활용.
+   - 각 후보 타일링의 그룹별 shape signature 집합 → 유니크 개수 계산.
+   - 최소값 가진 후보를 `optimal_tilings`에 수록.
+6. 전체 회귀 테스트 실행.
+7. 완료 후 state + 커밋.
 
 **이후 M7 잔여 순서**
-- S15D `minimizeShapeCount` (ICC 통과 후보군 내 m_distinct 최소 탐색)
 - S18 `buildStrokeGraph` (adjacency spanning tree + svg_elements 생성)
 - S23 `buildHexCluster` (hex 6방향 spanning tree)
 
 각각 동일한 TDD 절차 반복.
+
+## 세션 13 메모 (2026-04-17 — S15B 실구현)
+
+### 작업 결과
+- `tests/test_s15b.js` 신규 (6블록 12 assertion)
+  · Case A: C2 대칭 2그룹 (2×2 가로 분할) → 1쌍
+  · Case B: C4 대칭 4 단일셀 (2×2 모서리) → 6쌍 전부
+  · Case C: symmetry_order=1 → 빈 배열
+  · Case D: 단일 그룹 → 빈 배열
+  · Case E: C2 대칭 1×3 (중앙 self-map) → 1쌍 (0,2)
+  · Case F: stub 플래그 제거 확인
+- `src/generator.js` `enumerateCongruentPairs` 실구현
+  · 회전 공차: `estimatePitch(전체 셀) × 0.15` (S15A와 동일)
+  · 알고리즘: 모든 쌍 (i<j)에 대해 c=1..k-1 순회, Gi를 c·(2π/k) 회전 후 Gj와 집합 일치 검사
+  · 최소 c로 정규화 기록
+  · ptsA.length ≠ ptsB.length 시 조기 skip
+  · 헬퍼 `_isSetRotationMatch` 추가 (used 플래그로 중복 매칭 방지)
+
+### RED → GREEN 흐름 준수
+- RED: 5 FAIL 확인 후 구현 진입
+- GREEN: 12/12 PASS
+- 회귀: test_custom_render / test_f14_custom_rows / test_generator_stub / test_m7_core / test_validator_stub 전부 PASS
+- 총 178/178 PASS
+
+### 변경 파일
+- `tests/test_s15b.js` (신규)
+- `src/generator.js` (S15B stub 교체 + `_isSetRotationMatch` 헬퍼 추가)
+- `state/claude-progress.txt` (이 파일)
 
 ## 세션 12 메모 (2026-04-17 — 개발 규율 도입)
 

@@ -607,9 +607,91 @@
   }
 
   // ─── S15B 합동 쌍 열거 ─────────────────────────
+  /**
+   * 원칙 15 Step B — 회전 대칭 하에서 서로 매핑되는 그룹 쌍(Gi ↔ Gj) 열거.
+   *   합동 쌍은 동일 플레이트 형상을 공유할 후보이므로 SFMT Step C/D의 탐색 공간을 정의한다.
+   *
+   * 알고리즘:
+   *   symmetry_order = k 일 때, 각 쌍 (i, j) (i < j)에 대해
+   *   c ∈ {1, ..., k-1}을 순회하며 Gi의 셀 집합을 c·(2π/k)만큼 회전했을 때
+   *   Gj의 셀 집합과 (pitch×0.15 공차 내) 완전 일치하는 최소 c를 찾는다.
+   *
+   * 공차: `estimatePitch(전체 셀) × 0.15` (S15A와 동일 정책)
+   *
+   * ctx.groups: [{ index, cells }]
+   * symmetry: detectSymmetryGroup 결과 { symmetry_order, rotation_center }
+   *
+   * 반환: { congruent_pairs: [{ groupA, groupB, rotation }] }
+   *   - groupA < groupB (정규화)
+   *   - rotation: 1..k-1 중 일치하는 최소값
+   */
   function enumerateCongruentPairs(ctx, symmetry) {
-    // TODO M7: 회전 대칭 하에서 매핑되는 그룹 쌍 열거
-    return { congruent_pairs: [], stub: 'S15B' };
+    const pairs = [];
+    const groups = (ctx && ctx.groups) || [];
+    const k = (symmetry && symmetry.symmetry_order) || 1;
+
+    if (k <= 1 || groups.length < 2) {
+      return { congruent_pairs: pairs };
+    }
+
+    // 공차용 pitch: 전체 셀 기준
+    const allCells = groups.flatMap(g => g.cells || []);
+    if (allCells.length === 0) return { congruent_pairs: pairs };
+    const pitch = estimatePitch(allCells);
+    const tol = Math.max(pitch * 0.15, 1);
+    const tol2 = tol * tol;
+
+    // rotation_center 결정 (symmetry 제공 없으면 전체 셀 무게중심)
+    let center = symmetry && symmetry.rotation_center;
+    if (!center) {
+      const pts = allCells.map(_pt);
+      center = {
+        x: pts.reduce((s, p) => s + p.x, 0) / pts.length,
+        y: pts.reduce((s, p) => s + p.y, 0) / pts.length,
+      };
+    }
+
+    for (let i = 0; i < groups.length; i++) {
+      for (let j = i + 1; j < groups.length; j++) {
+        const ptsA = (groups[i].cells || []).map(_pt);
+        const ptsB = (groups[j].cells || []).map(_pt);
+        if (ptsA.length === 0 || ptsA.length !== ptsB.length) continue;
+
+        for (let c = 1; c < k; c++) {
+          if (_isSetRotationMatch(ptsA, ptsB, center, c, k, tol2)) {
+            pairs.push({ groupA: i, groupB: j, rotation: c });
+            break; // 최소 c로 기록 후 다음 쌍
+          }
+        }
+      }
+    }
+
+    return { congruent_pairs: pairs };
+  }
+
+  /**
+   * ptsA를 중심(center) 기준 c·(2π/k) 회전한 점 집합이
+   * ptsB와 (tol² 공차 내) 완전 일치하는지 검사.
+   * 집합 비교이므로 순서 무관. ptsA.length === ptsB.length 전제.
+   */
+  function _isSetRotationMatch(ptsA, ptsB, center, c, k, tol2) {
+    const a = c * 2 * Math.PI / k;
+    const cos = Math.cos(a), sin = Math.sin(a);
+    const used = new Array(ptsB.length).fill(false);
+    for (const p of ptsA) {
+      const dx = p.x - center.x, dy = p.y - center.y;
+      const rx = center.x + cos * dx - sin * dy;
+      const ry = center.y + sin * dx + cos * dy;
+      let matched = -1;
+      for (let m = 0; m < ptsB.length; m++) {
+        if (used[m]) continue;
+        const ex = ptsB[m].x - rx, ey = ptsB[m].y - ry;
+        if (ex * ex + ey * ey <= tol2) { matched = m; break; }
+      }
+      if (matched < 0) return false;
+      used[matched] = true;
+    }
+    return true;
   }
 
   // ─── S15C 쌍-우선 구성 (ICC 하드 제약) ─────────────────────────
@@ -1255,7 +1337,7 @@
     // design_spec entry_fns (M7 실구현 3종 + 잔여 스텁)
     assignGroupNumbers,       // S24 ✅ 실구현
     detectSymmetryGroup,      // S15A 실구현 (M7 세션 11)
-    enumerateCongruentPairs,  // S15B 스텁 유지
+    enumerateCongruentPairs,  // S15B 실구현 (M7 세션 13)
     buildPairFirst,           // S15C ✅ ICC 체크 실구현
     minimizeShapeCount,       // S15D 스텁 유지
     sfmtSearch,               // S15 파이프라인
