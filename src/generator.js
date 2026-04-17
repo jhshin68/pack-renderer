@@ -128,17 +128,15 @@
     top.push({ type: 'I', block_type: btype, groups: [0], isTerminal: true, terminal: 'B+' });
     for (let g = 1; g < S - 1; g += 2)
       top.push({ type: 'U', block_type: btype, groups: [g, g + 1], isTerminal: false, terminal: null });
+    // 원칙 14 ④항: S 짝수 → B- 는 상면 G_{S-1} 단독 I형에 위치
     if (S % 2 === 0)
-      top.push({ type: 'I', block_type: btype, groups: [S - 1], isTerminal: false, terminal: null });
+      top.push({ type: 'I', block_type: btype, groups: [S - 1], isTerminal: true, terminal: 'B-' });
 
     for (let g = 0; g < S - 1; g += 2)
       bot.push({ type: 'U', block_type: btype, groups: [g, g + 1], isTerminal: false, terminal: null });
+    // 원칙 14 ④항: S 홀수 → B- 는 하면 G_{S-1} 단독 I형에 위치
     if (S % 2 !== 0)
       bot.push({ type: 'I', block_type: btype, groups: [S - 1], isTerminal: true, terminal: 'B-' });
-    else if (bot.length > 0) {
-      bot[bot.length - 1].isTerminal = true;
-      bot[bot.length - 1].terminal   = 'B-';
-    }
     return { top, bot };
   }
 

@@ -104,10 +104,14 @@ function makeGrid(S, P, pitch = 100) {
       assert(`D-S${S}: B- 플레이트는 G_{S-1}(${S-1}) 포함`,
         bMinus.groups.includes(S - 1));
     }
-    // D-면-배치: SKIP — 원칙 14 ④항 ↔ calcNickelPattern 불일치 조사 필요
-    //   원칙: "S짝수 → 상면 G_{S-1}" / 구현: "S짝수 → 하면 [G_{S-2}∪G_{S-1}]"
-    //   S홀수는 양쪽 일치. state/verification_matrix.md 갭 #1 참조.
-    //   본 assertion은 갭 조사·결정 후 복원하거나 박제로 전환한다.
+    // 원칙 14 ④항: S홀수 → 하면, S짝수 → 상면
+    // 갭 #1 H2(구현 버그) 확정 후 복원 (커밋 참조)
+    if (bMinus) {
+      const inTop = pat.top.includes(bMinus);
+      const expectedTop = (S % 2 === 0);
+      assert(`D-S${S}: B- 면 배치 — S${S%2===0?'짝수':'홀수'} → ${expectedTop?'상':'하'}면`,
+        inTop === expectedTop, `inTop=${inTop}, expected=${expectedTop}`);
+    }
   }
 }
 

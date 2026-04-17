@@ -206,19 +206,20 @@
 
 ## 발견된 갭 (Phase 3 진행 중 축적)
 
-### 갭 #1 — 원칙 14 ④항 ↔ `calcNickelPattern` B- 면 배치 불일치
+### 갭 #1 — 원칙 14 ④항 ↔ `calcNickelPattern` B- 면 배치 불일치 **✅ 해결**
 - **발견 시점**: 세션 13.5, Tier 1 #3 P26 테스트 작성 중 (2026-04-17)
-- **원칙 문서 (nickel_plate_principles.md 원칙 14 ④항)**: "B−: S짝수 → 상면 G_{S-1} / S홀수 → 하면 G_{S-1}"
-- **현재 구현 (generator.js calcNickelPattern:123)**:
-  - S 짝수 → 하면 `[G_{S-2}∪G_{S-1}]`에 `terminal='B-'` 설정
-  - S 홀수 → 하면 `[G_{S-1}]`에 `terminal='B-'` 설정
-- **S 홀수는 원칙·구현 일치**, **S 짝수만 불일치**
-- **조치**: `tests/test_p26_series_path.js`에서 D-면-배치 assertion 2건 SKIP 처리 (코드 주석으로 박제)
-- **조사 필요**:
-  1. 원칙 문서 변경 이력 (v3~v4 추가 여부) — git log로 확인
-  2. 실제 S 짝수 제품 사례에서 B- 실물 위치
-  3. 전기적 타당성: S짝수 B+·B- 모두 상면일 때 배선 U턴 부담
-- **판정 후 선택지**:
-  - (a) 구현 수정: `calcNickelPattern` 및 연쇄 (`drawFace` B- 렌더 좌표, test_m7_core 일부)
-  - (b) 원칙 문서 수정: 원칙 14 ④항을 현 구현 행위에 맞춰 재작성
-- **영향 기능**: F15 (B+/B- 단자탭), F16 (상·하면 병합 패턴), F17 (직렬 브리지)
+- **진단**: systematic-debug.md 5단계 프로토콜 적용. git log로 타임라인 복원:
+  1. `ae17e8f` Initial commit (2026-04-15) — app.js `bMinusOnTop = (S%2===0)` 로직: **원칙 14 ④항과 일치**
+  2. `3ae76a8` (2026-04-16) — 원칙 문서 최초 생성, ④항 "S짝수 → 상면 G_{S-1}" 기존 동작 그대로 문서화
+  3. `3f866ec` M4+M5 재구조화 (2026-04-17) — `calcNickelPattern` 함수 신규 도입 시 **로직 오역**: S짝수 시 상면에 `[G_{S-1}]` 단독 I형을 만들지만 `terminal:null`, 대신 하면 마지막 U 플레이트에 `terminal:'B-'` 잘못 할당
+- **결론**: H2 가설(구현 버그) 확정. 원칙 문서가 맞고 구현이 틀렸다.
+- **수정**: `src/generator.js calcNickelPattern:123-139`
+  - S 짝수: 상면 `[G_{S-1}]` 단독 I형에 `isTerminal:true, terminal:'B-'` 할당
+  - S 짝수 하면 마지막 U 플레이트의 `terminal` 재할당 제거 (원래 null로)
+  - 코드 단순화 효과: `else if (bot.length > 0) {...}` 분기 제거
+- **복원된 테스트**: `tests/test_p26_series_path.js` D-S2, D-S8 `B- 면 배치` assertion 2건 → 추가 3건(S=3, S=5, S=13) 함께 실행되며 전부 PASS
+- **연쇄 영향 (0건)**:
+  - `drawFace`는 `n.terminal === 'B-'` 기준으로만 렌더 → calcNickelPattern 교체로 자동 올바른 면에 출력
+  - 기존 `test_m7_core.js` 등 다른 테스트 회귀 0 (전체 381 → 386 PASS)
+  - app.js `pat.bot.find(n => n.terminal === 'B-') || pat.top.find(...)` 양쪽 탐색 패턴 → 자동 적응
+- **잔존 확인 작업**: **브라우저 시각 검증** — S=2/4/6/8 케이스에서 B- 라벨이 상면에 올바르게 찍히는지 실 브라우저 확인 필요 (자동 테스트 범위 밖)

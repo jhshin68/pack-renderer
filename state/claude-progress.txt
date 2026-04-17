@@ -40,7 +40,18 @@ TDD-first. 구현 전 반드시 테스트부터.
 
 각각 동일한 TDD 절차 반복.
 
-## 세션 13.5 진행 상황 (2026-04-17 — Tier 2b 완료, Tier 2c 대기)
+## 세션 13.5 진행 상황 (2026-04-17 — Tier 2b 완료 + 갭 #1 해결)
+
+### 갭 #1 해결 (원칙 14 ④항 B- 면 배치)
+- systematic-debug.md 5단계 적용: git log로 M4+M5(3f866ec) 커밋이 버그 도입 시점 확정
+- H2(구현 버그) 확정 — 원래 Initial commit(ae17e8f) app.js는 원칙 ④항 준수, M4 재구조화 시 오역
+- 수정: calcNickelPattern에서 S짝수 시 상면 [G_{S-1}]에 terminal:'B-' 할당, 하면 U 플레이트의 잘못된 재할당 제거
+- test_p26_series_path.js SKIP 2건 복원 + S=3/5/13 자동 실행으로 +5 assertion
+- 전체 386/386 PASS
+- 브라우저 시각 검증(S=2/4/6/8 B- 라벨) 잔존 작업
+- 효과: P14 checkFaceMerging (Tier 2c) 구현 제약 1건 해소됨
+
+
 
 ### Tier 2a 완료
 - validator.js 7 check 실구현: P01·P04·P06·P08·P09·P17·P21
