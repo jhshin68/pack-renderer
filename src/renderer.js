@@ -841,17 +841,31 @@ function render(userParams = {}) {
   const faceW = maxCx + R + margin + nw * 2;
   const faceH = cy[P - 1] + R + margin;
 
+  const faceFilter = params.face || 'all';
+  const showTop    = faceFilter !== 'bottom';
+  const showBot    = faceFilter !== 'top';
+  const bothFaces  = showTop && showBot;
+
   let svgW, svgH, topDY, botDY, botDX = 0;
   if (layout === 'side_by_side') {
-    svgW  = faceW * 2 + params.gap_section;
+    if (bothFaces) {
+      svgW  = faceW * 2 + params.gap_section;
+      botDX = faceW + params.gap_section;
+    } else {
+      svgW  = faceW + nw * 2 + 20;
+    }
     svgH  = faceH + 40;
     topDY = botDY = 30;
-    botDX = faceW + params.gap_section;
   } else {
     svgW  = faceW + nw * 2 + 60;
-    svgH  = faceH * 2 + params.gap_section + 60;
+    if (bothFaces) {
+      svgH  = faceH * 2 + params.gap_section + 60;
+      botDY = faceH + params.gap_section + 30;
+    } else {
+      svgH  = faceH + 60;
+      botDY = 30;
+    }
     topDY = 30;
-    botDY = faceH + params.gap_section + 30;
   }
 
   const ln = [];
@@ -859,24 +873,33 @@ function render(userParams = {}) {
   ln.push(`<title>${S}S${P}P 배터리팩 조합도 (${params.arrangement})</title>`);
   ln.push(`<desc>${params.cell_type} ${S}S${P}P, ${S*P}셀, ${params.arrangement}, 이론 v0.3</desc>`);
 
-  if (layout === 'side_by_side') {
-    const divX = faceW + params.gap_section / 2;
-    ln.push(`<line x1="${divX}" y1="10" x2="${divX}" y2="${svgH-10}" stroke="#cccccc" stroke-width="1" stroke-dasharray="4 3"/>`);
-    ln.push(`<text font-family="Arial" font-size="12" fill="#5F5E5A" text-anchor="middle" x="${faceW/2}" y="20">top face</text>`);
-    ln.push(`<text font-family="Arial" font-size="12" fill="#5F5E5A" text-anchor="middle" x="${faceW+params.gap_section+faceW/2}" y="20">bottom face</text>`);
+  if (bothFaces) {
+    if (layout === 'side_by_side') {
+      const divX = faceW + params.gap_section / 2;
+      ln.push(`<line x1="${divX}" y1="10" x2="${divX}" y2="${svgH-10}" stroke="#cccccc" stroke-width="1" stroke-dasharray="4 3"/>`);
+      ln.push(`<text font-family="Arial" font-size="12" fill="#5F5E5A" text-anchor="middle" x="${faceW/2}" y="20">top face</text>`);
+      ln.push(`<text font-family="Arial" font-size="12" fill="#5F5E5A" text-anchor="middle" x="${faceW+params.gap_section+faceW/2}" y="20">bottom face</text>`);
+    } else {
+      const divY = faceH + topDY + params.gap_section / 2 - 5;
+      ln.push(`<line x1="20" y1="${divY}" x2="${svgW-20}" y2="${divY}" stroke="#cccccc" stroke-width="1" stroke-dasharray="4 3"/>`);
+      ln.push(`<text font-family="Arial" font-size="12" fill="#5F5E5A" text-anchor="middle" x="${svgW/2}" y="18">top face</text>`);
+      ln.push(`<text font-family="Arial" font-size="12" fill="#5F5E5A" text-anchor="middle" x="${svgW/2}" y="${faceH+topDY+params.gap_section/2+12}">bottom face</text>`);
+    }
   } else {
-    const divY = faceH + topDY + params.gap_section / 2 - 5;
-    ln.push(`<line x1="20" y1="${divY}" x2="${svgW-20}" y2="${divY}" stroke="#cccccc" stroke-width="1" stroke-dasharray="4 3"/>`);
-    ln.push(`<text font-family="Arial" font-size="12" fill="#5F5E5A" text-anchor="middle" x="${svgW/2}" y="18">top face</text>`);
-    ln.push(`<text font-family="Arial" font-size="12" fill="#5F5E5A" text-anchor="middle" x="${svgW/2}" y="${faceH+topDY+params.gap_section/2+12}">bottom face</text>`);
+    const label = showTop ? 'top face' : 'bottom face';
+    ln.push(`<text font-family="Arial" font-size="12" fill="#5F5E5A" text-anchor="middle" x="${svgW/2}" y="18">${label}</text>`);
   }
 
-  ln.push(`<g transform="translate(0, ${topDY})">`);
-  ln.push(drawFace(S, P, 'top', cx, cy, R, params));
-  ln.push('</g>');
-  ln.push(`<g transform="translate(${botDX}, ${botDY})">`);
-  ln.push(drawFace(S, P, 'bottom', cx, cy, R, params));
-  ln.push('</g>');
+  if (showTop) {
+    ln.push(`<g transform="translate(0, ${topDY})">`);
+    ln.push(drawFace(S, P, 'top', cx, cy, R, params));
+    ln.push('</g>');
+  }
+  if (showBot) {
+    ln.push(`<g transform="translate(${botDX}, ${botDY})">`);
+    ln.push(drawFace(S, P, 'bottom', cx, cy, R, params));
+    ln.push('</g>');
+  }
 
   const legY = svgH - 28;
   ln.push(`<circle cx="30" cy="${legY}" r="8" fill="#FFFFFF" stroke="#C0392B" stroke-width="1.4"/><circle cx="30" cy="${legY}" r="2.8" fill="#C0392B"/><text font-family="Arial" font-size="10" fill="#5F5E5A" x="44" y="${legY+4}">+ face</text>`);
