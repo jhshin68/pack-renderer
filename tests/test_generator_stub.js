@@ -119,9 +119,35 @@ const r24 = Generator.assignGroupNumbers(dummyCtx);
 assert(Array.isArray(r24.groups), 'S24 returns groups array');
 assert(r24.groups.length === 13, `S24: groups.length === S (13), actual: ${r24.groups.length}`);
 
-// S15A
+// S15A (M7 실구현)
 const r15a = Generator.detectSymmetryGroup(dummyCtx);
 assert(typeof r15a.symmetry_order === 'number', 'S15A: symmetry_order is number');
+
+// S15A 추가: 3x3 square → C4
+const sq33 = [];
+for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) sq33.push({ x: c * 10, y: r * 10 });
+const s33 = Generator.detectSymmetryGroup({ arrangement: 'square', cells: sq33 });
+assert(s33.symmetry_order === 4, `S15A 3x3 square: C4 (got ${s33.symmetry_order})`);
+
+// S15A 추가: 4x2 square (비정사각) → C2
+const sq42 = [];
+for (let r = 0; r < 2; r++) for (let c = 0; c < 4; c++) sq42.push({ x: c * 10, y: r * 10 });
+const s42 = Generator.detectSymmetryGroup({ arrangement: 'square', cells: sq42 });
+assert(s42.symmetry_order === 2, `S15A 4x2 square: C2 (got ${s42.symmetry_order})`);
+
+// S15A 추가: hex 7 (center + 6) → C6
+const hex7 = [{ x: 0, y: 0 }];
+for (let i = 0; i < 6; i++) {
+  const a = (i * Math.PI) / 3;
+  hex7.push({ x: 10 * Math.cos(a), y: 10 * Math.sin(a) });
+}
+const sHex = Generator.detectSymmetryGroup({ arrangement: 'staggered', cells: hex7 });
+assert(sHex.symmetry_order === 6, `S15A hex7: C6 (got ${sHex.symmetry_order})`);
+
+// S15A 추가: 비대칭 → order 1
+const asym = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 5, y: 10 }, { x: 100, y: 100 }];
+const sAsym = Generator.detectSymmetryGroup({ arrangement: 'custom', cells: asym });
+assert(sAsym.symmetry_order === 1, `S15A asym: order 1 (got ${sAsym.symmetry_order})`);
 
 // S15B
 const r15b = Generator.enumerateCongruentPairs(dummyCtx, r15a);

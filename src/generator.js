@@ -534,15 +534,76 @@
   }
 
   // ─── S15A 대칭군 탐지 ──────────────────────────
+  /**
+   * 원칙 15 Step A — 팩 대칭군 탐지 (회전 대칭만)
+   *   반사 대칭은 원칙 21에 의해 엠보 불가역으로 별개 형상 → 여기서는 제외.
+   *   회전 대칭만 공유 형상 도출에 유효 (원칙 12).
+   *
+   * branches:
+   *   square:    [C4(90°), C2(180°)]
+   *   staggered: [C6(60°), C3(120°), C2(180°)]
+   *   custom:    [C6, C4, C3, C2] 중 무게중심 기준 최대 차수
+   *
+   * tolerance: pitch × 0.15 (제조 공차 여유)
+   *
+   * ctx.cells: [{x,y}|{cx,cy}] — 전체 셀 좌표 (없으면 ctx.groups에서 flatten)
+   * ctx.arrangement: 'square'|'staggered'|'custom'
+   */
   function detectSymmetryGroup(ctx) {
-    // TODO M7: rows[] 무게중심 회전 일치 탐색
     const arrangement = (ctx && ctx.arrangement) || 'square';
-    const defaults = {
-      square:    { symmetry_order: 2, rotation_center: null },
-      staggered: { symmetry_order: 2, rotation_center: null },
-      custom:    { symmetry_order: 1, rotation_center: null },
-    };
-    return { ...defaults[arrangement] || defaults.custom, stub: 'S15A' };
+    const cells = (ctx && ctx.cells && ctx.cells.length)
+      ? ctx.cells
+      : (ctx && ctx.groups ? ctx.groups.flatMap(g => g.cells || []) : []);
+
+    if (cells.length === 0) {
+      return { symmetry_order: 1, rotation_center: null };
+    }
+
+    // 무게중심 계산
+    const pts = cells.map(_pt);
+    const cx = pts.reduce((s, p) => s + p.x, 0) / pts.length;
+    const cy = pts.reduce((s, p) => s + p.y, 0) / pts.length;
+    const center = { x: cx, y: cy };
+
+    // 배열별 후보 차수 (높은 차수 먼저 시도)
+    const candidates = ({
+      square:    [4, 2],
+      staggered: [6, 3, 2],
+      custom:    [6, 4, 3, 2],
+    })[arrangement] || [2];
+
+    // 공차: pitch × 0.15 (최소 1)
+    const pitch = estimatePitch(cells);
+    const tol = Math.max(pitch * 0.15, 1);
+
+    for (const k of candidates) {
+      if (_isRotationSymmetric(pts, center, k, tol)) {
+        return { symmetry_order: k, rotation_center: center };
+      }
+    }
+    return { symmetry_order: 1, rotation_center: center };
+  }
+
+  /**
+   * 점 집합이 중심(c) 기준 2π/k 회전에 대해 닫혀 있는지 검사.
+   * 각 점 p 회전 후 p' 가 pts 내 어떤 점과 tol 이내에 매칭되면 OK.
+   */
+  function _isRotationSymmetric(pts, c, k, tol) {
+    const a = 2 * Math.PI / k;
+    const cos = Math.cos(a), sin = Math.sin(a);
+    const tol2 = tol * tol;
+    for (const p of pts) {
+      const dx = p.x - c.x, dy = p.y - c.y;
+      const rx = c.x + cos * dx - sin * dy;
+      const ry = c.y + sin * dx + cos * dy;
+      let matched = false;
+      for (const q of pts) {
+        const ex = q.x - rx, ey = q.y - ry;
+        if (ex * ex + ey * ey <= tol2) { matched = true; break; }
+      }
+      if (!matched) return false;
+    }
+    return true;
   }
 
   // ─── S15B 합동 쌍 열거 ─────────────────────────
@@ -1193,7 +1254,7 @@
     checkGroupValidity,
     // design_spec entry_fns (M7 실구현 3종 + 잔여 스텁)
     assignGroupNumbers,       // S24 ✅ 실구현
-    detectSymmetryGroup,      // S15A 스텁 유지
+    detectSymmetryGroup,      // S15A 실구현 (M7 세션 11)
     enumerateCongruentPairs,  // S15B 스텁 유지
     buildPairFirst,           // S15C ✅ ICC 체크 실구현
     minimizeShapeCount,       // S15D 스텁 유지
