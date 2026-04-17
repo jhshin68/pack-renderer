@@ -55,7 +55,7 @@ body {
 /* ── APP SHELL ──────────────────────────────── */
 .app {
   display: grid;
-  grid-template-columns: 260px 1fr;
+  grid-template-columns: 260px 1fr 280px;
   height: 100vh;
   overflow: hidden;
 }
@@ -279,7 +279,7 @@ body {
   border-radius: 8px;
   padding: 20px;
   box-shadow: 0 1px 6px rgba(0,0,0,.06), 0 4px 20px rgba(0,0,0,.04);
-  max-width: calc(100vw - 260px - 56px);
+  max-width: calc(100vw - 260px - 280px - 56px);
 }
 .svg-container svg { display: block; max-width: 100%; height: auto; }
 
@@ -287,7 +287,7 @@ body {
 .empty {
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
-  width: calc(100vw - 260px - 56px);
+  width: calc(100vw - 260px - 280px - 56px);
   height: calc(100vh - 44px - 56px);
   gap: 12px; color: var(--lt3);
 }
@@ -302,6 +302,70 @@ body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border-l); border-radius: 2px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--lt3); }
+
+/* ── RIGHT PANEL ──────────────────────────────── */
+.right-panel {
+  background: var(--sb);
+  border-left: 1px solid var(--sb-bdr);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+.rp-header {
+  padding: 14px 14px 10px;
+  border-bottom: 1px solid var(--sb-bdr);
+  display: flex; align-items: center; justify-content: space-between;
+  flex-shrink: 0;
+}
+.rp-title {
+  font-size: 11px; font-weight: 600; color: var(--dt); letter-spacing: .3px;
+}
+.rp-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px; color: var(--dt3);
+  background: var(--sb2); border: 1px solid var(--sb-bdr);
+  border-radius: 10px; padding: 1px 7px;
+}
+.rp-body {
+  padding: 10px 12px;
+  display: flex; flex-direction: column; gap: 10px;
+  flex: 1; overflow-y: auto;
+  scrollbar-width: thin; scrollbar-color: var(--sb-bdr) transparent;
+}
+.rp-divider { height: 1px; background: var(--sb-bdr); margin: 2px 0; flex-shrink: 0; }
+
+/* Candidate cards */
+.cand-card {
+  background: var(--sb2); border: 1px solid var(--sb-bdr);
+  border-radius: 5px; padding: 8px 10px;
+  cursor: pointer; transition: all .15s; margin-bottom: 3px;
+}
+.cand-card:hover { border-color: var(--accent); }
+.cand-card.selected { border-color: var(--accent); background: var(--accent-g); }
+
+.cand-hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 3px;
+}
+.cand-name { font-size: 10px; font-weight: 500; color: var(--dt); }
+
+.score-chip {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8px; padding: 1px 5px; border-radius: 3px; font-weight: 700;
+}
+.score-chip.pos  { background: rgba(5,150,105,.2);  color: #34D399; }
+.score-chip.neg  { background: rgba(220,38,38,.2);  color: #F87171; }
+.score-chip.zero { background: var(--sb3);          color: var(--dt2); }
+
+.cand-scores {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px; color: var(--dt3); line-height: 1.5;
+}
+.cand-desc {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8px; color: var(--dt3); margin-top: 2px;
+}
 </style>
 </head>
 <body>
@@ -502,6 +566,68 @@ body {
       <div class="svg-container" id="svgContainer" style="display:none">
         <div id="svgOutput"></div>
       </div>
+    </div>
+  </div>
+
+  <!-- ── RIGHT PANEL ──────────────────────────── -->
+  <div class="right-panel">
+    <div class="rp-header">
+      <span class="rp-title">셀 배열 후보</span>
+      <span class="rp-badge" id="rpCandCount">—</span>
+    </div>
+
+    <div class="rp-body">
+
+      <!-- 섹션 1: 배열 순서 후보 -->
+      <div>
+        <div class="ctrl-label">순서 방식</div>
+        <div id="candList">
+          <div class="hint" style="color:var(--dt3);margin-top:4px">Generate 후 자동 표시</div>
+        </div>
+      </div>
+
+      <div class="rp-divider"></div>
+
+      <!-- 섹션 2: 선택 배열 상세 -->
+      <div id="candDetail" style="display:none">
+        <div class="ctrl-label">선택 배열 상세</div>
+        <div class="info-box" id="candDetailBox" style="font-size:9px;line-height:2"></div>
+      </div>
+
+      <div class="rp-divider" id="rpDetailDivider" style="display:none"></div>
+
+      <!-- 섹션 3: ICC 제약 조건 -->
+      <div>
+        <div class="ctrl-label">ICC 제약 조건 (원칙 16)</div>
+        <div class="toggle-row">
+          <span class="toggle-label">① 행 스팬 ≤ 2</span>
+          <button class="toggle on" id="togICC1" onclick="toggleICC('icc1')"></button>
+        </div>
+        <div class="toggle-row">
+          <span class="toggle-label">② 종횡비 ≤ 2.0</span>
+          <button class="toggle on" id="togICC2" onclick="toggleICC('icc2')"></button>
+        </div>
+        <div class="toggle-row">
+          <span class="toggle-label">③ 볼록성 ≥ 0.75</span>
+          <button class="toggle" id="togICC3" onclick="toggleICC('icc3')"></button>
+        </div>
+        <div class="hint" style="margin-top:4px">OFF: 해당 제약 검사 생략</div>
+      </div>
+
+      <div class="rp-divider"></div>
+
+      <!-- 섹션 4: 니켈 폭 -->
+      <div>
+        <div class="ctrl-label">니켈 폭 nickel_w</div>
+        <div class="num-pair">
+          <button class="num-btn" onclick="adjNickelW(-0.5)">−</button>
+          <div class="num-val" id="valNickelW" style="font-size:13px;min-width:40px">4.0</div>
+          <button class="num-btn" onclick="adjNickelW(0.5)">+</button>
+          <div class="num-tag">mm</div>
+        </div>
+        <div class="hint" style="margin-top:4px">ICC ①②③ 계산 기준</div>
+      </div>
+
     </div>
   </div>
 
