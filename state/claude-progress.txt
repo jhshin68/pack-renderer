@@ -40,14 +40,32 @@ TDD-first. 구현 전 반드시 테스트부터.
 
 각각 동일한 TDD 절차 반복.
 
-## 세션 13.5 진행 상황 (2026-04-17 — Tier 2a 완료, Tier 2b 진행 예정)
+## 세션 13.5 진행 상황 (2026-04-17 — Tier 2b 완료, Tier 2c 대기)
 
 ### Tier 2a 완료
 - validator.js 7 check 실구현: P01·P04·P06·P08·P09·P17·P21
-- test_validator_tier2a.js 신규 (38 assertion, skip/ok/fail/통합)
-- test_validator_stub.js 빈 ctx 호환성 유지 (35 PASS)
-- Generator lazy getter로 buildAdjacency·checkGroupValidity 공유
-- 누적 테스트 353/353 PASS
+- test_validator_tier2a.js 신규 (38 assertion)
+
+### Tier 2b 완료
+- validator.js 3 check 추가 실구현: P10·P12·P26
+  · P10 checkLadderStructure: 그룹 내 BFS 연결성
+  · P12 checkEmbossIrreversibility: allow_mirror 체크
+  · P26 checkSeriesPathSingleness: face_pattern 구조 + groups.index 연속성 (2축)
+- test_validator_tier2b.js 신규 (28 assertion)
+- LAYER 2 fail_action 체계 검증: P10 abort_design, P12 prune_candidate
+- 누적 테스트 381/381 PASS (정확 수치는 커밋 로그 참조)
+
+### validator 실구현 현황 (14/14 중 10 실구현)
+- ✅ 실구현 (10): P01·P04·P06·P08·P09·P10·P12·P17·P21·P26
+- ⏳ 스텁 유지 (4): P07·P14·P16·P25 → Tier 2c에서 처리
+  · P07 checkNickelThicknessUniform — ctx.plates 스키마 확장 필요
+  · P14 checkFaceMerging — 갭 #1 확정 후 진행
+  · P16 checkICC — hex 재해석 구현 필요
+  · P25 checkTerminalTab — 설계 스펙 부재
+
+### 세션 중단 시 재개
+- Tier 2c 대상 4건은 각각 ctx 스키마 확장 또는 별도 설계 결정이 선행
+- 먼저 갭 #1 조사 (원칙 14 ④항 ↔ calcNickelPattern B- 면 배치) 권장
 
 ### 누적 성과
 - 신규 테스트 4파일 (+149 assertion): test_p01_polarity / test_p09_adjacency / test_p26_series_path / test_holder_constraints

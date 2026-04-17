@@ -184,9 +184,59 @@
     return { ok: true };
   }
 
+  /**
+   * P26 — 직렬 경로 단일성 (simple chain G0–G1–…–G_{S-1})
+   *   skip: face_pattern·groups 없음
+   *   2축 검증:
+   *     축 1: ctx.face_pattern (상·하면 플레이트) 존재 시
+   *           각 플레이트 groups 배열이 연속 인덱스 (|i-j| ≤ 1), 최대 2그룹 병합만
+   *     축 2: ctx.groups 존재 시 groups.index가 0..S-1 연속 (gap 금지)
+   */
   function checkSeriesPathSingleness(ctx, params) {
-    // P26: Tier 2b에서 실구현 예정 (ctx.face_pattern + checkGroupValidity 조합)
-    return { ok: true, stub: 'P26' };
+    const fp     = ctx && ctx.face_pattern;
+    const groups = ctx && ctx.groups;
+    if (!fp && !Array.isArray(groups)) {
+      return { ok: true, detail: 'skipped: face_pattern/groups 없음' };
+    }
+
+    // 축 1 — face_pattern 구조 검증
+    if (fp && (Array.isArray(fp.top) || Array.isArray(fp.bot))) {
+      const allPlates = [...(fp.top || []), ...(fp.bot || [])];
+      for (const plate of allPlates) {
+        const gs = plate.groups || [];
+        if (gs.length > 2) {
+          return {
+            ok: false,
+            detail: `플레이트 3그룹 이상 병합 (P26 단일성 위반): groups=[${gs}]`,
+            data: { plate, violation: '>2 merge' },
+          };
+        }
+        if (gs.length === 2 && Math.abs(gs[0] - gs[1]) !== 1) {
+          return {
+            ok: false,
+            detail: `비연속 그룹 병합: groups=[${gs}] (|i-j| ≠ 1)`,
+            data: { plate, violation: 'non-contiguous' },
+          };
+        }
+      }
+    }
+
+    // 축 2 — groups.index 연속성 검증
+    if (Array.isArray(groups) && groups.length > 0) {
+      const S = groups.length;
+      const indices = groups.map(g => g.index).sort((a, b) => a - b);
+      for (let i = 0; i < S; i++) {
+        if (indices[i] !== i) {
+          return {
+            ok: false,
+            detail: `그룹 번호 비연속: sorted=[${indices}] (0..${S-1} 기대)`,
+            data: { indices, expected_max: S - 1 },
+          };
+        }
+      }
+    }
+
+    return { ok: true };
   }
 
   // ─── LAYER 1 (2건) ────────────────────────────
@@ -235,22 +285,66 @@
   }
 
   // ─── LAYER 2 (7건) ────────────────────────────
+
   function checkNickelThicknessUniform(ctx, params) {
-    // P07: 가로·세로 두께 = nickel_w 동일
-    // TODO M7: plate마다 h_w === v_w === nickel_w (허용 공차 ±0.05mm)
+    // P07: Tier 2c 대상 — ctx.plates[].h_w / v_w 스키마 확장 필요
     return { ok: true, stub: 'P07' };
   }
 
+  /**
+   * P10 — 사다리 구조 (그룹 내 모든 셀 단일 연결)
+   *   skip: groups / arrangement 없음 / Generator 미탑재
+   *   fail: 어떤 그룹의 셀이 BFS로 전부 도달 불가 (= 미접촉 셀 존재)
+   *   비고: 원칙 10 ② 엇배열 분기는 원칙 23에 위임(S23 스텁 상태) — 본 체크에서는 단일 연결성만 검증
+   */
   function checkLadderStructure(ctx, params) {
-    // P10: 사다리 구조 + 모든 셀 접촉 (미접촉 셀 0개)
-    // TODO M7: arrangement별 분기 + untouched_cells === 0
-    return { ok: true, stub: 'P10' };
+    const { groups, arrangement, pitch } = ctx || {};
+    if (!Array.isArray(groups) || groups.length === 0 || !arrangement) {
+      return { ok: true, detail: 'skipped: groups/arrangement 없음' };
+    }
+    const Gen = getGenerator();
+    if (!Gen || typeof Gen.buildAdjacency !== 'function') {
+      return { ok: true, detail: 'skipped: Generator 미탑재' };
+    }
+    for (const g of groups) {
+      const cells = g.cells || [];
+      if (cells.length <= 1) continue;
+      const edges = Gen.buildAdjacency(cells, arrangement, pitch);
+      const adj = cells.map(() => []);
+      for (const { i, j } of edges) { adj[i].push(j); adj[j].push(i); }
+      const visited = new Set([0]);
+      const queue = [0];
+      while (queue.length) {
+        const cur = queue.shift();
+        for (const nb of adj[cur]) {
+          if (!visited.has(nb)) { visited.add(nb); queue.push(nb); }
+        }
+      }
+      if (visited.size < cells.length) {
+        return {
+          ok: false,
+          detail: `G${g.index} 사다리 비연결: ${visited.size}/${cells.length} 셀만 도달`,
+          data: { group: g.index, reached: visited.size, total: cells.length },
+        };
+      }
+    }
+    return { ok: true };
   }
 
+  /**
+   * P12 — 엠보 불가역성 (거울반사 별개 형상)
+   *   skip: ctx.allow_mirror 없음 (명시 결정 안 됨)
+   *   fail: allow_mirror === true (원칙 12 위반)
+   *   ok: allow_mirror === false
+   */
   function checkEmbossIrreversibility(ctx, params) {
-    // P12: 캐노니컬 서명 회전만 (거울 제외)
-    // TODO M7: allow_mirror === false, 서명 계산에 rot_k만 사용
-    return { ok: true, stub: 'P12' };
+    if (!ctx || ctx.allow_mirror === undefined) {
+      return { ok: true, detail: 'skipped: allow_mirror 미지정' };
+    }
+    if (ctx.allow_mirror === true) {
+      return { ok: false, detail: 'allow_mirror=true → 거울반사 합동 허용은 원칙 12 위반' };
+    }
+    return { ok: true };
   }
 
   function checkFaceMerging(ctx, params) {
@@ -391,7 +485,7 @@
   // export (Node + Browser 양쪽 지원)
   // ═══════════════════════════════════════════════
   const api = {
-    VERSION: 'v7-tier2a',
+    VERSION: 'v7-tier2b',
     loadSpec,
     runValidation,
     CHECKS,
