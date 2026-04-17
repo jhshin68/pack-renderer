@@ -57,11 +57,14 @@ body {
   display: grid;
   grid-template-columns: 260px 1fr 280px;
   height: 100vh;
+  width: 100vw;
   overflow: hidden;
 }
 
 /* ── SIDEBAR ──────────────────────────────── */
 .sidebar {
+  grid-column: 1;
+  height: 100vh;
   background: var(--sb);
   display: flex;
   flex-direction: column;
@@ -74,20 +77,20 @@ body {
 
 /* Logo */
 .logo {
-  padding: 18px 16px 14px;
+  padding: 10px 12px 8px;
   border-bottom: 1px solid var(--sb-bdr);
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 .logo-icon {
-  width: 32px; height: 32px;
+  width: 26px; height: 26px;
   background: var(--accent);
-  border-radius: 8px;
+  border-radius: 6px;
   display: flex; align-items: center; justify-content: center;
-  font-size: 16px;
+  font-size: 13px;
   flex-shrink: 0;
-  box-shadow: 0 0 12px rgba(37,99,235,.4);
+  box-shadow: 0 0 10px rgba(37,99,235,.4);
 }
 .logo-text {}
 .logo-brand {
@@ -107,13 +110,13 @@ body {
 }
 
 /* Sidebar body */
-.sidebar-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 12px; flex: 1; }
+.sidebar-body { padding: 8px 11px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
 
 /* Section label */
 .ctrl-label {
-  font-size: 9px; letter-spacing: 1.8px; text-transform: uppercase;
+  font-size: 8.5px; letter-spacing: 1.4px; text-transform: uppercase;
   color: var(--dt2); font-family: 'JetBrains Mono', monospace;
-  margin-bottom: 4px;
+  margin-bottom: 3px;
 }
 
 /* Segmented control */
@@ -123,9 +126,9 @@ body {
   border-radius: var(--r); padding: 2px;
 }
 .seg-btn {
-  flex: 1; padding: 5px 4px; border: none;
+  flex: 1; padding: 4px 3px; border: none;
   background: transparent; color: var(--dt2);
-  font-family: 'JetBrains Mono', monospace; font-size: 10px;
+  font-family: 'JetBrains Mono', monospace; font-size: 9px;
   border-radius: 4px; cursor: pointer; transition: all .15s;
   white-space: nowrap;
 }
@@ -136,19 +139,19 @@ body {
 .seg-btn:hover:not(.active) { background: var(--sb3); color: var(--dt); }
 
 /* Number stepper */
-.num-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.num-pair { display: flex; align-items: center; gap: 4px; }
+.num-row { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.num-pair { display: flex; align-items: center; gap: 3px; }
 .num-tag {
   font-family: 'JetBrains Mono', monospace; font-size: 8px;
   color: var(--dt2); min-width: 12px;
 }
 .num-val {
-  font-family: 'JetBrains Mono', monospace; font-size: 18px; font-weight: 500;
-  color: #F1F5F9; min-width: 30px; text-align: center;
+  font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 500;
+  color: #F1F5F9; min-width: 24px; text-align: center;
 }
 /* 직접 타이핑 가능한 숫자 입력 (S·P 직렬·병렬) */
 input.num-val {
-  width: 52px; background: var(--sb3);
+  width: 32px; background: var(--sb3);
   border: 1px solid var(--sb-bdr); border-radius: 4px;
   padding: 2px 0; outline: none; cursor: text;
 }
@@ -157,19 +160,19 @@ input.num-val::-webkit-outer-spin-button,
 input.num-val::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 input.num-val[type=number] { -moz-appearance: textfield; }
 .num-btn {
-  width: 24px; height: 24px; border: 1px solid var(--sb-bdr);
-  background: var(--sb2); color: var(--dt2); font-size: 14px;
-  border-radius: 5px; cursor: pointer;
+  width: 18px; height: 18px; border: 1px solid var(--sb-bdr);
+  background: var(--sb2); color: var(--dt2); font-size: 11px;
+  border-radius: 4px; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   transition: all .15s; user-select: none;
 }
 .num-btn:hover { border-color: var(--accent); color: var(--accent); }
 .num-btn:active { transform: scale(.9); }
-.sp-sep { width: 1px; height: 20px; background: var(--sb-bdr); margin: 0 2px; }
+.sp-sep { width: 1px; height: 16px; background: var(--sb-bdr); margin: 0 2px; }
 
 /* Toggle */
-.toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 2px 0; }
-.toggle-label { font-size: 11px; color: var(--dt2); }
+.toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 1px 0; }
+.toggle-label { font-size: 10px; color: var(--dt2); }
 .toggle {
   width: 34px; height: 18px; background: var(--sb-bdr);
   border-radius: 9px; cursor: pointer; position: relative;
@@ -195,8 +198,8 @@ input.num-val[type=number] { -moz-appearance: textfield; }
 
 /* Render button */
 .render-btn {
-  padding: 11px 14px; border: none; border-radius: var(--r); cursor: pointer;
-  font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600;
+  padding: 8px 12px; border: none; border-radius: var(--r); cursor: pointer;
+  font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 600;
   letter-spacing: .2px; color: #fff;
   background: var(--accent);
   box-shadow: 0 2px 12px rgba(37,99,235,.35);
@@ -209,9 +212,9 @@ input.num-val[type=number] { -moz-appearance: textfield; }
 /* Info box */
 .info-box {
   background: var(--sb2); border: 1px solid var(--sb-bdr);
-  border-radius: var(--r); padding: 10px 12px;
-  font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--dt2);
-  line-height: 1.8;
+  border-radius: var(--r); padding: 7px 10px;
+  font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--dt2);
+  line-height: 1.7;
 }
 .info-box .row { display: flex; justify-content: space-between; align-items: baseline; gap: 4px; }
 .info-box .key { color: var(--dt3); flex-shrink: 0; }
@@ -242,7 +245,14 @@ input.num-val[type=number] { -moz-appearance: textfield; }
 }
 
 /* ── MAIN PANEL ──────────────────────────────── */
-.main { display: flex; flex-direction: column; overflow: hidden; height: 100vh; }
+.main {
+  grid-column: 2;
+  height: 100vh;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
 
 /* Toolbar */
 .toolbar {
@@ -289,7 +299,7 @@ input.num-val[type=number] { -moz-appearance: textfield; }
   border-radius: 8px;
   padding: 20px;
   box-shadow: 0 1px 6px rgba(0,0,0,.06), 0 4px 20px rgba(0,0,0,.04);
-  max-width: calc(100vw - 260px - 280px - 56px);
+  max-width: 100%;
 }
 .svg-container svg { display: block; max-width: 100%; height: auto; }
 
@@ -297,8 +307,8 @@ input.num-val[type=number] { -moz-appearance: textfield; }
 .empty {
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
-  width: calc(100vw - 260px - 280px - 56px);
-  height: calc(100vh - 44px - 56px);
+  width: 100%;
+  flex: 1;
   gap: 12px; color: var(--lt3);
 }
 .empty-icon { font-size: 48px; opacity: .25; }
@@ -315,11 +325,12 @@ input.num-val[type=number] { -moz-appearance: textfield; }
 
 /* ── RIGHT PANEL ──────────────────────────────── */
 .right-panel {
+  grid-column: 3;
+  height: 100vh;
   background: var(--sb);
   border-left: 1px solid var(--sb-bdr);
   display: flex;
   flex-direction: column;
-  height: 100vh;
   overflow: hidden;
 }
 .rp-header {
@@ -389,7 +400,7 @@ input.num-val[type=number] { -moz-appearance: textfield; }
         <div class="logo-brand">SL Power</div>
         <div class="logo-sub">Pack Intelligence</div>
       </div>
-      <div class="logo-ver">v0.2.18</div>
+      <div class="logo-ver">v0.2.24</div>
     </div>
 
     <div class="sidebar-body">
@@ -401,6 +412,27 @@ input.num-val[type=number] { -moz-appearance: textfield; }
           <button class="seg-btn" id="btn18650" onclick="setCellType('18650')">18650</button>
           <button class="seg-btn active" id="btn21700" onclick="setCellType('21700')">21700</button>
         </div>
+      </div>
+
+      <!-- H1: 홀더 크기 (정배열·엇배열만 — 커스텀은 자동) -->
+      <div id="holderSizeGroup">
+        <div class="ctrl-label">홀더 크기 <span style="font-size:7.5px;color:var(--dt3)">(원칙 17 L1)</span></div>
+        <div class="num-row">
+          <div class="num-pair">
+            <button class="num-btn" onclick="adjHolder('rows',-1)">−</button>
+            <div class="num-val" id="valHolderRows" style="font-size:11px;min-width:32px">auto</div>
+            <button class="num-btn" onclick="adjHolder('rows',1)">+</button>
+            <div class="num-tag">행</div>
+          </div>
+          <div class="sp-sep"></div>
+          <div class="num-pair">
+            <button class="num-btn" onclick="adjHolder('cols',-1)">−</button>
+            <div class="num-val" id="valHolderCols" style="font-size:11px;min-width:32px">auto</div>
+            <button class="num-btn" onclick="adjHolder('cols',1)">+</button>
+            <div class="num-tag">열</div>
+          </div>
+        </div>
+        <div class="hint" id="holderCapHint" style="margin-top:3px">auto = S×P (빈 슬롯 없음)</div>
       </div>
 
       <!-- Arrangement -->
@@ -433,7 +465,7 @@ input.num-val[type=number] { -moz-appearance: textfield; }
             <div class="num-tag">P 병렬</div>
           </div>
         </div>
-        <div class="hint" style="margin-top:4px">S = 가로 직렬 수 (2–23) · P = 세로 병렬 수 (1–8)</div>
+        <div class="hint" style="margin-top:3px">S = 가로 직렬 수 (2–23) · P = 세로 병렬 수 (1–8)</div>
       </div>
 
       <!-- 커스텀: 행별 셀 수 직접 입력 -->
@@ -441,17 +473,17 @@ input.num-val[type=number] { -moz-appearance: textfield; }
         <div class="ctrl-label">행별 셀 수 (쉼표 구분)</div>
         <textarea id="customRows" rows="3" placeholder="예: 8,8,10,13,13,13">8,8,10,13,13,13</textarea>
         <div class="hint" style="margin-top:4px">각 값 = 해당 행의 셀 수</div>
-        <div class="ctrl-label" style="margin-top:10px">Row Alignment</div>
+        <div class="ctrl-label" style="margin-top:8px">Row Alignment</div>
         <div class="seg">
           <button class="seg-btn" id="btnAlignLeft"   onclick="setCustomAlign('left')">◀ Left</button>
           <button class="seg-btn active" id="btnAlignCenter" onclick="setCustomAlign('center')">Center</button>
           <button class="seg-btn" id="btnAlignRight"  onclick="setCustomAlign('right')">Right ▶</button>
         </div>
-        <div class="toggle-row" style="margin-top:10px">
+        <div class="toggle-row" style="margin-top:8px">
           <span class="toggle-label">엇배열 (Staggered)</span>
           <button class="toggle" id="togCustomStagger" onclick="toggleCustomStagger()"></button>
         </div>
-        <div id="stagDirGroup" style="display:none;margin-top:8px">
+        <div id="stagDirGroup" style="display:none;margin-top:6px">
           <div class="ctrl-label">2번째 행 방향 (하단 기준)</div>
           <div class="seg">
             <button class="seg-btn" id="btnStagL" onclick="setCustomStaggerDir('L')">◀ 왼쪽</button>
@@ -459,7 +491,7 @@ input.num-val[type=number] { -moz-appearance: textfield; }
           </div>
           <div class="hint" style="margin-top:4px">2번째 행 시작점: 1번째(하단) 대비 좌·우</div>
         </div>
-        <div class="ctrl-label" style="margin-top:10px">Series (S)</div>
+        <div class="ctrl-label" style="margin-top:8px">Series (S)</div>
         <div class="num-pair">
           <button class="num-btn" onclick="adj('S',-1)">−</button>
           <input type="number" class="num-val" id="valScustom" value="13" min="2" max="23"
@@ -467,6 +499,25 @@ input.num-val[type=number] { -moz-appearance: textfield; }
           <button class="num-btn" onclick="adj('S',1)">+</button>
           <div class="num-tag">S</div>
         </div>
+      </div>
+
+      <!-- H2: B+/B- 출력 방향 (원칙 4 L2) -->
+      <div>
+        <div class="ctrl-label">B+ 방향 <span style="font-size:8px;color:var(--dt3)">(원칙 4)</span></div>
+        <div class="seg">
+          <button class="seg-btn" id="bpTop"    onclick="setBTermDir('b_plus_side','top')">Top</button>
+          <button class="seg-btn active" id="bpLeft"   onclick="setBTermDir('b_plus_side','left')">Left</button>
+          <button class="seg-btn" id="bpRight"  onclick="setBTermDir('b_plus_side','right')">Right</button>
+          <button class="seg-btn" id="bpBottom" onclick="setBTermDir('b_plus_side','bottom')">Bot</button>
+        </div>
+        <div class="ctrl-label" style="margin-top:6px">B− 방향</div>
+        <div class="seg">
+          <button class="seg-btn" id="bmTop"    onclick="setBTermDir('b_minus_side','top')">Top</button>
+          <button class="seg-btn" id="bmLeft"   onclick="setBTermDir('b_minus_side','left')">Left</button>
+          <button class="seg-btn active" id="bmRight"  onclick="setBTermDir('b_minus_side','right')">Right</button>
+          <button class="seg-btn" id="bmBottom" onclick="setBTermDir('b_minus_side','bottom')">Bot</button>
+        </div>
+        <div class="hint" style="margin-top:4px">경계 셀 집합 → 열거기 시작/종료 제약</div>
       </div>
 
       <!-- Gap -->
@@ -557,7 +608,7 @@ input.num-val[type=number] { -moz-appearance: textfield; }
       <!-- Download -->
       <button class="dl-btn" onclick="downloadSVG()">↓ &nbsp;Export SVG</button>
 
-      <div class="theory-tag">SELA · SL Power Co., Ltd. · 이론 v0.2.18</div>
+      <div class="theory-tag">SELA · SL Power Co., Ltd. · 이론 v0.2.24</div>
     </div>
   </div>
 
@@ -591,9 +642,12 @@ input.num-val[type=number] { -moz-appearance: textfield; }
 
     <div class="rp-body">
 
-      <!-- 섹션 1: 배열 순서 후보 -->
+      <!-- 섹션 1: Hamiltonian 열거 후보 -->
       <div>
-        <div class="ctrl-label">순서 방식</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+          <div class="ctrl-label" style="margin-bottom:0">열거 후보 (H3)</div>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:8px;color:var(--dt3)" id="rpEnumStatus"></span>
+        </div>
         <div id="candList">
           <div class="hint" style="color:var(--dt3);margin-top:4px">Generate 후 자동 표시</div>
         </div>
