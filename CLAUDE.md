@@ -1,92 +1,55 @@
+# Pack-Renderer — SL Power 니켈 플레이트 설계 검증기
 
-## 세션 시작 시 필수 6단계 루틴
+## 세션 시작·종료 루틴
+새 세션 시작 시 **즉시** `skills/pack-renderer-session.md`를 읽고 7단계 시작 루틴을 실행하라.
+사용자가 "종료·수고했어·오늘 여기까지" 등 종료 신호를 보내면 동일 파일의 종료 루틴을 실행하라.
 
-새 세션이 시작되면 반드시 아래 순서대로 실행하라. 순서를 바꾸거나 단계를 건너뛰지 말 것.
+## 작업 유형별 필독 파일
+작업 시작 전, 아래 파일을 반드시 읽어라. 읽지 않고 코드 작성 금지.
 
-**1단계 — 현재 위치 확인**
-작업 디렉토리를 확인하라. 예상 경로가 아니면 사용자에게 알리고 진행 여부를 물어라.
+| 작업 종류 | 필독 파일 |
+|---|---|
+| 설계 검증, 원칙 체크, validator 구현 | `skills/nickel_plate_principles.md` (LAYER 0·1·2) |
+| 형상 생성, 알고리즘·generator 구현 | `skills/nickel-plate-design.md` (LAYER 3) |
+| SVG 렌더링, 색상·레이어·표시 | `skills/nickel_render_rules.md` (LAYER 4) |
+| 작업 종류 불명확 | 위 3개 모두 |
 
-**2단계 — claude-progress.txt 읽기**
-지난 세션에서 무엇을 했는지, 어디까지 됐는지, 다음에 무엇을 해야 하는지 파악하라.
-파일이 없으면 사용자에게 알려라.
+## 레이어 구조 요약
+- LAYER 0 (원칙 1·6·8·9·26) — 절대 불변. 위반 시 설계 즉시 폐기.
+- LAYER 1 (원칙 4·17) — 선행 결정. 형상 생성 전 확정.
+- LAYER 2 (원칙 7·10·12·14·16·21·25) — 룰. 패스/페일 이진 검사.
+- LAYER 3 (원칙 2·13·15·18·22·23·24) — 스킬. → `skills/nickel-plate-design.md`
+- LAYER 4 (원칙 3·5·11·19·20) — 렌더링 룰. → `skills/nickel_render_rules.md`
 
-**3단계 — feature_list.json 읽기**
-`passes: false`인 항목을 확인하라. 이것이 남은 작업 목록이다.
-파일이 없으면 사용자에게 알려라.
-
-**4단계 — git log 확인**
-최근 커밋 20개를 훑어라 (`git log --oneline -20`).
-마지막 커밋 이후 어떤 변경이 있었는지 파악하라.
-
-**5단계 — init.sh 실행 (조건부)**
-프로젝트 루트에 `init.sh`가 존재하고, 개발 서버를 켜야 하는 상황이면 실행하라.
-파일이 없거나 서버가 불필요하면 이 단계를 건너뛰어라.
-
-**6단계 — 기본 기능 테스트 (조건부)**
-실행 가능한 앱이 존재하면(HTML/서버 등) 정상 작동 여부를 확인한 후 작업을 시작하라.
-앱이 없거나 테스트가 불필요하면 이 단계를 건너뛰어라.
-
-모든 단계 완료 후, 사용자에게 현재 상태를 한 문장으로 요약하고 다음 작업을 제안하라.
-
-## 세션 종료 시 필수 루틴
-
-사용자가 "종료", "다 됐어", "오늘은 여기까지", "수고했어" 등 종료 신호를 보내면
-반드시 아래 순서대로 실행하라. 모두 완료하기 전까지 세션을 끝내지 말 것.
-
-**1단계 — claude-progress.txt 업데이트**
-오늘 한 일, 현재 상태, 다음에 할 일을 덮어써라.
-
-**2단계 — feature_list.json 업데이트**
-이번 세션에서 완료된 기능은 `passes: true`로 변경하라.
-
-**3단계 — git 상태 점검**
-아래 두 가지를 순서대로 확인하라.
-
-1. `git status` — 커밋하지 않은 변경사항이 있는지 확인
-   - 미커밋 파일이 있으면 사용자에게 알리고 커밋 여부를 물어라
-   - 사용자가 커밋을 원하면 적절한 메시지로 커밋을 도와라
-
-2. `git log origin/main..HEAD` (또는 `git status -sb`) — 로컬 커밋 중 push되지 않은 것이 있는지 확인
-   - push되지 않은 커밋이 있으면 사용자에게 명시하고 push 여부를 물어라
-   - 사용자가 push를 원하면 `git push`를 실행하라
-   - 사용자가 push를 원하지 않으면 그대로 종료하라 (강제하지 말 것)
-
-**4단계 — 종료 요약 출력**
-아래 형식으로 오늘 세션을 한눈에 정리하여 출력하라.
-
-```
-오늘 작업 요약
-──────────────────────────────
-한 일     : (핵심 작업 2~3줄)
-미완료    : feature_list.json passes:false 개수
-git 상태  : 커밋 완료 / push 완료 여부
-다음 작업 : (1순위 항목)
-──────────────────────────────
-```
+## 프로젝트 폴더 구조
+- `battery_pack_renderer.html` — 엔트리 HTML
+- `src/` — 런타임 JavaScript (`renderer.js` 렌더 엔진, `app.js` UI 컨트롤러)
+- `tests/` — Node.js 테스트 (`test_custom_render.js`)
+- `skills/` — AI 필독 원칙·룰·스킬·세션 루틴 4종
+- `docs/` — 설계 참고 문서·레거시 자료·이론 자료
+- `assets/` — 이미지·SVG 리소스
+- `state/` — 프로젝트 상태 파일 (`claude-progress.txt`, `feature_list.json`)
 
 ## 조기 종료 방지
-
-`feature_list.json`의 `passes: false` 항목이 남아 있는 한 "다 됐다"고 선언하지 말 것.
+`state/feature_list.json`의 `passes: false` 항목이 남아 있는 한 "다 됐다"고 선언 금지.
 반드시 미완료 항목을 사용자에게 명시하고 다음 작업을 안내하라.
 
----
+## Skill routing (gstack)
 
-## 스킬 라우팅
+When the user's request matches an available skill, ALWAYS invoke it using the Skill
+tool as your FIRST action. Do NOT answer directly, do NOT use other tools first.
+The skill has specialized workflows that produce better results than ad-hoc answers.
 
-사용자 요청이 사용 가능한 스킬과 일치하면, 반드시 Skill 도구를 첫 번째 액션으로 실행하라.
-직접 답변하거나 다른 도구를 먼저 사용하지 말 것.
-스킬에는 즉흥적인 답변보다 더 나은 결과를 내는 전문화된 워크플로우가 있다.
-
-핵심 라우팅 규칙:c
-- 제품 아이디어, "만들 가치 있나", 브레인스토밍 → office-hours 실행
-- 버그, 에러, "왜 안 되나", 500 에러 → investigate 실행
-- 배포, 푸시, PR 생성 → ship 실행
-- QA, 사이트 테스트, 버그 탐색 → qa 실행
-- 코드 리뷰, 내 diff 확인 → review 실행
-- 배포 후 문서 업데이트 → document-release 실행
-- 주간 회고 → retro 실행
-- 디자인 시스템, 브랜드 → design-consultation 실행
-- 시각적 감사, 디자인 다듬기 → design-review 실행
-- 아키텍처 리뷰 → plan-eng-review 실행
-- 진행 저장, 체크포인트, 재개 → checkpoint 실행
-- 코드 품질, 헬스 체크 → health 실행
+Key routing rules:
+- Product ideas, "is this worth building", brainstorming → invoke office-hours
+- Bugs, errors, "why is this broken", 500 errors → invoke investigate
+- Ship, deploy, push, create PR → invoke ship
+- QA, test the site, find bugs → invoke qa
+- Code review, check my diff → invoke review
+- Update docs after shipping → invoke document-release
+- Weekly retro → invoke retro
+- Design system, brand → invoke design-consultation
+- Visual audit, design polish → invoke design-review
+- Architecture review → invoke plan-eng-review
+- Save progress, checkpoint, resume → invoke checkpoint
+- Code quality, health check → invoke health

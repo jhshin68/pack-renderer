@@ -1,12 +1,26 @@
-# bkit tool state
+# Tool / session state
 .bkit/
-
-# Playwright temp files
 .playwright-mcp/
+.gstack/
+.archive/
 
-# Test output (SVG/PNG)
+# Test output (SVG/PNG) — tests/ 하위 산출물
+tests/*.svg
+tests/*.png
 test_*.svg
 test_*.png
 test_nickel_*.png
 test_staggered_*.png
 test_custom_thin.png
+
+# Editor / OS temp
+*~
+.DS_Store
+Thumbs.db
+
+# Node
+node_modules/
+npm-debug.log*
+
+# 빈 레거시 폴더 (수동 삭제 대기 중)
+image/

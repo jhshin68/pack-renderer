@@ -2,7 +2,8 @@
 const fs  = require('fs');
 const vm  = require('vm');
 
-const rendererSrc = fs.readFileSync('renderer.js', 'utf8');
+const path = require('path');
+const rendererSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer.js'), 'utf8');
 
 // vm context에 필요한 전역을 주입하고, 모든 로직을 context 안에서 실행
 const ctx = { require, console, __result: null };
