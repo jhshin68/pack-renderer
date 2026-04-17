@@ -40,6 +40,37 @@ TDD-first. 구현 전 반드시 테스트부터.
 
 각각 동일한 TDD 절차 반복.
 
+## 세션 13.5 진행 상황 (2026-04-17 — Tier 2a 완료, Tier 2b 진행 예정)
+
+### Tier 2a 완료
+- validator.js 7 check 실구현: P01·P04·P06·P08·P09·P17·P21
+- test_validator_tier2a.js 신규 (38 assertion, skip/ok/fail/통합)
+- test_validator_stub.js 빈 ctx 호환성 유지 (35 PASS)
+- Generator lazy getter로 buildAdjacency·checkGroupValidity 공유
+- 누적 테스트 353/353 PASS
+
+### 누적 성과
+- 신규 테스트 4파일 (+149 assertion): test_p01_polarity / test_p09_adjacency / test_p26_series_path / test_holder_constraints
+- 전체 테스트 315/315 PASS
+- 발견된 갭: **갭 #1 — 원칙 14 ④항 ↔ calcNickelPattern B- 면 배치 (S짝수만)**
+
+### Tier 1 완료 (TDD 소급)
+- #1 P01 극성 불변 → test_p01_polarity.js (40 assertion)
+- #2 P09 인접성 → test_p09_adjacency.js (18 assertion, staggered/custom 공차 검증)
+- #3 P26 단일성 → test_p26_series_path.js (43 assertion, 2건 SKIP + 갭 #1)
+- #4 F31·F32·F33 홀더 → test_holder_constraints.js (36 assertion)
+
+### Tier 2 계획 (validator 스텁 해소, 하이브리드 (다) 실행)
+- Tier 2a (🟢 쉬움): P01·P04·P06·P08·P09·P17·P21 (7건) — Tier 1 pure function wrap
+- Tier 2b (🟡 중간): P07·P10·P12·P26 (4건)
+- Tier 2c (🔴 높음): P14·P16·P25 (3건) — 갭/hex 재해석/신규 스펙 필요
+
+### 세션 중단 시 재개
+- Tier 2a 착수 여부: validator.js 변경 있으면 진행 중, 없으면 다음 턴 시작
+- ctx 스키마 초안: `state/verification_matrix.md` 참조 (있음) + 본 progress 참조
+
+---
+
 ## 세션 13.5 체크포인트 (2026-04-17 — 검증 감사 단계 진입)
 
 ### 상황

@@ -13,10 +13,11 @@
  *   LAYER 2 (rule)      : prune_candidate → SFMT 후보 가지치기만, passed 유지
  *                         (단, P10·P14는 예외적으로 abort_design)
  *
- * 현 버전: M2 스텁 — 14개 CHECKS 함수는 모두 {ok:true} 반환.
- *                   M7에서 실제 판정 로직 구현 예정.
+ * 현 버전: Tier 2a — 7건 (P01·P04·P06·P08·P09·P17·P21) 실구현 + 나머지 7건 스텁
+ *                   skip 정책: 필수 ctx 필드 누락 시 {ok:true, detail:'skipped...'} 반환
+ *                   (test_validator_stub.js 빈 ctx 호환 유지)
  *
- * 최종 업데이트: 2026-04-17 (v7 M2 스텁)
+ * 최종 업데이트: 2026-04-17 (v7 세션 13.5 Tier 2a)
  */
 
 (function (global) {
@@ -26,6 +27,21 @@
   // spec 로드 (Node: fs.readFile / Browser: global.PRINCIPLES_SPEC)
   // ═══════════════════════════════════════════════
   let SPEC = null;
+
+  // ─── Generator lazy getter (buildAdjacency·checkGroupValidity 의존) ───
+  let _Gen = null;
+  function getGenerator() {
+    if (_Gen) return _Gen;
+    if (typeof require !== 'undefined' && typeof module !== 'undefined') {
+      try {
+        const path = require('path');
+        _Gen = require(path.join(__dirname, 'generator.js'));
+        return _Gen;
+      } catch (e) { /* fall through */ }
+    }
+    if (global.Generator) { _Gen = global.Generator; return _Gen; }
+    return null;
+  }
 
   function loadSpec(specObject) {
     // 명시적 주입 (테스트용)
@@ -60,47 +76,162 @@
   // ═══════════════════════════════════════════════
 
   // ─── LAYER 0 (5건) ────────────────────────────
+
+  /**
+   * P01 — 극성 불변
+   *   skip: ctx.cells 없음 / 셀에 top_polarity·bottom_polarity 필드 없음
+   *   fail: 같은 셀에서 top_polarity === bottom_polarity
+   */
   function checkPolarityInversion(ctx, params) {
-    // P01: 상면+ 이면 하면- 불변
-    // TODO M7: ctx.cells.every(c => c.top_polarity !== c.bottom_polarity)
-    return { ok: true, stub: 'P01' };
+    const cells = ctx && ctx.cells;
+    if (!Array.isArray(cells) || cells.length === 0) {
+      return { ok: true, detail: 'skipped: ctx.cells 없음' };
+    }
+    for (let i = 0; i < cells.length; i++) {
+      const c = cells[i];
+      const t = c && c.top_polarity, b = c && c.bottom_polarity;
+      if (t === undefined || b === undefined) continue;
+      const inverted = (t === '+' && b === '-') || (t === '-' && b === '+');
+      if (!inverted) {
+        return {
+          ok: false,
+          detail: `cell[${i}] 극성 반전 위반: top=${t}, bottom=${b}`,
+          data: { index: i, top: t, bottom: b },
+        };
+      }
+    }
+    return { ok: true };
   }
 
+  /**
+   * P06 — 맞닿음 불변 (gap=0, pitch=render_d)
+   *   skip: pitch 또는 render_d 없음
+   *   fail: |gap| > tol 또는 |pitch − render_d| > tol
+   */
   function checkContact(ctx, params) {
-    // P06: gap=0, pitch=render_d
-    // TODO M7: Math.abs(ctx.gap) < tol && Math.abs(ctx.pitch - ctx.render_d) < tol
-    return { ok: true, stub: 'P06' };
+    const pitch    = ctx && ctx.pitch;
+    const render_d = ctx && (ctx.render_d !== undefined ? ctx.render_d : ctx.cell_d);
+    const gap      = ctx && ctx.gap;
+    if (pitch === undefined || render_d === undefined) {
+      return { ok: true, detail: 'skipped: pitch/render_d 없음' };
+    }
+    const tol = (params && params.tol) || 0.001;
+    if (gap !== undefined && Math.abs(gap) > tol) {
+      return { ok: false, detail: `gap=${gap} ≠ 0` };
+    }
+    if (Math.abs(pitch - render_d) > tol) {
+      return { ok: false, detail: `pitch(${pitch}) ≠ render_d(${render_d})` };
+    }
+    return { ok: true };
   }
 
+  /**
+   * P08 — 셀 수 불변 (N=S×P, 각 그룹 P개, 홀더 빈 슬롯 허용)
+   *   skip: S 또는 P 없음
+   *   fail: cells.length < S×P (부족) / groups[].cells.length ≠ P
+   */
   function checkCellCount(ctx, params) {
-    // P08: N = S×P, 모든 그룹 P개 셀, custom rows 합 = N
-    // TODO M7: N === S*P && groups.every(g=>g.cell_count===P) && (rows? rows.reduce((a,b)=>a+b)===N : true)
-    return { ok: true, stub: 'P08' };
+    const { S, P, groups, cells } = ctx || {};
+    if (S === undefined || P === undefined) {
+      return { ok: true, detail: 'skipped: S/P 없음' };
+    }
+    const N = S * P;
+    if (Array.isArray(cells) && cells.length < N) {
+      return { ok: false, detail: `cells.length(${cells.length}) < S×P(${N})` };
+    }
+    if (Array.isArray(groups)) {
+      for (const g of groups) {
+        const cnt = (g.cells || []).length;
+        if (cnt !== P) {
+          return {
+            ok: false,
+            detail: `G${g.index} cells=${cnt} ≠ P=${P}`,
+            data: { group: g.index, count: cnt, expected: P },
+          };
+        }
+      }
+    }
+    return { ok: true };
   }
 
+  /**
+   * P09 — 인접성 (점프 금지, 격리 셀 금지)
+   *   skip: cells 없음 / arrangement 없음
+   *   fail: 격리 셀 존재 (어떤 이웃과도 threshold 거리 이내 없음)
+   */
   function checkAdjacency(ctx, params) {
-    // P09: 정배열 4-이웃 / 엇배열 6-이웃 / 커스텀 distance ≤ pitch × 1.1
-    // TODO M7: arrangement별 인접성 그래프 검증
-    return { ok: true, stub: 'P09' };
+    const { cells, arrangement, pitch } = ctx || {};
+    if (!Array.isArray(cells) || cells.length < 2 || !arrangement) {
+      return { ok: true, detail: 'skipped: cells/arrangement 없음' };
+    }
+    const Gen = getGenerator();
+    if (!Gen || typeof Gen.buildAdjacency !== 'function') {
+      return { ok: true, detail: 'skipped: Generator 미탑재' };
+    }
+    const edges = Gen.buildAdjacency(cells, arrangement, pitch);
+    const hasNeighbor = new Array(cells.length).fill(false);
+    for (const { i, j } of edges) { hasNeighbor[i] = true; hasNeighbor[j] = true; }
+    const isolated = [];
+    for (let i = 0; i < hasNeighbor.length; i++)
+      if (!hasNeighbor[i]) isolated.push(i);
+    if (isolated.length > 0) {
+      return {
+        ok: false,
+        detail: `격리 셀 ${isolated.length}개: [${isolated.slice(0, 5).join(',')}]${isolated.length > 5 ? '…' : ''}`,
+        data: { isolated_count: isolated.length, sample: isolated.slice(0, 10) },
+      };
+    }
+    return { ok: true };
   }
 
   function checkSeriesPathSingleness(ctx, params) {
-    // P26: 그룹 토폴로지 단순 체인 (분기·루프 금지)
-    // TODO M7: 중간 그룹 neighbors.length===2, 양끝 ===1, acyclic, connected
+    // P26: Tier 2b에서 실구현 예정 (ctx.face_pattern + checkGroupValidity 조합)
     return { ok: true, stub: 'P26' };
   }
 
   // ─── LAYER 1 (2건) ────────────────────────────
+
+  /**
+   * P04 — B+/B− 출력 방향 사전 확정
+   *   skip: b_plus_side 또는 b_minus_side 둘 다 없음
+   *   fail: 한 쪽만 있음 / invalid 값
+   */
   function checkOutputDirectionDecided(ctx, params) {
-    // P04: B+·B− 출력 방향 사전 확정 + 경로 형태 + 셀 면 교번
-    // TODO M7: ctx.b_plus_direction !== null && ctx.b_minus_direction !== null
-    return { ok: true, stub: 'P04' };
+    const bp = ctx && ctx.b_plus_side;
+    const bm = ctx && ctx.b_minus_side;
+    if (bp === undefined && bm === undefined) {
+      return { ok: true, detail: 'skipped: b_plus_side/b_minus_side 둘 다 없음' };
+    }
+    const valid = ['top', 'bottom', 'left', 'right'];
+    if (bp === undefined || bm === undefined) {
+      return {
+        ok: false,
+        detail: `LAYER 1 선행 결정 누락: b_plus_side=${bp}, b_minus_side=${bm}`,
+      };
+    }
+    if (!valid.includes(bp)) return { ok: false, detail: `invalid b_plus_side: ${bp}` };
+    if (!valid.includes(bm)) return { ok: false, detail: `invalid b_minus_side: ${bm}` };
+    return { ok: true };
   }
 
+  /**
+   * P17 — 배열 선택 (square / staggered / custom)
+   *   skip: arrangement 없음
+   *   fail: allowed_values 밖 / custom인데 rows 없음
+   */
   function checkArrangementDecided(ctx, params) {
-    // P17: arrangement ∈ {square, staggered, custom}, custom은 rows[]·S 필수
-    // TODO M7: allowed_values 포함 + custom 시 rows 존재 확인
-    return { ok: true, stub: 'P17' };
+    const arr = ctx && ctx.arrangement;
+    if (arr === undefined || arr === null) {
+      return { ok: true, detail: 'skipped: arrangement 없음' };
+    }
+    const valid = ['square', 'staggered', 'custom'];
+    if (!valid.includes(arr)) {
+      return { ok: false, detail: `invalid arrangement: ${arr}` };
+    }
+    if (arr === 'custom' && !Array.isArray(ctx.rows)) {
+      return { ok: false, detail: 'custom requires rows[]' };
+    }
+    return { ok: true };
   }
 
   // ─── LAYER 2 (7건) ────────────────────────────
@@ -135,10 +266,29 @@
     return { ok: true, stub: 'P16' };
   }
 
+  /**
+   * P21 — 그룹 형태 유효성 (조건 A + B)
+   *   skip: groups 없음 / arrangement 없음 / Generator 미탑재
+   *   fail: generator.checkGroupValidity가 valid=false
+   */
   function checkGroupValidity(ctx, params) {
-    // P21: 조건 A (그룹 내 인접 체인) + 조건 B (Gi-G_{i+1} 인접 셀 쌍 ≥ 1)
-    // TODO M7: adjacency_subgraph connected + 쌍 존재 확인
-    return { ok: true, stub: 'P21' };
+    const { groups, arrangement, pitch } = ctx || {};
+    if (!Array.isArray(groups) || groups.length === 0 || !arrangement) {
+      return { ok: true, detail: 'skipped: groups/arrangement 없음' };
+    }
+    const Gen = getGenerator();
+    if (!Gen || typeof Gen.checkGroupValidity !== 'function') {
+      return { ok: true, detail: 'skipped: Generator 미탑재' };
+    }
+    const result = Gen.checkGroupValidity(groups, arrangement, pitch);
+    if (!result.valid) {
+      return {
+        ok: false,
+        detail: result.violations.map(v => v.reason).join('; '),
+        data: result.violations,
+      };
+    }
+    return { ok: true };
   }
 
   function checkTerminalTab(ctx, params) {
@@ -241,7 +391,7 @@
   // export (Node + Browser 양쪽 지원)
   // ═══════════════════════════════════════════════
   const api = {
-    VERSION: 'v7-M2-stub',
+    VERSION: 'v7-tier2a',
     loadSpec,
     runValidation,
     CHECKS,
