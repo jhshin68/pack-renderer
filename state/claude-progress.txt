@@ -40,6 +40,37 @@ TDD-first. 구현 전 반드시 테스트부터.
 
 각각 동일한 TDD 절차 반복.
 
+## 세션 13.5 체크포인트 (2026-04-17 — 검증 감사 단계 진입)
+
+### 상황
+S15B 실구현 완료(커밋 d3e7e4a) 후, 사용자가 **"이론대로 잘 진행되었는지 처음부터 검증"** 을 요청.
+이유: 지금까지 세션별 기능 추가는 됐지만 "원칙(LAYER 0~4) → 구현 → 테스트" 삼각 연결의 전수 무결성이 검증된 적 없음.
+
+### 선택한 검증 방식 — 옵션 (B)
+Phase 1+2를 먼저 완료 후, Phase 3는 depth-first로 우선순위 협의 후 진행.
+
+**Phase 1 — 원칙 인벤토리**
+- nickel_plate_principles.md (LAYER 0·1·2) 전수 훑기
+- nickel-plate-design.md (LAYER 3) — 이미 읽음
+- nickel_render_rules.md (LAYER 4) 전수 훑기
+- 원칙 1~26 요약 표 작성
+
+**Phase 2 — 트레이스 매트릭스**
+- feature_list.json F01~F35 × [대응 원칙 / 구현 함수(파일:라인) / 테스트 assertion]
+- 산출물: `state/verification_matrix.md` 또는 대화 내 표
+
+**Phase 3 — 하나씩 실증 검증** (depth-first, 우선순위 협의 후)
+- 매트릭스 행별로 테스트 실행 + 논리 점검
+- 갭 발견 시 systematic-debug.md 5단계 프로토콜 적용
+- 갭 리스트 → 작업 백로그화
+
+### 재개 지침 (세션 중단 시)
+1. 이 체크포인트 + 바로 아래 "세션 13 메모" 참조
+2. Phase 1 중단 시: 어느 원칙 파일까지 읽었는지 본 progress 최하단에 기록
+3. Phase 2 중단 시: `state/verification_matrix.md` 파일 존재 여부로 판단
+
+---
+
 ## 세션 13 메모 (2026-04-17 — S15B 실구현)
 
 ### 작업 결과
