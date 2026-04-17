@@ -40,7 +40,22 @@ TDD-first. 구현 전 반드시 테스트부터.
 
 각각 동일한 TDD 절차 반복.
 
-## 세션 13.5 진행 상황 (2026-04-17 — Tier 2b 완료 + 갭 #1 해결)
+## 세션 13.5 진행 상황 (2026-04-17 — Tier 2b + 갭 #1 + Type-A 폐기 완료)
+
+### Type-A 폐기 (세션 13.5 사용자 지시)
+- 사용자 지시: "5P는 특별하지 않다. 모든 P에 동일 원칙 적용. 5P만의 별도 이론·프로그램 금지."
+- systematic-debug.md 5단계 적용 → image copy.png (13S5P)에서 U형 2그룹이 "독립 TypeA 2개+얇은 brunch"로 분리 표현되는 버그 확인
+- 조치:
+  · `generator.js` `calcTypeAGeometry` 제거
+  · `generator.js` `selectBlockType` 단순화 — 모든 유효 P → `{block_type:'Generic', geometry_ready:true}`
+  · `renderer.js` `drawNickelTypeA` 제거 (+ shim)
+  · `renderer.js` `drawFace`의 `isTypeA` 분기 + `buildTypeANickel` 헬퍼 완전 제거
+  · 렌더러 버전: v0.3.1+TypeAEngine → v0.3.2-unified
+  · `test_generator_stub.js` TypeA 관련 테스트 업데이트 (P=5 → Generic)
+  · `test_p_invariant.js` 신규 (15 assertion) — P 무관 원칙 박제
+- 결과: P=5 렌더가 P=4와 동일 계열(drawNickelU 5단 사다리)로 통일. 회귀 0, 총 406 assertion PASS
+
+
 
 ### 갭 #1 해결 (원칙 14 ④항 B- 면 배치)
 - systematic-debug.md 5단계 적용: git log로 M4+M5(3f866ec) 커밋이 버그 도입 시점 확정

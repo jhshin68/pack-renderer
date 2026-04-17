@@ -36,23 +36,18 @@ const sig_r = Renderer.canonicalSig ? Renderer.canonicalSig(pts, 4) : sig_g;
 assert(sig_g === sig_r, `canonicalSig: generator === renderer`);
 assert(typeof sig_g === 'string' && sig_g.length > 0, 'canonicalSig returns non-empty string');
 
-// 3-2. selectBlockType
-const blocks = [
-  { P: 1, expect: 'I' },
-  { P: 2, expect: 'I' },
-  { P: 4, expect: 'U' },
-  { P: 5, expect: 'TypeA' },
-  { P: 3, expect: 'Compact-H' },
-  { P: 6, expect: 'Extended' },
-];
-blocks.forEach(b => {
-  const bi = Generator.selectBlockType(b.P);
-  assert(bi.block_type === b.expect, `selectBlockType(P=${b.P}) === ${b.expect} (actual: ${bi.block_type})`);
+// 3-2. selectBlockType — 세션 13.5 사용자 지시 반영: "P는 특별하지 않다, 5P 별도 이론 금지"
+//      → 모든 유효 P에 대해 block_type='Generic', geometry_ready=true
+//      → calcNickelPattern이 I/U 분기 담당
+[1, 2, 3, 4, 5, 6, 12].forEach(P => {
+  const bi = Generator.selectBlockType(P);
+  assert(bi.block_type === 'Generic', `selectBlockType(P=${P}) === Generic (actual: ${bi.block_type})`);
+  assert(bi.geometry_ready === true,  `selectBlockType(P=${P}) geometry_ready=true`);
 });
-const bi5 = Generator.selectBlockType(5);
-assert(bi5.geometry_ready === true, 'P=5 geometry_ready === true');
-const bi3 = Generator.selectBlockType(3);
-assert(bi3.geometry_ready === false, 'P=3 geometry_ready === false');
+// 잘못된 P는 invalid
+const bi0 = Generator.selectBlockType(0);
+assert(bi0.block_type === 'Unknown' && bi0.geometry_ready === false,
+  'selectBlockType(0) → Unknown invalid');
 
 // 3-3. calcNickelPattern — renderer와 bit-exact 비교
 const patterns = [
@@ -73,18 +68,11 @@ for (const [S, P] of patterns) {
   assert(hasBMinus, `calcNickelPattern(${S},${P}): has B-`);
 }
 
-// 3-4. calcTypeAGeometry (P=5 기본 케이스)
-const cx_col = [100, 100, 100, 100, 100];
-const cy_arr = [20, 40, 60, 80, 100];
-const R = 10;
-const nw = 4;
-const params = { nickel_w_mm: 4.0, scale: 1.5 };
-const geoG = Generator.calcTypeAGeometry(cx_col, cy_arr, R, nw, params);
-const geoR = Renderer.calcTypeAGeometry(cx_col, cy_arr, R, nw, params);
-assert(geoG.trunk_y === geoR.trunk_y, 'calcTypeAGeometry: trunk_y match');
-assert(geoG.trunk_w === geoR.trunk_w, 'calcTypeAGeometry: trunk_w match');
-assert(geoG.branches.length === geoR.branches.length, 'calcTypeAGeometry: branches length match');
-assert(geoG.branches.length === 5, 'calcTypeAGeometry: 5 branches for P=5');
+// 3-4. calcTypeAGeometry 제거 확인 (세션 13.5 사용자 지시 — P=5 특수화 폐기)
+assert(typeof Generator.calcTypeAGeometry === 'undefined',
+  'Generator.calcTypeAGeometry 제거됨');
+assert(typeof Renderer.calcTypeAGeometry === 'undefined',
+  'Renderer.calcTypeAGeometry 제거됨');
 
 // 3-5. buildSnakeLayout
 const snakeG = Generator.buildSnakeLayout(5, 4);

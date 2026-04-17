@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Pack-Renderer · serve (npx)",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", ".", "--listen", "3000", "--no-clipboard"],
+      "port": 3000
+    },
+    {
+      "name": "Pack-Renderer · Python HTTP",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8080"],
+      "port": 8080
+    }
+  ]
+}

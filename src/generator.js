@@ -18,7 +18,6 @@
  *     - canonicalSig     (원칙 12 캐노니컬 서명, 회전만)
  *     - selectBlockType  (P값 → 블록 타입 라우팅)
  *     - calcNickelPattern (상·하면 플레이트 병합 패턴)
- *     - calcTypeAGeometry (P=5 closed ladder geometry)
  *     - buildSnakeLayout (S×P snake 직렬 순서)
  *   ⬇️ app.js → generator.js
  *     - estimateMmin     (m_min 근사 계산)
@@ -100,19 +99,14 @@
    *   P=3/P=6: 설계 문서 미확정 → geometry_ready=false 반환
    */
   function selectBlockType(P) {
-    switch (P) {
-      case 1:
-      case 2: return { block_type: 'I',         geometry_ready: true  };
-      case 4: return { block_type: 'U',         geometry_ready: true  };
-      case 5: return { block_type: 'TypeA',     geometry_ready: true  };
-      case 3: return { block_type: 'Compact-H', geometry_ready: false,
-        error: 'P=3 Compact-H geometry spec not finalized — 결론.md 수준 문서 대기' };
-      case 6: return { block_type: 'Extended',  geometry_ready: false,
-        error: 'P=6 Extended geometry spec not finalized — 결론.md 수준 문서 대기' };
-      default:
-        return { block_type: 'Unknown', geometry_ready: false,
-          error: `P=${P} block type not defined` };
+    // 사용자 지시 (세션 13.5): "P는 특별하지 않다. 모든 P에 동일 원칙 적용."
+    // 원칙 14(면별 병합)가 U/I 분류를 담당하므로 block_type은 정보 필드로만 남김.
+    // P=1 → calcNickelPattern이 I만 생성 / P≥2 → I + U 혼합. 모두 동일 렌더.
+    if (P < 1 || !Number.isInteger(P)) {
+      return { block_type: 'Unknown', geometry_ready: false,
+        error: `P=${P} invalid (양의 정수 필요)` };
     }
+    return { block_type: 'Generic', geometry_ready: true };
   }
 
   /**
@@ -146,40 +140,7 @@
    *   등임피던스: 거리 비례 branch 폭 보정 (중앙 ×0.75, 외곽 ×1.30)
    *   반환: trunk 위치, feed 좌표, branch 배열
    */
-  function calcTypeAGeometry(cx_col, cy_arr, R, nw, params) {
-    const P = cy_arr.length;
-    const split = Math.floor(P / 2);
-    const trunk_y = (cy_arr[split - 1] + cy_arr[split]) / 2;
-    const trunk_w = ((params.trunk_w_mm || params.nickel_w_mm * 1.5)) * params.scale;
-
-    const feed_extend = nw * 1.5;
-    const min_x = Math.min(...cx_col);
-    const max_x = Math.max(...cx_col);
-    const trunk_x1 = min_x - feed_extend;
-    const trunk_x2 = max_x + feed_extend;
-
-    const distances  = cy_arr.map(cy => Math.abs(cy - trunk_y));
-    const max_dist   = Math.max(...distances) || 1;
-    const c_ratio    = params.branch_w_ratio_center != null ? params.branch_w_ratio_center : 0.75;
-    const o_ratio    = params.branch_w_ratio_outer  != null ? params.branch_w_ratio_outer  : 1.30;
-    const neck_w_px  = (params.fuse_neck_w_mm || 1.5) * params.scale;
-    const neck_l_px  = (params.fuse_neck_l_mm || 3.0) * params.scale;
-
-    const branches = cy_arr.map((cy, i) => {
-      const dist_ratio = distances[i] / max_dist;
-      const w_ratio    = c_ratio + (o_ratio - c_ratio) * dist_ratio;
-      return {
-        cell_x:      cx_col[i],
-        cell_y:      cy,
-        branch_w:    nw * w_ratio,
-        neck_w:      neck_w_px,
-        neck_l:      neck_l_px,
-        above_trunk: cy < trunk_y,
-      };
-    });
-
-    return { trunk_y, trunk_w, trunk_x1, trunk_x2, feed_xs: [trunk_x1, trunk_x2], branches };
-  }
+  // calcTypeAGeometry 제거 (세션 13.5 사용자 지시 — P=5 전용 특수화 폐기)
 
   /**
    * S×P Snake 배치 순서 반환 (원칙 24 보스트로페돈)
@@ -1323,7 +1284,6 @@
     canonicalSig,
     selectBlockType,
     calcNickelPattern,
-    calcTypeAGeometry,
     buildSnakeLayout,
     estimateMmin,
     calcCustomCenters,

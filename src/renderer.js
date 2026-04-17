@@ -77,7 +77,7 @@
  * 본 파일은 md 이론문서와 버전을 동기화한다. md 수정 시 js도 함께 버전업.
  */
 
-const RENDERER_VERSION = 'v0.3.1+TypeAEngine';
+const RENDERER_VERSION = 'v0.3.2-unified';
 
 // ═══════════════════════════════════════════════
 // Generator 의존성 (M4 Phase 2) — 형상 생성 로직은 generator.js가 단일 출처
@@ -298,101 +298,12 @@ function drawNickelU(cx_colL, cx_colR, cy_arr, R, nw, barH, arrangement, fill) {
   return parts.join('');
 }
 
-/**
- * Type-A 블록 geometry 계산 (P=5 전용, 결론.md 확정 스펙)
- *   셀 배치: P개 세로 컬럼 → 중앙 기준 2-3 분할 (trunk 위치 결정)
- *   등임피던스: 거리 비례 branch 폭 보정 (중앙 ×0.75, 외곽 ×1.30)
- *   반환: trunk 위치, feed 좌표, branch 배열
- */
-// M4 Phase 2: generator.js로 단일화 — shim
-const calcTypeAGeometry = __Generator.calcTypeAGeometry;
+// drawNickelTypeA / calcTypeAGeometry 제거 (세션 13.5 사용자 지시):
+//   "P는 특별하지 않다. 모든 P에 동일 원칙 적용. 5P만의 별도 이론 금지."
+//   P=5도 calcNickelPattern + drawNickelI/drawNickelU 일반 경로로 처리.
 
 /**
- * 닫힌 사다리(Closed Ladder) 니켈 렌더링
- *
- * 구조:
- *   좌/우 세로 레일 (cy[0]~cy[P-1] 전체 연결) → 닫힌 구조 보장
- *   각 셀 위치에 가로 접점 bar (등임피던스 높이 보정)
- *   각 셀 중앙에 퓨즈 넥 (수직 슬롯 방식)
- *   중앙 trunk (가장 두꺼운 가로 bar — 직렬 연결 수집점)
- *
- * SVG 레이어 순서: 레일 → 접점 bar(외측 먼저) → 트렁크 → 퓨즈 넥
- *
- * 범용성: cx_col[i]가 모두 같은 값(정배열)이든 다른 값(엇배열)이든 동일 로직 적용.
- */
-function drawNickelTypeA(cx_col, cy_arr, R, nw, params, fill) {
-  const fc  = fill || NICKEL_FILL;
-  const sw  = NICKEL_SW;
-  const geo = calcTypeAGeometry(cx_col, cy_arr, R, nw, params);
-  const parts = [];
-
-  const P   = cy_arr.length;
-  const x1  = geo.trunk_x1;
-  const x2  = geo.trunk_x2;
-  const pw  = x2 - x1;   // 판 전체 가로 폭
-
-  // ① 좌측 세로 레일 (cy[0] ~ cy[P-1])
-  parts.push(
-    `<rect x="${(x1 - nw / 2).toFixed(1)}" y="${cy_arr[0].toFixed(1)}"` +
-    ` width="${nw.toFixed(1)}" height="${(cy_arr[P - 1] - cy_arr[0]).toFixed(1)}"` +
-    ` fill="${fc}" stroke="${NICKEL_STROKE}" stroke-width="${sw}"/>`
-  );
-  // ② 우측 세로 레일
-  parts.push(
-    `<rect x="${(x2 - nw / 2).toFixed(1)}" y="${cy_arr[0].toFixed(1)}"` +
-    ` width="${nw.toFixed(1)}" height="${(cy_arr[P - 1] - cy_arr[0]).toFixed(1)}"` +
-    ` fill="${fc}" stroke="${NICKEL_STROKE}" stroke-width="${sw}"/>`
-  );
-
-  // ③ 셀 접점 가로 bar (등임피던스 높이 보정: 외측 먼저 → 내측이 위에 덮여 계단 단면)
-  const sorted = [...geo.branches].sort((a, b) => b.branch_w - a.branch_w);
-  for (const b of sorted) {
-    const ch  = b.branch_w;   // 접점 bar 높이 (등임피던스 보정)
-    const cx  = b.cell_x;
-    const cy  = b.cell_y;
-    const nwn = b.neck_w;     // 퓨즈 넥 폭 (x방향)
-
-    // 좌반 접점 bar (레일 ~ 퓨즈 슬롯 좌측)
-    const left_w = cx - nwn / 2 - x1;
-    if (left_w > 0) {
-      parts.push(
-        `<rect x="${x1.toFixed(1)}" y="${(cy - ch / 2).toFixed(1)}"` +
-        ` width="${left_w.toFixed(1)}" height="${ch.toFixed(1)}"` +
-        ` fill="${fc}" stroke="${NICKEL_STROKE}" stroke-width="${sw}"/>`
-      );
-    }
-    // 우반 접점 bar (퓨즈 슬롯 우측 ~ 레일)
-    const right_w = x2 - cx - nwn / 2;
-    if (right_w > 0) {
-      parts.push(
-        `<rect x="${(cx + nwn / 2).toFixed(1)}" y="${(cy - ch / 2).toFixed(1)}"` +
-        ` width="${right_w.toFixed(1)}" height="${ch.toFixed(1)}"` +
-        ` fill="${fc}" stroke="${NICKEL_STROKE}" stroke-width="${sw}"/>`
-      );
-    }
-  }
-
-  // ④ 트렁크 (중앙 가로 bar — 레일/접점 bar 위에 덮어 가장 두꺼운 부분 강조)
-  parts.push(
-    `<rect x="${x1.toFixed(1)}" y="${(geo.trunk_y - geo.trunk_w / 2).toFixed(1)}"` +
-    ` width="${pw.toFixed(1)}" height="${geo.trunk_w.toFixed(1)}"` +
-    ` rx="1" fill="${fc}" stroke="${NICKEL_STROKE}" stroke-width="${sw}"/>`
-  );
-
-  // ⑤ 퓨즈 넥 (셀 중앙 수직 슬롯 — 맨 위에 그려 가시성 확보)
-  for (const b of geo.branches) {
-    parts.push(
-      `<rect x="${(b.cell_x - b.neck_w / 2).toFixed(1)}" y="${(b.cell_y - b.neck_l / 2).toFixed(1)}"` +
-      ` width="${b.neck_w.toFixed(1)}" height="${b.neck_l.toFixed(1)}"` +
-      ` rx="0.5" fill="${fc}" stroke="${NICKEL_STROKE}" stroke-width="${sw}"/>`
-    );
-  }
-
-  return parts.join('\n');
-}
-
-/**
- * S×P Snake 배치 순서 반환 (결론.md: 2열 Snake, centroid 직렬 연결 기준)
+ * S×P Snake 배치 순서 반환 (2열 Snake, centroid 직렬 연결 기준)
  *   기본 2행: 첫 행 ceil(S/2)개 좌→우, 둘째 행 floor(S/2)개 우→좌
  *   options.max_rows: 최대 행 수 (기본 2, 공간 제약 시 3 이상 가능)
  *
@@ -429,50 +340,13 @@ function drawFace(S, P, face, cx, cy, R, params) {
   const midP = Math.floor(P / 2);
   const lines = [];
 
-  // ★ 레이어 순서:
-  //   I/U 모드(P≠5): 원칙 27 — 니켈(최하단) → 셀 → 단자탭
-  //   TypeA 모드(P=5): 니켈이 첫 셀~마지막 셀을 모두 덮어야 함 → 셀 → 니켈(위) → 단자탭
-  const blockInfo = selectBlockType(P);
-  const isTypeA   = blockInfo.block_type === 'TypeA' && blockInfo.geometry_ready;
+  // 레이어 순서 (원칙 20): 니켈(최하단) → 셀 → 단자탭. P 무관 통일.
 
-  // ── 헬퍼: TypeA 니켈 SVG 조각 수집 ──
-  const buildTypeANickel = () => {
-    const buf = [];
-    const pattern     = calcNickelPattern(S, P);
-    const nickels     = face === 'top' ? pattern.top : pattern.bot;
-    const drawnGroups = new Set();
-    for (const n of nickels) {
-      for (const g of n.groups) {
-        if (!drawnGroups.has(g)) {
-          buf.push(drawNickelTypeA(cx[g], cy, R, nw, params, NICKEL_FILL));
-          drawnGroups.add(g);
-        }
-      }
-      if (n.type === 'U') {
-        const gL      = n.groups[0], gR = n.groups[1];
-        const split   = Math.floor(P / 2);
-        const trunk_y = (cy[split - 1] + cy[split]) / 2;
-        const trunk_w = ((params.trunk_w_mm || params.nickel_w_mm * 1.5)) * params.scale;
-        const feed_e  = nw * 1.5;
-        const x1      = Math.max(...cx[gL]) + feed_e;
-        const x2      = Math.min(...cx[gR]) - feed_e;
-        if (x2 > x1) {
-          buf.push(
-            `<rect x="${x1.toFixed(1)}" y="${(trunk_y - trunk_w / 2).toFixed(1)}"` +
-            ` width="${(x2 - x1).toFixed(1)}" height="${trunk_w.toFixed(1)}"` +
-            ` fill="${NICKEL_FILL}" stroke="${NICKEL_STROKE}" stroke-width="${NICKEL_SW}"/>`
-          );
-        }
-      }
-    }
-    return buf;
-  };
-
-  // ① I/U 니켈 (셀 아래, Principle 27)
-  if (params.show_nickel && !isTypeA) {
+  // ① 니켈 (셀 아래) — 모든 P 공통: calcNickelPattern → drawNickelI / drawNickelU
+  if (params.show_nickel) {
     const pattern = calcNickelPattern(S, P);
     const nickels = face === 'top' ? pattern.top : pattern.bot;
-    let pi = 0;  // 원칙 26: plate index → 2색 팔레트 교번
+    let pi = 0;  // plate index → 2색 팔레트 교번
     for (const n of nickels) {
       const fill = NICKEL_PALETTE[pi % 2].fill;
       if (n.type === 'I') {
@@ -492,12 +366,7 @@ function drawFace(S, P, face, cx, cy, R, params) {
     for (let p = 0; p < P; p++) lines.push(drawCell(cx[g][p], cy[p], R, polarity, params.scale));
   }
 
-  // ③ TypeA 니켈 (셀 위 — 첫 셀~마지막 셀 연결 가시성 확보)
-  if (params.show_nickel && isTypeA) {
-    lines.push(...buildTypeANickel());
-  }
-
-  // ④ 단자탭 (최상단)
+  // ③ 단자탭 (최상단)
   if (params.show_nickel && params.show_terminal) {
     const pattern = calcNickelPattern(S, P);
     const nickels = face === 'top' ? pattern.top : pattern.bot;
@@ -937,7 +806,7 @@ if (typeof module !== 'undefined' && require.main === module) {
 if (typeof module !== 'undefined') module.exports = {
   render, calcNickelPattern, getCellPolarity, calcCellCenters, CELL_SPEC,
   // M4 Phase 1 — generator.js 회귀 검증용 추가 export
-  canonicalSig, selectBlockType, calcTypeAGeometry, buildSnakeLayout,
+  canonicalSig, selectBlockType, buildSnakeLayout,
   // M4 Phase 3 — F14 custom rows 직접 렌더
   renderCustomRows, resolveLayout,
 };
