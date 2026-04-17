@@ -78,7 +78,8 @@ function setArrangement(a) {
   document.getElementById('btnSquare').classList.toggle('active', a === 'square');
   document.getElementById('btnStag').classList.toggle('active', a === 'staggered');
   document.getElementById('btnCustom').classList.toggle('active', a === 'custom');
-  document.getElementById('customGroup').style.display = (a === 'custom') ? 'block' : 'none';
+  document.getElementById('rectConfig').style.display   = (a === 'custom') ? 'none'  : 'block';
+  document.getElementById('customGroup').style.display  = (a === 'custom') ? 'block' : 'none';
 }
 
 function setCustomAlign(a) {
@@ -214,9 +215,27 @@ function addBmsMarkerToDOM() {
 function adj(k, d) {
   if (k === 'S') state.S = Math.max(2, Math.min(23, state.S + d));
   if (k === 'P') state.P = Math.max(1, Math.min(8,  state.P + d));
-  document.getElementById('val' + k).textContent = state[k];
-  const sc = document.getElementById('valScustom');
-  if (sc && k === 'S') sc.textContent = state.S;
+  const el = document.getElementById('val' + k);
+  if (el) el.value = state[k];
+  if (k === 'S') {
+    const sc = document.getElementById('valScustom');
+    if (sc) sc.value = state.S;
+  }
+}
+
+// 직접 타이핑 입력 처리 (input[type=number] oninput 핸들러)
+function setFromInput(k, v) {
+  const n = parseInt(v, 10);
+  if (!Number.isFinite(n) || v === '') return;
+  if (k === 'S') state.S = Math.max(2, Math.min(23, n));
+  if (k === 'P') state.P = Math.max(1, Math.min(8,  n));
+  // 범위 벗어난 경우 입력칸 값도 정규화
+  const el = document.getElementById('val' + k);
+  if (el && parseInt(el.value, 10) !== state[k]) el.value = state[k];
+  if (k === 'S') {
+    const sc = document.getElementById('valScustom');
+    if (sc && parseInt(sc.value, 10) !== state.S) sc.value = state.S;
+  }
 }
 
 function adjGap(d) {
