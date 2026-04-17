@@ -1,8 +1,45 @@
 ========================================
-마지막 업데이트: 2026-04-17 (세션 6 — M4 완료 + M5 완료, doRender 제거)
-버전: renderer.js v0.3.1+TypeAEngine (내부 구조 3파일 분리)
+마지막 업데이트: 2026-04-17 (세션 7 — 브라우저 검증 9케이스 + face filter 버그 수정 + M7 핵심 실구현)
+버전: renderer.js v0.3.1+TypeAEngine / generator.js v7-M7
 원칙 문서: v7 (skills/ 폴더 통합, 구조·경로 재편)
 ========================================
+
+## 세션 7 메모 (2026-04-17 — 브라우저 검증 + M7)
+
+1. 브라우저 육안 검증 9/9 PASS
+   · 13S3P square / staggered / custom(rows=[8,8,10,13,13,13]) 렌더 확인
+   · face toggle: Both/Top/Bottom → 버그 발견·수정 완료
+   · BMS edge/pos 변경, Export SVG 다운로드 확인
+
+2. face filter 버그 수정 (renderer.js)
+   · 원인: render() square/staggered 본체에 faceFilter 변수 미적용
+   · 수정: showTop/showBot 분기 추가 → 단면 모드 시 svgH/svgW 축소
+   · 커밋: 98edee2
+
+3. M7 핵심 함수 실구현 (generator.js v7-M7)
+   · 신규 유틸: estimatePitch / buildAdjacency / groupQualityScore / checkGroupValidity
+   · S24 assignGroupNumbers: 보스트로페돈(square/staggered) + BFS(custom)
+   · S15C buildPairFirst: ICC①② 하드 체크 + quality_score=-10 가지치기
+   · S22 selectBmsOptimal: BMS 기준선 유클리드 거리 최소 타일링 선택
+   · 테스트: test_m7_core.js 35/35 + 기존 전체 PASS
+   · 커밋: 8da413b
+
+## 다음 세션 최우선 (재개 시)
+
+[0순위] M7 잔여 스텁 실구현
+  · S15A detectSymmetryGroup: C2/C4(square), C2/C3/C6(staggered) 실구현
+  · S15B enumerateCongruentPairs: 회전 대칭 하 그룹 쌍 열거
+  · S15D minimizeShapeCount: ICC 통과 후보군 내 m_distinct 최소 탐색
+  · S18 buildStrokeGraph: adjacency spanning tree + svg_elements 생성
+  · S23 buildHexCluster: hex 6방향 spanning tree
+
+[1순위] validator.js 실구현
+  · P01/P06/P08/P09/P26(LAYER 0) 절대 불변 체크
+  · checkGroupValidity 연동 (M7에서 구현 완료)
+
+[2순위] feature_list.json 미완료 기능 점검
+  · F11(P=3 Compact-H), F12(P=6 Extended) — geometry spec 미확정 유지
+  · F21, F24, F29, F30 현황 재확인
 
 ## 세션 6 메모 (2026-04-17 — M4+M5 진행)
 
