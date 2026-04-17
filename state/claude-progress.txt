@@ -1,7 +1,65 @@
 ========================================
-마지막 업데이트: 2026-04-17 (세션 11 — UI 이슈 해결 + 사이드바 유동·폰트 개선)
+마지막 업데이트: 2026-04-17 (세션 12 — 개발 규율 2종 추가 / Superpowers 부분 채택)
 버전: battery_pack_renderer.html v0.2.25 / renderer.js v0.3.1+TypeAEngine / generator.js v7-M7
 원칙 문서: v7.1 (원칙 4·17 B+/B-·홀더 Level 계층 추가, 원칙 15 Step C' 삽입)
+개발 규율: skills/tdd-first.md + skills/systematic-debug.md (커밋 522840b)
+========================================
+
+## 🚨 새 세션 시작 시 반드시 이 순서로
+
+1. **즉시** `skills/pack-renderer-session.md`를 읽고 7단계 시작 루틴 실행 (기존 CLAUDE.md 규칙).
+2. **추가로** 신규 규율 2개 파일을 읽어라 — 이번 세션부터 모든 코드 작업에 강제 적용:
+   - `skills/tdd-first.md` (RED-GREEN-REFACTOR — generator/validator/renderer 순수계산 대상)
+   - `skills/systematic-debug.md` (5단계 디버깅 + "3회 같은 의도 수정 시 중단" 규칙)
+3. 작업 종류별 필독 파일(`nickel_plate_principles.md` / `nickel-plate-design.md` / `nickel_render_rules.md`)도 기존대로 유지.
+
+## 🎯 다음 세션 최우선 작업 — S15B `enumerateCongruentPairs`
+
+TDD-first 방식으로 진행. 구현 전 반드시 테스트부터.
+
+**진행 순서 (엄수)**
+1. `skills/tdd-first.md` 재독.
+2. `skills/nickel-plate-design.md` LAYER 3 원칙 15·22 재독 (회전 대칭 하 그룹 쌍 열거 맥락).
+3. `tests/test_s15b.js` 새로 생성:
+   - 케이스 A: square 3×3 + C4 대칭, 그룹 수 2 → 기대 쌍 목록
+   - 케이스 B: staggered 6개 셀 + C2 대칭, 그룹 수 3 → 기대 쌍 목록
+   - 케이스 C: custom 비대칭 → 빈 배열 반환
+   - 케이스 D: 단일 그룹 → 빈 배열 반환
+4. `node tests/test_s15b.js` 실행 → **FAIL 확인** (ReferenceError 허용).
+5. `src/generator.js`에 `enumerateCongruentPairs(ctx)` 실구현.
+   - 입력: S15A의 symmetryGroup 결과 + cells + group 배정
+   - 출력: `[{groupA, groupB, rotation}]` 형태
+6. `node tests/test_s15b.js` PASS → 기존 전체 테스트(test_generator_stub.js, test_m7_core.js 등) 전부 재실행해 회귀 없음 확인.
+7. 완료 후 `state/feature_list.json`·`claude-progress.txt` 업데이트 + 커밋.
+
+**이후 M7 잔여 순서**
+- S15D `minimizeShapeCount` (ICC 통과 후보군 내 m_distinct 최소 탐색)
+- S18 `buildStrokeGraph` (adjacency spanning tree + svg_elements 생성)
+- S23 `buildHexCluster` (hex 6방향 spanning tree)
+
+각각 동일한 TDD 절차 반복.
+
+## 세션 12 메모 (2026-04-17 — 개발 규율 도입)
+
+### 배경
+사용자 피드백: "로직적인 오류들이 많고, 잘 고쳐지지 않음". obra/superpowers 플러그인 전면 도입 검토.
+
+### 판단
+전면 도입 반대 — 이미 bkit PDCA + pack-renderer-session 7단계 + LAYER 원칙이 있어 방법론 3중 레이어가 됨. 대신 superpowers의 핵심 가치 2가지만 발췌 채택:
+1. TDD-first 강제 (RED-GREEN-REFACTOR)
+2. Systematic debugging (재현 → 격리 → 가설 → 검증 → 수정)
+
+### 추가한 파일
+- `skills/tdd-first.md` — 알고리즘 함수는 테스트 먼저. 구현 먼저 → 테스트 나중 금지. 브라우저 수동 확인으로 자동 테스트 대체 금지.
+- `skills/systematic-debug.md` — 재현 불가 수정 금지. 가설 없이 패치 금지. **같은 파일 3회 같은 의도 수정 시 즉시 중단** (세션 10 CSS 6회 반복 교훈).
+- `CLAUDE.md` — "개발 규율 (필수 준수)" 섹션 신설, 상황별 필독 파일 라우팅 연결.
+
+### 커밋
+- 522840b: docs(skills): TDD + 체계적 디버깅 규율 추가
+
+### 코드 변경 없음
+이번 세션은 메타 규율 정비만. generator.js / validator.js / renderer.js 로직 수정 없음. 테스트 74/74 PASS 상태 유지.
+
 ========================================
 
 ## 세션 11 메모 (2026-04-17 — 세션 10 UI 이슈 근본 해결)
