@@ -17,6 +17,8 @@ test_custom_thin.png
 *~
 .DS_Store
 Thumbs.db
+*.bak
+*.m5.bak
 
 # Node
 node_modules/

@@ -3,11 +3,16 @@ const fs  = require('fs');
 const vm  = require('vm');
 
 const path = require('path');
-const rendererSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer.js'), 'utf8');
+const generatorSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'generator.js'), 'utf8');
+const rendererSrc  = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer.js'), 'utf8');
 
-// vm context에 필요한 전역을 주입하고, 모든 로직을 context 안에서 실행
-const ctx = { require, console, __result: null };
+// vm context에 require·module을 주지 않음 → generator.js UMD는 `global.Generator = api` 경로를 탐.
+// (global === ctx 자체이므로 ctx.Generator로 주입됨)
+const ctx = { console, __result: null };
 vm.createContext(ctx);
+
+// generator.js 먼저 로드 (renderer의 __Generator 의존성)
+vm.runInContext(generatorSrc, ctx);
 
 // renderer.js 로드
 vm.runInContext(rendererSrc, ctx);

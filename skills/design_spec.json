@@ -1,0 +1,302 @@
+{
+  "$schema_version": "1.0",
+  "source_md": "skills/nickel-plate-design.md",
+  "source_version": "v7",
+  "last_updated": "2026-04-17",
+  "description": "LAYER 3 형상 설계 스킬 스펙 - generator.js가 절차(procedure)로 실행. 7개 원칙(P02·P13·P15·P18·P22·P23·P24)을 phase 순서로 호출. 각 step의 prereq_rules는 principles_spec.json 원칙 id를 참조하며, 실행 전 validator.runValidation()으로 확인 후 진입.",
+  "call_order": "LAYER 1 결정(P04·P17) → S24(번호 부여) → S15(SFMT 4-step) → S13(금형 효율 조건부) → S22(BMS 근접) → 결과 반환",
+  "type_enum": ["procedure"],
+  "phase_enum": [1, 2, 3, 4],
+  "steps": [
+    {
+      "id": "S24",
+      "phase": 1,
+      "name": "그룹 번호 부여 규칙",
+      "type": "procedure",
+      "entry_fn": "assignGroupNumbers",
+      "prereq_rules": ["P04", "P09", "P17"],
+      "inputs": [
+        "arrangement",
+        "series_path_shape",
+        "cell_centers",
+        "rows",
+        "b_plus_direction"
+      ],
+      "outputs": [
+        "groups[].index",
+        "groups[].cells",
+        "ctx.G0_is_B_plus",
+        "ctx.G_last_is_B_minus"
+      ],
+      "branches": {
+        "arrangement": {
+          "square": "boustrophedon (홀수 행 좌→우, 짝수 행 우→좌)",
+          "staggered": "boustrophedon (hex 격자 기준)",
+          "custom": "BFS on distance-based adjacency (P09 ③)"
+        },
+        "path_shape": {
+          "linear": "default boustrophedon",
+          "U": "B+ 기점부터 U자 경로 추적 후 번호 부여",
+          "S": "S자 경로 추적",
+          "arbitrary": "원칙 4 경로 정의에 따름"
+        }
+      },
+      "post_condition": "groups[0] === B+ plate && groups[S-1] === B- plate",
+      "source_section": "원칙 24 — 그룹 번호 부여 규칙"
+    },
+    {
+      "id": "S15",
+      "phase": 2,
+      "name": "최소 형상 자동 탐색 (SFMT 4단계)",
+      "type": "procedure",
+      "entry_fn": "sfmtSearch",
+      "prereq_rules": ["P04", "P09", "P12", "P17", "P21", "P26"],
+      "inputs": [
+        "groups",
+        "arrangement",
+        "cell_centers",
+        "adjacency_graph"
+      ],
+      "outputs": [
+        "candidates[]",
+        "m_distinct",
+        "symmetry_group",
+        "congruent_pairs[]"
+      ],
+      "sub_steps": [
+        {
+          "id": "S15A",
+          "name": "Step A — 팩 대칭군 탐지",
+          "entry_fn": "detectSymmetryGroup",
+          "rationale": "반사 대칭은 원칙 12에 의해 형상 공용 처리 불가 → 회전 대칭만 유효",
+          "branches": {
+            "square": ["C2 (180°)", "C4 (90°)"],
+            "staggered": ["C2 (180°)", "C3 (120°)", "C6 (60°)"],
+            "custom": "rows[] 무게중심 회전 일치 최대 차수 탐색"
+          },
+          "outputs": ["symmetry_order", "rotation_center"]
+        },
+        {
+          "id": "S15B",
+          "name": "Step B — 국소 합동 쌍 열거",
+          "entry_fn": "enumerateCongruentPairs",
+          "rule": "탐지된 회전 대칭 하에서 매핑되는 그룹 쌍 (Gi ↔ Gj) 열거",
+          "outputs": ["congruent_pairs[]"]
+        },
+        {
+          "id": "S15C",
+          "name": "Step C — 쌍-우선 구성",
+          "entry_fn": "buildPairFirst",
+          "hard_constraints": {
+            "icc_check": "call Validator.CHECKS.checkICC(ctx, params) inline",
+            "icc_rule_id": "P16",
+            "prune_on_fail": true
+          },
+          "auxiliary_inputs": {
+            "group_quality_score": "P21 품질 점수 (+10/0/-10)",
+            "priority_prune": "-10점 후보 우선 가지치기"
+          },
+          "outputs": ["candidate_tilings[]"]
+        },
+        {
+          "id": "S15D",
+          "name": "Step D — 종수 최소화",
+          "entry_fn": "minimizeShapeCount",
+          "rule": "ICC 만족 후보군 내에서만 최소 m_distinct 탐색",
+          "outputs": ["m_distinct_min", "optimal_tilings[]"]
+        }
+      ],
+      "source_section": "원칙 15 — 최소 형상 자동 탐색 (SFMT)"
+    },
+    {
+      "id": "S02",
+      "phase": 3,
+      "name": "니켈 연결 범위 공식",
+      "type": "procedure",
+      "entry_fn": "calcConnectionBounds",
+      "prereq_rules": ["P09", "P17"],
+      "inputs": [
+        "group_A_center",
+        "group_B_center",
+        "nickel_w",
+        "connection_type"
+      ],
+      "outputs": [
+        "bounds.x_range",
+        "bounds.y_range"
+      ],
+      "formulas": {
+        "horizontal": {
+          "x_min": "G_left.cx - nickel_w / 2",
+          "x_max": "G_right.cx + nickel_w / 2"
+        },
+        "vertical": {
+          "y_min": "G_top.cy - nickel_w / 2",
+          "y_max": "G_bot.cy + nickel_w / 2"
+        },
+        "diagonal": {
+          "start": "(G_a.cx - nickel_w/2, G_a.cy - nickel_w/2)",
+          "end":   "(G_b.cx + nickel_w/2, G_b.cy + nickel_w/2)"
+        }
+      },
+      "called_by": "S15C (Step C 니켈 배치 후보 구성 시)",
+      "source_section": "원칙 2 — 니켈 연결 범위 공식"
+    },
+    {
+      "id": "S22",
+      "phase": 3,
+      "name": "BMS 근접 선택",
+      "type": "procedure",
+      "entry_fn": "selectBmsOptimal",
+      "prereq_rules": ["P14", "P25"],
+      "inputs": [
+        "candidate_tilings[]",
+        "bms_side",
+        "plate_tab_positions",
+        "bridge_candidate_anchors"
+      ],
+      "params": {
+        "bms_side_default": "top",
+        "bms_side_allowed": ["top", "bottom", "left", "right"],
+        "distance_metric": "euclidean",
+        "wire_routing": "not computed by renderer"
+      },
+      "outputs": [
+        "selected_tiling",
+        "b_plus_tab_position",
+        "b_minus_tab_position",
+        "bridge_anchor_points[]"
+      ],
+      "selection_rule": "min(distance(B+_tab, bms_line)), tie-break by B- distance",
+      "called_by": "S15D (m_distinct 동점 tie-break) AND P14 (브리지 기준점 결정)",
+      "source_section": "원칙 22 — BMS 근접 선택"
+    },
+    {
+      "id": "S13",
+      "phase": 3,
+      "name": "S짝수 정배열 컬럼그룹의 금형 효율 (조건부)",
+      "type": "procedure",
+      "entry_fn": "detectColumnGroupEfficiency",
+      "prereq_rules": ["P04", "P14", "P17"],
+      "inputs": [
+        "S",
+        "P",
+        "arrangement",
+        "group_shape",
+        "series_path_shape",
+        "b_plus_face",
+        "b_minus_face"
+      ],
+      "outputs": [
+        "eligible",
+        "m_min_estimated",
+        "shape_category"
+      ],
+      "conditions": {
+        "all_must_hold": [
+          "S % 2 === 0",
+          "arrangement === 'square'",
+          "group_shape === 'column_Px1'"
+        ],
+        "prerequisite_5": "series_path === 'linear boustrophedon' AND b_plus_face !== b_minus_face"
+      },
+      "conclusions": {
+        "when_eligible": {
+          "m_min": 2,
+          "shapes": ["terminal_plate (G0, G_last) — 1종", "bridge_plate (Gi∪G_{i+1}) — 1종"]
+        },
+        "when_S_odd_and_else_match": {
+          "m_min_estimated": 3,
+          "note": "추정·증명 필요: 단자 플레이트 2개가 C2 회전 대칭으로 합동이면 2종 축소 가능. SFMT Step A 개별 판정 필요."
+        }
+      },
+      "priority_hint": "이 조건 성립 시 금형 공용화 관점에서 최우선 설계 케이스. 설계 자유도가 있다면 유도 검토.",
+      "source_section": "원칙 13 — S짝수 정배열 컬럼그룹의 금형 효율 (조건부)"
+    },
+    {
+      "id": "S18",
+      "phase": 3,
+      "name": "니켈 형상 알고리즘 (stroke graph)",
+      "type": "procedure",
+      "entry_fn": "buildStrokeGraph",
+      "prereq_rules": ["P09", "P10", "P16"],
+      "inputs": [
+        "group_cells",
+        "adjacency_graph",
+        "arrangement",
+        "cell_R"
+      ],
+      "outputs": [
+        "stroke_graph.V",
+        "stroke_graph.E",
+        "svg_elements[]"
+      ],
+      "definition": {
+        "graph": "G=(V,E). V=group cells, E=adjacency pairs (P09)",
+        "svg_render": "each edge → <line> or <path> stroke=2R, stroke-linecap=round",
+        "cell_background": "each node → <circle> r=R"
+      },
+      "constraints": {
+        "planar_required": true,
+        "floating_segment_forbidden": "어떤 셀과도 접촉하지 않는 고립 선분·호 생성 금지",
+        "convex_hull_forbidden": "Convex Hull 팽창 방식 절대 금지 (일렬 배치 그룹에서 팩 70% 덮는 거대 도형 발생)",
+        "implementation_method_B": "adjacency spanning tree를 먼저 도출하고 그 순서대로 stroke 추가 → 사이클 없음 보장"
+      },
+      "edge_cases": {
+        "round_linecap_overlap": "셀 원형 배경(r=R) 영역 내 겹침은 planar 교차 판정에서 예외",
+        "staggered_delegation": "엇배열 hex 6방향 spanning tree는 S23에 위임"
+      },
+      "source_section": "원칙 18 — 니켈 형상 알고리즘"
+    },
+    {
+      "id": "S23",
+      "phase": 4,
+      "name": "엇배열 hex 클러스터",
+      "type": "procedure",
+      "entry_fn": "buildHexCluster",
+      "prereq_rules": ["P09", "P10"],
+      "inputs": [
+        "group_cells",
+        "hex_adjacency_graph",
+        "cell_R"
+      ],
+      "outputs": [
+        "hex_spanning_tree",
+        "stroke_graph_hex"
+      ],
+      "cluster_examples": [
+        "2-1-2 diamond (5셀 헥사)",
+        "1-2-2",
+        "기타 hex 펜토미노"
+      ],
+      "neighbor_count": 6,
+      "trigger_condition": "arrangement === 'staggered'",
+      "called_by": "S18 (엇배열 분기 시)",
+      "delegation_note": "사다리 구조는 원칙 10에서 위임받으며 hex adjacency spanning tree + 셀 원형 배경으로 정의. 보스트로페돈 직렬·플레이트 병합·BMS 근접은 정배열과 동일.",
+      "round_linecap_rule": "hex 6방향 spanning tree에서 인접 셀 쌍 stroke가 60° 각도로 교차하는 경우, 셀 원형 배경(r=R) 영역 내 겹침은 planar 교차 판정 제외",
+      "source_section": "원칙 23 — 엇배열 hex 클러스터"
+    }
+  ],
+  "step_dependency_graph": {
+    "S24": { "depends_on": [], "triggers": ["S15"] },
+    "S15": { "depends_on": ["S24"], "triggers": ["S02", "S22", "S13", "S18"] },
+    "S02": { "depends_on": ["S15A"], "called_from": "S15C" },
+    "S22": { "depends_on": ["S15D"], "also_called_by": "P14 (bridge anchor)" },
+    "S13": { "depends_on": ["S24"], "optional": true, "trigger_condition": "conditional (S짝수 + square + column_Px1)" },
+    "S18": { "depends_on": ["S15D"], "triggers_conditionally": ["S23"] },
+    "S23": { "depends_on": ["S18"], "trigger_condition": "arrangement === 'staggered'" }
+  },
+  "entry_fns_required": [
+    "assignGroupNumbers",
+    "sfmtSearch",
+    "detectSymmetryGroup",
+    "enumerateCongruentPairs",
+    "buildPairFirst",
+    "minimizeShapeCount",
+    "calcConnectionBounds",
+    "selectBmsOptimal",
+    "detectColumnGroupEfficiency",
+    "buildStrokeGraph",
+    "buildHexCluster"
+  ]
+}

@@ -1,7 +1,70 @@
 ========================================
-마지막 업데이트: 2026-04-17 (세션 4 종료 — v7 보강 + 폴더 재편 세션)
-버전: renderer.js v0.3.1+TypeAEngine (변경 없음)
+마지막 업데이트: 2026-04-17 (세션 6 — M4 완료 + M5 완료, doRender 제거)
+버전: renderer.js v0.3.1+TypeAEngine (내부 구조 3파일 분리)
 원칙 문서: v7 (skills/ 폴더 통합, 구조·경로 재편)
+========================================
+
+## 세션 6 메모 (2026-04-17 — M4+M5 진행)
+
+1. M4 (3-Phase) 완료 — 4-파일 아키텍처 단일 출처 확정
+   · validator.js (L0·1·2) / generator.js (L3) / renderer.js (L4) / app.js (UI)
+   · generator.js 신규 생성 (436→510행), 6 migrated + 11 design_spec 스텁 + calcCustomCenters
+   · renderer.js shim 패턴 (__Generator 의존성 주입 — require·window·globalThis·VM 모두 지원)
+   · F14: renderer.renderCustomRows — arrangement='custom' + rows[] 직접 수신
+
+2. M5 완료 — doRender() 제거 / rerender() 유일 진입점
+   · app.js 572→400행 (-172행 삭제)
+   · 제거 함수: renderCustomLayout, calcCustomCenters, convexHull2D, doRender
+   · applyFaceFilter 단순화 — custom/non-custom 통합 (face!=all이면 render() 재호출)
+   · HTML onclick="doRender()" → "rerender()" / 초기 호출도 rerender()
+   · 검증: F14 22/22, custom_render, generator_stub 70/70 모두 PASS
+
+## 다음 세션 최우선 (재개 시)
+
+[0순위] 브라우저 육안 검증 (battery_pack_renderer.html)
+  · 13S square · staggered · custom 전 케이스
+  · face toggle (all/top/bottom) 동작
+  · BMS edge/pos 변경 시 렌더 정상
+  · Export SVG 정상 다운로드
+
+[1순위] M7 착수 — design_spec 스텁 11개 실제 로직 구현
+  · 우선순위: sfmtSearch (S15) > selectBmsOptimal (S14) > buildPairFirst (S15C)
+  · group_quality_score(+10/0/-10) 계산기 포함
+
+[2순위] git commit + push (virtiofs 캐시 복구 후)
+  · 메시지 초안: "feat(M4+M5): 4파일 아키텍처 분리 + doRender 제거 + F14 완성"
+
+========================================
+## 과거 세션 로그 (이하 아카이브)
+
+## 세션 5 메모 (2026-04-17 오후)
+
+1. CLAUDE.md 보강
+   - gstack Skill routing 섹션 복원 (세션 4에서 누락 삭제되었던 것)
+   - 근거: commit 91a591f "chore: add gstack skill routing rules to CLAUDE.md" + .gstack/ 폴더 존재
+   - 12개 gstack 스킬 라우팅 룰 원문 복원: office-hours, investigate, ship, qa, review,
+     document-release, retro, design-consultation, design-review, plan-eng-review, checkpoint, health
+
+2. git 커밋 차단 (미해결 — 다음 세션으로 이월)
+   - 원인: virtiofs/FUSE 캐시 버그 → .git/index.lock 유령 상태 (stat 존재 / open·unlink 모두 실패)
+   - 사용자 측 Windows 탐색기로 index.lock + 기타 *.lock 삭제는 완료
+   - 그러나 샌드박스 kernel dentry 캐시가 갱신 안 됨 → git add 영구 실패
+   - 해결책: 다음 Cowork 세션 재시작 시 FUSE 재마운트로 자동 해소 예정
+
+## 다음 세션 최우선 (재개 시)
+
+[0순위] git add -A → commit → push
+  · 메시지: "프로젝트 폴더 재편 + 원칙 v7 + gstack 라우팅 복원"
+  · 세션 4 + 세션 5 변경사항 통합 커밋
+  · origin/main push (현재 ahead 1 상태)
+  · 빈 image/ 폴더 수동 삭제 확인
+
+[대체안] 사용자가 Windows PowerShell에서 직접 실행
+  cd C:\Users\jhshi\Work\01_SLPOWER\Pack-Renderer
+  git add -A
+  git commit -m "프로젝트 폴더 재편 + 원칙 v7 + gstack 라우팅 복원"
+  git push origin main
+
 ========================================
 
 ## 오늘 한 일 (2026-04-17 — 세션 4차)

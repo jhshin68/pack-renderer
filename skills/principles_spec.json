@@ -1,0 +1,863 @@
+{
+  "$schema_version": "1.0",
+  "source_md": "skills/nickel_plate_principles.md",
+  "source_version": "v7",
+  "last_updated": "2026-04-17",
+  "description": "니켈 플레이트 형상 설계 원칙 체계 v7 - LAYER 0·1·2 기계 파싱 스펙. validator.js가 CHECKS 함수 테이블로 dispatch하여 실행. LAYER 0(P01·P06·P08·P09·P26) + LAYER 1(P04·P17) + LAYER 2(P07·P10·P12·P14·P16·P21·P25) 총 14개 rule 객체화 완료.",
+  "fail_action_enum": ["abort_design", "prune_candidate", "warn"],
+  "severity_enum": ["critical", "error", "warning"],
+  "type_enum": ["law", "decision", "rule"],
+  "rules": [
+    {
+      "id": "P01",
+      "layer": 0,
+      "name": "극성 불변",
+      "type": "law",
+      "check": "checkPolarityInversion",
+      "inputs": [
+        "cells[].top_polarity",
+        "cells[].bottom_polarity"
+      ],
+      "params": {},
+      "fail_action": "abort_design",
+      "severity": "critical",
+      "depends_on": [],
+      "source_section": "원칙 1 — 극성 불변",
+      "description": "셀 상면이 + 이면 하면은 반드시 −. 이 관계는 어떤 경우에도 바뀌지 않는다.",
+      "test_cases": [
+        {
+          "name": "valid_plus_top",
+          "input": { "top_polarity": "+", "bottom_polarity": "-" },
+          "expect": "ok"
+        },
+        {
+          "name": "invalid_same_sign",
+          "input": { "top_polarity": "+", "bottom_polarity": "+" },
+          "expect": "fail"
+        }
+      ]
+    },
+    {
+      "id": "P06",
+      "layer": 0,
+      "name": "맞닿음 불변",
+      "type": "law",
+      "check": "checkContact",
+      "inputs": [
+        "cell_centers",
+        "cell_d",
+        "pitch",
+        "gap"
+      ],
+      "params": {
+        "gap_required": 0.0,
+        "pitch_tolerance_mm": 0.1
+      },
+      "fail_action": "abort_design",
+      "severity": "critical",
+      "depends_on": [],
+      "source_section": "원칙 6 — 맞닿음 불변",
+      "description": "셀과 셀은 항상 맞닿아 있어야 한다. gap=0, pitch=render_d.",
+      "test_cases": [
+        {
+          "name": "valid_contact",
+          "input": { "gap": 0.0, "pitch": 22.0, "render_d": 22.0 },
+          "expect": "ok"
+        },
+        {
+          "name": "invalid_gap_positive",
+          "input": { "gap": 1.0, "pitch": 23.0, "render_d": 22.0 },
+          "expect": "fail"
+        }
+      ]
+    },
+    {
+      "id": "P08",
+      "layer": 0,
+      "name": "셀 수 불변",
+      "type": "law",
+      "check": "checkCellCount",
+      "inputs": [
+        "S",
+        "P",
+        "N",
+        "groups[].cell_count",
+        "rows"
+      ],
+      "params": {},
+      "fail_action": "abort_design",
+      "severity": "critical",
+      "depends_on": [],
+      "source_section": "원칙 8 — 셀 수 불변",
+      "description": "N = S×P는 설계 확정 시 불변. 각 그룹 Gi는 항상 P개 셀. 홀더/케이스 형상으로 행별 셀 수는 달라질 수 있으나 N과 그룹의 P는 불변.",
+      "sub_checks": [
+        {
+          "id": "P08.1",
+          "rule": "N === S * P",
+          "detail": "총 셀 수는 S × P와 정확히 일치"
+        },
+        {
+          "id": "P08.2",
+          "rule": "groups.every(g => g.cell_count === P)",
+          "detail": "모든 그룹의 셀 수는 P로 동일"
+        },
+        {
+          "id": "P08.3",
+          "rule": "rows ? rows.reduce((a,b) => a+b, 0) === N : true",
+          "detail": "커스텀 배열 시 rows[] 합 = N"
+        }
+      ],
+      "test_cases": [
+        {
+          "name": "valid_13s5p",
+          "input": { "S": 13, "P": 5, "N": 65 },
+          "expect": "ok"
+        },
+        {
+          "name": "valid_custom_rows",
+          "input": { "S": 13, "P": 5, "N": 65, "rows": [8, 8, 10, 13, 13, 13] },
+          "expect": "ok"
+        },
+        {
+          "name": "invalid_N_mismatch",
+          "input": { "S": 13, "P": 5, "N": 66 },
+          "expect": "fail"
+        }
+      ]
+    },
+    {
+      "id": "P09",
+      "layer": 0,
+      "name": "니켈 연결 인접성 절대 규칙",
+      "type": "law",
+      "check": "checkAdjacency",
+      "inputs": [
+        "arrangement",
+        "nickel_connections[]",
+        "cell_centers",
+        "pitch"
+      ],
+      "params": {
+        "square_neighbors": 4,
+        "staggered_neighbors": 6,
+        "custom_distance_factor": 1.1,
+        "custom_factor_rationale": "셀 외경·홀더 슬롯 제조 공차 ±10% 허용치"
+      },
+      "fail_action": "abort_design",
+      "severity": "critical",
+      "depends_on": [],
+      "source_section": "원칙 9 — 니켈 연결 인접성 절대 규칙",
+      "description": "니켈 플레이트는 바로 인접한 셀끼리만 연결. 점프(셀 건너뜀) 절대 금지. 위반 시 비인접 그룹 간 단락 또는 특정 셀 과부하 → 열폭주.",
+      "sub_checks": [
+        {
+          "id": "P09.1",
+          "arrangement": "square",
+          "rule": "connection endpoints must be in {up, down, left, right}",
+          "detail": "정배열: 상·하·좌·우 4방향 인접만 허용"
+        },
+        {
+          "id": "P09.2",
+          "arrangement": "staggered",
+          "rule": "connection endpoints must be in hex 6-neighborhood",
+          "detail": "엇배열: 상·하·좌·우 + hex 대각선 6방향 인접 허용"
+        },
+        {
+          "id": "P09.3",
+          "arrangement": "custom",
+          "rule": "distance(cell_i, cell_j) <= pitch * 1.1",
+          "detail": "커스텀: 두 셀 중심 간 유클리드 거리 ≤ pitch × 1.1"
+        }
+      ],
+      "test_cases": [
+        {
+          "name": "valid_square_adjacent",
+          "input": { "arrangement": "square", "conn": [[0,0], [1,0]] },
+          "expect": "ok"
+        },
+        {
+          "name": "invalid_square_diagonal",
+          "input": { "arrangement": "square", "conn": [[0,0], [1,1]] },
+          "expect": "fail"
+        },
+        {
+          "name": "valid_staggered_hex",
+          "input": { "arrangement": "staggered", "conn": [[0,0], [1,0]] },
+          "expect": "ok"
+        },
+        {
+          "name": "valid_custom_within_tolerance",
+          "input": { "arrangement": "custom", "pitch": 22.0, "distance": 23.0 },
+          "expect": "ok"
+        },
+        {
+          "name": "invalid_custom_jump",
+          "input": { "arrangement": "custom", "pitch": 22.0, "distance": 45.0 },
+          "expect": "fail"
+        }
+      ]
+    },
+    {
+      "id": "P26",
+      "layer": 0,
+      "name": "직렬 경로 단일성 불변",
+      "type": "law",
+      "check": "checkSeriesPathSingleness",
+      "inputs": [
+        "group_topology",
+        "S",
+        "groups[].neighbor_ids"
+      ],
+      "params": {
+        "interior_neighbor_count": 2,
+        "endpoint_neighbor_count": 1
+      },
+      "fail_action": "abort_design",
+      "severity": "critical",
+      "depends_on": [],
+      "source_section": "원칙 26 — 직렬 경로 단일성 불변",
+      "description": "그룹 간 직렬 연결은 단순 체인(simple path). G0–G1–…–G_{S-1} 순서로만 연결되며 분기·루프·우회 금지. 그룹 레벨 토폴로지에만 적용(그룹 내부 병렬 연결에는 미적용).",
+      "sub_checks": [
+        {
+          "id": "P26.1",
+          "rule": "for 0 < i < S-1: groups[i].neighbors.length === 2",
+          "detail": "중간 그룹 Gi는 G_{i-1}과 G_{i+1} 두 이웃만 보유"
+        },
+        {
+          "id": "P26.2",
+          "rule": "groups[0].neighbors.length === 1 && groups[S-1].neighbors.length === 1",
+          "detail": "G0와 G_{S-1}은 각각 직렬 이웃 1개만 보유"
+        },
+        {
+          "id": "P26.3",
+          "rule": "topology must be acyclic (no loop)",
+          "detail": "그룹 레벨 그래프는 단순 경로. 사이클 금지"
+        },
+        {
+          "id": "P26.4",
+          "rule": "topology must be connected and single path",
+          "detail": "분기(branch)·우회 경로 금지. 단일 체인만 허용"
+        }
+      ],
+      "test_cases": [
+        {
+          "name": "valid_simple_chain_S4",
+          "input": {
+            "S": 4,
+            "edges": [[0,1], [1,2], [2,3]]
+          },
+          "expect": "ok"
+        },
+        {
+          "name": "invalid_branch",
+          "input": {
+            "S": 4,
+            "edges": [[0,1], [1,2], [1,3]]
+          },
+          "expect": "fail",
+          "fail_reason": "G1 has 3 neighbors"
+        },
+        {
+          "name": "invalid_loop",
+          "input": {
+            "S": 4,
+            "edges": [[0,1], [1,2], [2,3], [3,0]]
+          },
+          "expect": "fail",
+          "fail_reason": "cycle detected"
+        }
+      ]
+    },
+    {
+      "id": "P04",
+      "layer": 1,
+      "name": "B+·B− 출력 방향이 셀 배열을 결정한다",
+      "type": "decision",
+      "check": "checkOutputDirectionDecided",
+      "inputs": [
+        "b_plus_direction",
+        "b_minus_direction",
+        "series_path",
+        "cell_face_orientation"
+      ],
+      "params": {
+        "allowed_directions": ["top", "bottom", "left", "right"],
+        "path_shapes_allowed": ["linear", "U", "S", "arbitrary"]
+      },
+      "fail_action": "abort_design",
+      "severity": "critical",
+      "depends_on": [],
+      "source_section": "원칙 4 — B+·B− 출력 방향이 셀 배열을 결정한다",
+      "description": "B+·B−의 출력 위치(방향)가 먼저 결정되고, 그에 맞게 직렬 경로를 설계한 후, 그 경로를 따라 셀 면 방향(+/−)이 교번 배치된다. 미결정 시 이후 모든 단계 중단.",
+      "sub_checks": [
+        {
+          "id": "P04.1",
+          "rule": "b_plus_direction !== null && b_minus_direction !== null",
+          "detail": "B+·B− 출력 방향 사전 확정"
+        },
+        {
+          "id": "P04.2",
+          "rule": "series_path shape follows b_plus→b_minus endpoint pair",
+          "detail": "직렬 경로는 좌→우 직선뿐 아니라 U자·S자·임의 방향 모두 가능"
+        },
+        {
+          "id": "P04.3",
+          "rule": "cell face orientation alternates along series_path",
+          "detail": "셀 면 방향(+면/−면)은 직렬 경로를 따라가며 그룹마다 교번 적용"
+        }
+      ],
+      "test_cases": [
+        {
+          "name": "valid_same_side_U_path",
+          "input": { "b_plus_direction": "top", "b_minus_direction": "top", "path_shape": "U" },
+          "expect": "ok",
+          "detail": "B+·B−가 같은 방향 → U자형 경로"
+        },
+        {
+          "name": "invalid_direction_undecided",
+          "input": { "b_plus_direction": null, "b_minus_direction": "bottom" },
+          "expect": "fail"
+        }
+      ]
+    },
+    {
+      "id": "P17",
+      "layer": 1,
+      "name": "배열 선택 자유도 불변",
+      "type": "decision",
+      "check": "checkArrangementDecided",
+      "inputs": [
+        "arrangement",
+        "S",
+        "P",
+        "rows"
+      ],
+      "params": {
+        "allowed_values": ["square", "staggered", "custom"],
+        "custom_requires_rows": true,
+        "custom_requires_explicit_S": true
+      },
+      "fail_action": "abort_design",
+      "severity": "critical",
+      "depends_on": [],
+      "source_section": "원칙 17 — 배열 선택 자유도 불변",
+      "description": "배열 방식은 3-way 선택이다. 이 선택이 LAYER 3 스킬의 알고리즘 분기를 결정한다. 미결정 시 형상 생성 불가.",
+      "sub_checks": [
+        {
+          "id": "P17.1",
+          "arrangement": "square",
+          "rule": "S×P 직사각 격자. 원칙 13(조건부) 적용 가능"
+        },
+        {
+          "id": "P17.2",
+          "arrangement": "staggered",
+          "rule": "S×P 육각 격자. 원칙 23 적용"
+        },
+        {
+          "id": "P17.3",
+          "arrangement": "custom",
+          "rule": "rows=[n1,n2,…] 수동 지정 + S 별도 설정 필수"
+        }
+      ],
+      "test_cases": [
+        {
+          "name": "valid_square",
+          "input": { "arrangement": "square", "S": 13, "P": 5 },
+          "expect": "ok"
+        },
+        {
+          "name": "valid_custom_with_rows",
+          "input": { "arrangement": "custom", "S": 13, "P": 5, "rows": [8,8,10,13,13,13] },
+          "expect": "ok"
+        },
+        {
+          "name": "invalid_custom_no_rows",
+          "input": { "arrangement": "custom", "S": 13, "P": 5 },
+          "expect": "fail",
+          "fail_reason": "custom requires rows[]"
+        },
+        {
+          "name": "invalid_unknown_arrangement",
+          "input": { "arrangement": "radial", "S": 13, "P": 5 },
+          "expect": "fail"
+        }
+      ]
+    },
+    {
+      "id": "P07",
+      "layer": 2,
+      "name": "니켈 두께 동일 불변",
+      "type": "rule",
+      "check": "checkNickelThicknessUniform",
+      "inputs": [
+        "nickel_plates[].horizontal_width",
+        "nickel_plates[].vertical_width",
+        "nickel_w"
+      ],
+      "params": {
+        "width_tolerance_mm": 0.05
+      },
+      "fail_action": "prune_candidate",
+      "severity": "error",
+      "depends_on": [],
+      "source_section": "원칙 7 — 니켈 두께 동일 불변",
+      "description": "니켈 두께는 세로·가로 항상 동일 (= nickel_w). 실물 단일 스트립 절곡 공정과 일치.",
+      "sub_checks": [
+        {
+          "id": "P07.1",
+          "rule": "all(plate.horizontal_width === plate.vertical_width === nickel_w)",
+          "detail": "단일 플레이트 내 세로·가로 폭이 nickel_w로 동일"
+        }
+      ],
+      "test_cases": [
+        {
+          "name": "valid_uniform",
+          "input": { "horizontal_width": 5.0, "vertical_width": 5.0, "nickel_w": 5.0 },
+          "expect": "ok"
+        },
+        {
+          "name": "invalid_mismatch",
+          "input": { "horizontal_width": 5.0, "vertical_width": 7.5, "nickel_w": 5.0 },
+          "expect": "fail",
+          "fail_reason": "세로·가로 폭 불일치"
+        }
+      ]
+    },
+    {
+      "id": "P10",
+      "layer": 2,
+      "name": "니켈 형태 사다리 구조",
+      "type": "rule",
+      "check": "checkLadderStructure",
+      "inputs": [
+        "arrangement",
+        "nickel_plates[].connection_graph",
+        "groups[].cells",
+        "adjacency_graph"
+      ],
+      "params": {
+        "spanning_tree_required": true,
+        "spine_direction": "auto"
+      },
+      "fail_action": "abort_design",
+      "severity": "critical",
+      "depends_on": ["P09"],
+      "source_section": "원칙 10 — 니켈 형태 사다리 구조",
+      "description": "니켈 플레이트는 그룹 내 모든 셀을 접촉하는 사다리(ladder) 구조여야 한다. 위반 시 미접촉 셀 발생 → 나머지 셀 전류 집중 → 열폭주.",
+      "sub_checks": [
+        {
+          "id": "P10.1",
+          "arrangement": "square",
+          "rule": "수직 스파인 + 수평 브리지 = 직사각형 사다리",
+          "detail": "정배열 전용 사다리"
+        },
+        {
+          "id": "P10.2",
+          "arrangement": "staggered",
+          "rule": "delegated to P23 (hex 클러스터)",
+          "detail": "엇배열은 원칙 23(nickel-plate-design.md)에 위임"
+        },
+        {
+          "id": "P10.3",
+          "arrangement": "custom",
+          "rule": "adjacency spanning tree + 셀 원형 배경 (원칙 18 알고리즘 동일 적용)",
+          "detail": "스파인 방향은 자동 결정, 별도 지정 없음"
+        },
+        {
+          "id": "P10.4",
+          "rule": "every cell in group must be touched by nickel plate",
+          "detail": "미접촉 셀 0개"
+        }
+      ],
+      "test_cases": [
+        {
+          "name": "valid_square_ladder",
+          "input": { "arrangement": "square", "untouched_cells": 0 },
+          "expect": "ok"
+        },
+        {
+          "name": "invalid_isolated_cell",
+          "input": { "arrangement": "square", "untouched_cells": 1 },
+          "expect": "fail",
+          "fail_reason": "미접촉 셀 존재 → 열폭주 위험"
+        }
+      ]
+    },
+    {
+      "id": "P12",
+      "layer": 2,
+      "name": "엠보 불가역성",
+      "type": "rule",
+      "check": "checkEmbossIrreversibility",
+      "inputs": [
+        "nickel_plates[].canonical_signature",
+        "allow_mirror"
+      ],
+      "params": {
+        "allow_mirror": false,
+        "rotation_only": true,
+        "square_rot_steps": 4,
+        "hex_rot_steps": 6,
+        "canonical_sig_formula": "min{rot_k(point_set) : k ∈ 0..rot_steps-1}"
+      },
+      "fail_action": "prune_candidate",
+      "severity": "error",
+      "depends_on": [],
+      "source_section": "원칙 12 — 엠보 불가역성",
+      "description": "니켈 플레이트에는 엠보가 있어 뒤집을 수 없다. 거울반사 형상은 별개 형상. 캐노니컬 서명은 회전만 허용(hex 6회전, 정방 4회전), 거울반사는 제외.",
+      "sub_checks": [
+        {
+          "id": "P12.1",
+          "rule": "canonical_signature uses rotation only (mirror excluded)",
+          "detail": "σ(set) = min{rot_k(set)}"
+        },
+        {
+          "id": "P12.2",
+          "rule": "mirror-image plates counted as distinct shapes",
+          "detail": "좌우 대칭처럼 보이는 팩이라도 거울상이면 금형 2세트 필요"
+        }
+      ],
+      "test_cases": [
+        {
+          "name": "valid_rotation_pair",
+          "input": { "plate_a_sig": "abc", "plate_b_sig": "abc" },
+          "expect": "ok",
+          "detail": "회전으로 매핑되는 쌍 → 동일 형상"
+        },
+        {
+          "name": "invalid_mirror_as_same",
+          "input": { "allow_mirror": true },
+          "expect": "fail",
+          "fail_reason": "allow_mirror=true는 기본값 false 위반"
+        }
+      ]
+    },
+    {
+      "id": "P14",
+      "layer": 2,
+      "name": "면별 병합 불변",
+      "type": "rule",
+      "check": "checkFaceMerging",
+      "inputs": [
+        "top_plates[]",
+        "bottom_plates[]",
+        "S",
+        "b_plus_face",
+        "b_minus_face",
+        "bridge_anchor_points"
+      ],
+      "params": {
+        "top_pattern": "[G0] | [G1∪G2] | [G3∪G4] | …",
+        "bottom_pattern": "[G0∪G1] | [G2∪G3] | …",
+        "b_plus_default_face": "top",
+        "b_minus_rule": "S짝수→top G_{S-1} / S홀수→bottom G_{S-1}"
+      },
+      "fail_action": "abort_design",
+      "severity": "critical",
+      "depends_on": ["P04", "P22", "P26"],
+      "source_section": "원칙 14 — 면별 병합 불변",
+      "description": "니켈판은 면별로 병합된다. 하나의 플레이트가 병렬(−−− 또는 +++)과 직렬 브리지를 동시에 담당. 원칙 26(직렬 경로 단일성)을 구현하는 메커니즘.",
+      "sub_checks": [
+        {
+          "id": "P14.1",
+          "rule": "top_plates = [G0, G1∪G2, G3∪G4, …, (S짝수 ? G_{S-1} : -)]",
+          "detail": "상면 병합 패턴"
+        },
+        {
+          "id": "P14.2",
+          "rule": "bottom_plates = [G0∪G1, G2∪G3, …, (S홀수 ? G_{S-1} : -)]",
+          "detail": "하면 병합 패턴"
+        },
+        {
+          "id": "P14.3",
+          "rule": "b_plus default on top G0 unless P04 forces bottom",
+          "detail": "B+ 기본 위치는 상면 G0"
+        },
+        {
+          "id": "P14.4",
+          "rule": "S짝수 → b_minus on top G_{S-1}; S홀수 → b_minus on bottom G_{S-1}",
+          "detail": "B− 위치 S홀짝 분기"
+        },
+        {
+          "id": "P14.5",
+          "rule": "bridge plate Gi∪G_{i+1} anchor = BMS-nearest adjacent cell pair (P22)",
+          "detail": "브리지 기준점은 P22 BMS 최단 거리로 선택"
+        }
+      ],
+      "test_cases": [
+        {
+          "name": "valid_S_even_13S",
+          "input": { "S": 4, "top": [[0],[1,2],[3]], "bottom": [[0,1],[2,3]] },
+          "expect": "ok"
+        },
+        {
+          "name": "valid_S_odd",
+          "input": { "S": 5, "top": [[0],[1,2],[3,4]], "bottom": [[0,1],[2,3],[4]] },
+          "expect": "ok"
+        },
+        {
+          "name": "invalid_pattern_violation",
+          "input": { "S": 4, "top": [[0,1,2,3]], "bottom": [[]] },
+          "expect": "fail",
+          "fail_reason": "면별 병합 패턴 위반"
+        }
+      ]
+    },
+    {
+      "id": "P16",
+      "layer": 2,
+      "name": "ICC 산업 실무 제약 불변",
+      "type": "rule",
+      "check": "checkICC",
+      "inputs": [
+        "nickel_plates[].bbox",
+        "nickel_plates[].cell_positions",
+        "nickel_plates[].polarity",
+        "nickel_w",
+        "arrangement"
+      ],
+      "params": {
+        "row_span_max": 2,
+        "row_span_edge_ribbon_exception": true,
+        "aspect_max": 2.0,
+        "convexity_min": 0.75,
+        "delta_min_formula": "nickel_w / 2",
+        "delta_min_rationale": "스팟 용접 열영향부 고려, 제품 사양에 따라 상향 가능",
+        "planar_non_crossing_required": true,
+        "congruent_pair_symmetry_required": true,
+        "hard_constraint_in_sfmt_step_c": true
+      },
+      "staggered_reinterpretation": {
+        "hex_row_span": {
+          "definition": "행 = 동일 y-band(hex row index) 내 셀 집합",
+          "max": 2,
+          "edge_ribbon_exception": true
+        },
+        "hex_convexity": {
+          "formula": "점유 셀 수 / hex convex hull 내 격자 점 수",
+          "min": 0.75,
+          "note": "유클리드 hull 면적이 아닌 hex 격자 점 기준"
+        }
+      },
+      "fail_action": "prune_candidate",
+      "severity": "error",
+      "depends_on": ["P12", "P15"],
+      "source_section": "원칙 16 — ICC 산업 실무 제약 불변",
+      "description": "ICC(Industrial Compactness Constraint) 5대 제약은 SFMT Step C에 하드 제약으로 내장. 사후 보정이 아닌 탐색 중 가지치기로 작동.",
+      "sub_checks": [
+        {
+          "id": "P16.1",
+          "rule": "row_span <= 2 (엣지 수직 리본 예외)",
+          "detail": "행 스팬"
+        },
+        {
+          "id": "P16.2",
+          "rule": "aspect_ratio <= 2.0",
+          "detail": "종횡비"
+        },
+        {
+          "id": "P16.3",
+          "rule": "convexity >= 0.75",
+          "detail": "볼록성"
+        },
+        {
+          "id": "P16.4",
+          "rule": "same-face opposite-polarity plates: XY projection non-overlap AND edge distance >= nickel_w/2 AND boundaries non-crossing (planar)",
+          "detail": "동일 면 이종 극성 비중첩 + δ_min + planar"
+        },
+        {
+          "id": "P16.5",
+          "rule": "congruent pairs placed symmetrically",
+          "detail": "합동 쌍 대칭 배치"
+        }
+      ],
+      "test_cases": [
+        {
+          "name": "valid_compact_plate",
+          "input": { "row_span": 2, "aspect": 1.5, "convexity": 0.85, "edge_distance_mm": 3.0, "nickel_w": 5.0 },
+          "expect": "ok"
+        },
+        {
+          "name": "invalid_row_span_exceed",
+          "input": { "row_span": 3, "aspect": 1.5, "convexity": 0.85 },
+          "expect": "fail",
+          "fail_reason": "row_span > 2 (엣지 리본 아님)"
+        },
+        {
+          "name": "invalid_delta_min_violation",
+          "input": { "edge_distance_mm": 1.5, "nickel_w": 5.0 },
+          "expect": "fail",
+          "fail_reason": "에지 간격 < nickel_w/2"
+        },
+        {
+          "name": "invalid_planar_crossing",
+          "input": { "boundaries_crossing": true },
+          "expect": "fail"
+        }
+      ]
+    },
+    {
+      "id": "P21",
+      "layer": 2,
+      "name": "그룹 형태 유효성",
+      "type": "rule",
+      "check": "checkGroupValidity",
+      "inputs": [
+        "groups[].cells",
+        "groups[].adjacency_subgraph",
+        "group_pairs[i,i+1].shared_adjacent_pairs"
+      ],
+      "params": {
+        "condition_A": "그룹 내 셀들이 인접 체인으로 연결",
+        "condition_B": "Gi와 G_{i+1} 사이 인접 셀 쌍 >= 1개",
+        "quality_score_input_to_sfmt": true,
+        "quality_scores": {
+          "compact_2d_cluster": 10,
+          "linear_or_simple_L": 0,
+          "protrusion_T_or_Y": -10
+        }
+      },
+      "fail_action": "prune_candidate",
+      "severity": "error",
+      "depends_on": ["P09", "P14"],
+      "source_section": "원칙 21 — 그룹 형태 유효성",
+      "description": "P개의 셀이 adjacency 그래프로 단일 연결만 되면 유효. 단, 조건 A·B를 동시에 만족해야 한다. 품질 점수는 LAYER 3 SFMT의 보조 입력.",
+      "sub_checks": [
+        {
+          "id": "P21.A",
+          "rule": "group internal adjacency graph is connected",
+          "detail": "조건 A — 그룹 내 인접 체인"
+        },
+        {
+          "id": "P21.B",
+          "rule": "for all 0 <= i < S-1: |adjacent_pairs(Gi, G_{i+1})| >= 1",
+          "detail": "조건 B — 직렬 브리지 성립 전제조건"
+        }
+      ],
+      "test_cases": [
+        {
+          "name": "valid_connected_with_bridge",
+          "input": { "group_connected": true, "bridge_pairs": [[0,1],[2,3]] },
+          "expect": "ok"
+        },
+        {
+          "name": "invalid_disconnected_group",
+          "input": { "group_connected": false },
+          "expect": "fail",
+          "fail_reason": "조건 A 위반"
+        },
+        {
+          "name": "invalid_no_bridge",
+          "input": { "group_connected": true, "bridge_pairs": [] },
+          "expect": "fail",
+          "fail_reason": "조건 B 위반 — 직렬 브리지 불가"
+        }
+      ]
+    },
+    {
+      "id": "P25",
+      "layer": 2,
+      "name": "B+/B− 단자탭 기하학적 정의",
+      "type": "rule",
+      "check": "checkTerminalTab",
+      "inputs": [
+        "b_plus_tab.anchor_point",
+        "b_plus_tab.direction",
+        "b_plus_tab.width",
+        "b_plus_tab.length",
+        "b_minus_tab.anchor_point",
+        "b_minus_tab.direction",
+        "b_minus_tab.width",
+        "b_minus_tab.length",
+        "terminal_plate.geometric_center",
+        "nickel_w",
+        "tab_len",
+        "adjacent_opposite_polarity_plates[]",
+        "canonical_signature"
+      ],
+      "params": {
+        "tab_width_source": "nickel_w",
+        "tab_length_source": "tab_len (design parameter)",
+        "tab_in_canonical_signature": true,
+        "tab_direction_must_clear_opposite_polarity": true
+      },
+      "fail_action": "prune_candidate",
+      "severity": "error",
+      "depends_on": ["P04", "P07", "P12", "P16"],
+      "source_section": "원칙 25 — B+/B− 단자탭 기하학적 정의",
+      "description": "B+/B− 단자탭은 해당 단자 플레이트의 기하학적 중심에서 B+/B− 출력 방향(원칙 4)으로 돌출한다.",
+      "sub_checks": [
+        {
+          "id": "P25.1",
+          "rule": "tab.width === nickel_w",
+          "detail": "탭 폭 = nickel_w (원칙 7과 동일)"
+        },
+        {
+          "id": "P25.2",
+          "rule": "tab.length === tab_len",
+          "detail": "탭 길이 = tab_len (설계 파라미터)"
+        },
+        {
+          "id": "P25.3",
+          "rule": "tab origin is at plate geometric_center",
+          "detail": "탭은 플레이트 기하학적 중심에서 돌출"
+        },
+        {
+          "id": "P25.4",
+          "rule": "tab direction matches P04 b_plus_direction / b_minus_direction",
+          "detail": "탭 방향 = 원칙 4 출력 방향"
+        },
+        {
+          "id": "P25.5",
+          "rule": "tab shape included in canonical_signature (원칙 12)",
+          "detail": "탭 방향이 다르면 별개 형상"
+        },
+        {
+          "id": "P25.6",
+          "rule": "tab direction must not point toward opposite-polarity plate (P16.4)",
+          "detail": "이종 극성 방향으로 탭 돌출 금지"
+        }
+      ],
+      "test_cases": [
+        {
+          "name": "valid_clear_direction",
+          "input": {
+            "tab_width": 5.0,
+            "nickel_w": 5.0,
+            "tab_direction": "top",
+            "opposite_polarity_in_top": false
+          },
+          "expect": "ok"
+        },
+        {
+          "name": "invalid_width_mismatch",
+          "input": { "tab_width": 7.0, "nickel_w": 5.0 },
+          "expect": "fail",
+          "fail_reason": "탭 폭 != nickel_w"
+        },
+        {
+          "name": "invalid_direction_toward_opposite",
+          "input": { "tab_direction": "top", "opposite_polarity_in_top": true },
+          "expect": "fail",
+          "fail_reason": "이종 극성 방향으로 탭 돌출"
+        }
+      ]
+    }
+  ],
+  "pending_layers": {},
+  "checks_registry_required": [
+    "checkPolarityInversion",
+    "checkContact",
+    "checkCellCount",
+    "checkAdjacency",
+    "checkSeriesPathSingleness",
+    "checkOutputDirectionDecided",
+    "checkArrangementDecided",
+    "checkNickelThicknessUniform",
+    "checkLadderStructure",
+    "checkEmbossIrreversibility",
+    "checkFaceMerging",
+    "checkICC",
+    "checkGroupValidity",
+    "checkTerminalTab"
+  ]
+}

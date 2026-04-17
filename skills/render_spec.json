@@ -1,0 +1,180 @@
+{
+  "$schema_version": "1.0",
+  "source_md": "skills/nickel_render_rules.md",
+  "source_version": "v7",
+  "last_updated": "2026-04-17",
+  "description": "LAYER 4 SVG 렌더링 룰 스펙 - renderer.js가 이 스펙을 참조해 시각 속성을 적용. 물리 설계와 무관. 형상 정확성에 영향 없음. 전제: principles_spec.json LAYER 0·1·2 및 design_spec.json 실행 완료 후 호출.",
+  "element_enum": ["cell_plus", "cell_minus", "nickel", "tab", "label", "layout"],
+  "z_order_convention": "0=최하단. 셀(0) → 니켈(1) → 탭(2) (원칙 20)",
+  "renders": [
+    {
+      "id": "R03",
+      "element": "layout",
+      "name": "양면 표시 불변",
+      "z_order": -1,
+      "applies_to": "전체 캔버스 배치",
+      "style": {},
+      "formula": {
+        "layout": "resolveLayout(S, P) → (S>=5 || P>=4) ? 'top_bottom' : 'side_by_side'"
+      },
+      "constraints": {
+        "both_faces_required": true
+      },
+      "source_section": "원칙 3 — 양면 표시 불변"
+    },
+    {
+      "id": "R05P",
+      "element": "cell_plus",
+      "name": "+ 셀 색상 (빨강 테두리 + 빨강 캡)",
+      "z_order": 0,
+      "style": {
+        "stroke": "#C0392B",
+        "stroke_width_formula": "R * 0.08",
+        "fill": "none",
+        "cap_fill": "#C0392B"
+      },
+      "formula": {
+        "cap_diameter_mm": "cell_d * 0.55",
+        "cap_r_formula": "(cell_d * 0.55 / 2) * scale",
+        "version_note": "v7: 셀 크기 독립 비율. v6까지의 '10mm 고정'은 18650 하드코딩 값이었음"
+      },
+      "applies_to_cells": ["18650", "21700", "26650", "기타"],
+      "source_section": "원칙 5 — 셀 색상 불변 (+ 단자부)"
+    },
+    {
+      "id": "R05N",
+      "element": "cell_minus",
+      "name": "− 셀 색상 (검정 테두리 + 중앙 검정 점)",
+      "z_order": 0,
+      "style": {
+        "stroke": "#1a1a1a",
+        "stroke_width_formula": "R * 0.08",
+        "fill": "none",
+        "dot_fill": "#1a1a1a"
+      },
+      "formula": {
+        "dot_r_formula": "R * 0.25"
+      },
+      "rationale": "공란과 구별 + 10mm 캡 대칭",
+      "source_section": "원칙 5 — 셀 색상 불변 (− 단자부)"
+    },
+    {
+      "id": "R19",
+      "element": "nickel",
+      "name": "니켈 색상 불변 (단일 회색)",
+      "z_order": 1,
+      "style": {
+        "fill": "#888888",
+        "stroke": "#555555",
+        "stroke_width": 0.7
+      },
+      "formula": {},
+      "constraints": {
+        "single_color_only": true,
+        "color_alternation_forbidden": true
+      },
+      "forbidden_patterns": {
+        "orange_blue_alternation": "주황/파랑 교번 방식 절대 금지"
+      },
+      "rationale": "실물과 동일(은색). 형상 식별이 목적이므로 색상 교번 불필요.",
+      "source_section": "원칙 19 — 니켈 색상 불변"
+    },
+    {
+      "id": "R20",
+      "element": "layout",
+      "name": "레이어 순서 절대 불변 (z-order)",
+      "z_order": null,
+      "style": {
+        "nickel_opacity_allowed": true
+      },
+      "formula": {
+        "render_order": ["cells", "nickel_plates", "terminal_tabs"]
+      },
+      "constraints": {
+        "strict_order": "cell(최하단) → nickel(중간) → tab(최상단)",
+        "nickel_width_rule": "니켈 폭 < 셀 지름. 니켈이 셀 위에 그려져도 셀 테두리(빨강/검정) 양쪽으로 노출되어 극성 식별 가능",
+        "opacity_allowed": true
+      },
+      "physical_preconditions": {
+        "note": "아래 ①②③항은 물리 설계 제약 (렌더링의 전제). 위반 구조 입력 시 렌더링 이전 단계(validator checkFaceMerging P14)에서 검증.",
+        "rule_1": "상면 플레이트는 셀 상단 Z 범위 이내에만 존재",
+        "rule_2": "하면 플레이트는 셀 하단 Z 범위 이내에만 존재",
+        "rule_3": "상면·하면 플레이트 3D 공간 비간섭"
+      },
+      "source_section": "원칙 20 — 레이어 순서 절대 불변"
+    },
+    {
+      "id": "R25TAB",
+      "element": "tab",
+      "name": "단자탭 렌더링 세부 (원칙 25 보조)",
+      "z_order": 2,
+      "style": {
+        "fill": "#888888",
+        "rationale": "해당 플레이트와 동일 회색 (원칙 19 준수)"
+      },
+      "formula": {
+        "width": "nickel_w",
+        "length": "tab_len"
+      },
+      "labels": {
+        "b_plus": {
+          "text": "B+",
+          "color": "#C0392B",
+          "placement": "탭 외곽 10% 마진 바깥"
+        },
+        "b_minus": {
+          "text": "B−",
+          "color": "#1a1a1a",
+          "placement": "탭 외곽 10% 마진 바깥"
+        }
+      },
+      "source_section": "단자탭 렌더링 세부 (원칙 25 보조)"
+    },
+    {
+      "id": "R11",
+      "element": "label",
+      "name": "공용 니켈 플레이트 형상 최소화 표시",
+      "z_order": 3,
+      "style": {
+        "placement": "정보박스",
+        "field_name": "m_distinct"
+      },
+      "formula": {
+        "m_distinct_source": "generator.js sfmtSearch 반환값"
+      },
+      "display_rule": "렌더 완료 후 m_distinct 수치를 화면에 표시 → 설계자가 최적화 여부 확인",
+      "design_feedback_only": true,
+      "additional_fields": {
+        "mold_cost": "m_distinct × ₩20M",
+        "material_cost": "N_plates × ₩300",
+        "sku_cost": "m_distinct × ₩5M/년"
+      },
+      "source_section": "원칙 11 — 공용 니켈 플레이트 형상 최소화 (렌더 평가 기준)"
+    }
+  ],
+  "render_checklist": [
+    { "item": "상면·하면 동시 표시", "rule_id": "R03", "method": "S, P 값 확인 후 배치 방향 결정" },
+    { "item": "+ 셀 빨강 / − 셀 검정", "rule_id": ["R05P", "R05N"], "method": "극성 맵 기준 색상 매핑" },
+    { "item": "캡 직경 비율 적용", "rule_id": "R05P", "method": "cell_d × 0.55 계산 확인" },
+    { "item": "니켈 은색 단일", "rule_id": "R19", "method": "색상 교번 코드 부재 확인" },
+    { "item": "SVG z-order", "rule_id": "R20", "method": "cell → nickel → tab 순서" },
+    { "item": "상·하면 분리 렌더", "rule_id": "R20", "method": "플레이트 Z 범위 점검 (validator P14 선행)" },
+    { "item": "단자탭 라벨", "rule_id": "R25TAB", "method": "B+/B− 텍스트 노출 여부" },
+    { "item": "m_distinct 표시", "rule_id": "R11", "method": "렌더 완료 후 수치 출력" }
+  ],
+  "render_fns_required": [
+    "resolveLayout",
+    "drawCell",
+    "drawNickelI",
+    "drawNickelU",
+    "drawNickelTypeA",
+    "drawTerminal",
+    "drawLabel",
+    "mountInfoBox"
+  ],
+  "cross_references": {
+    "validator_dependency": "R20 physical_preconditions는 principles_spec.json P14 checkFaceMerging으로 선행 검증",
+    "generator_dependency": "R25TAB 탭 원점은 generator selectBmsOptimal 출력 b_plus_tab_position/b_minus_tab_position 사용",
+    "m_distinct_source": "R11 값은 generator sfmtSearch.m_distinct_min"
+  }
+}

@@ -79,6 +79,27 @@
 
 const RENDERER_VERSION = 'v0.3.1+TypeAEngine';
 
+// ═══════════════════════════════════════════════
+// Generator 의존성 (M4 Phase 2) — 형상 생성 로직은 generator.js가 단일 출처
+//   Node:   require('./generator')
+//   Browser: window.Generator (HTML에서 generator.js를 renderer.js보다 먼저 로드)
+//   VM(test): globalThis.Generator 또는 스크립트 전역 식별자 Generator
+// ═══════════════════════════════════════════════
+const __Generator = (function () {
+  if (typeof require !== 'undefined' && typeof module !== 'undefined') {
+    try { return require('./generator'); } catch (_) { /* fallthrough */ }
+  }
+  if (typeof window !== 'undefined' && window.Generator) return window.Generator;
+  if (typeof globalThis !== 'undefined' && globalThis.Generator) return globalThis.Generator;
+  if (typeof Generator !== 'undefined') return Generator;  // VM context 전역
+  return null;
+})();
+
+if (!__Generator) {
+  throw new Error('[renderer] Generator dependency not loaded. ' +
+    'Load src/generator.js before src/renderer.js in HTML, or require it first in Node.');
+}
+
 // 원칙 20 — 목적함수 가중치 (낮을수록 우선)
 const OBJECTIVE_WEIGHTS = {
   m_distinct:   1000000,  // 최우선 (₩M 단위 금형비용 반영)
@@ -102,22 +123,8 @@ const USER_CONSTRAINTS_DEFAULT = {
 };
 
 // 원칙 21 — 캐노니컬 서명: 회전 전용 (거울 제거)
-// σ(set) = min{rot_k(set) : k ∈ 0..(rotSteps-1)}
-function canonicalSig(points, rotSteps) {
-  // rotSteps: 6 for hex(staggered), 4 for rect(regular)
-  const variants = [];
-  for (let k = 0; k < rotSteps; k++) {
-    const angle = (2 * Math.PI * k) / rotSteps;
-    const ca = Math.cos(angle), sa = Math.sin(angle);
-    const rotated = points.map(([x, y]) => [
-      Math.round((x * ca - y * sa) * 10) / 10,
-      Math.round((x * sa + y * ca) * 10) / 10,
-    ]);
-    rotated.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-    variants.push(JSON.stringify(rotated));
-  }
-  return variants.sort()[0];
-}
+// M4 Phase 2: generator.js로 단일화 — shim
+const canonicalSig = __Generator.canonicalSig;
 
 // 니켈 색상 표준 — 회색(#888888) 단일색
 const NICKEL_PALETTE = [
@@ -130,24 +137,9 @@ const NICKEL_SW     = 0.7;
 
 // ═══════════════════════════════════════════════
 // P값 → 블록 타입 선택 (범용 엔진 진입점)
-// 결론.md 확정: P=5 → Type-A, P=4 → U형, P=2 → I형
-// P=3/P=6: 설계 문서 미확정 → geometry_ready=false 반환
+// M4 Phase 2: generator.js로 단일화 — shim
 // ═══════════════════════════════════════════════
-function selectBlockType(P) {
-  switch (P) {
-    case 1:
-    case 2: return { block_type: 'I',         geometry_ready: true  };
-    case 4: return { block_type: 'U',         geometry_ready: true  };
-    case 5: return { block_type: 'TypeA',     geometry_ready: true  };
-    case 3: return { block_type: 'Compact-H', geometry_ready: false,
-      error: 'P=3 Compact-H geometry spec not finalized — 결론.md 수준 문서 대기' };
-    case 6: return { block_type: 'Extended',  geometry_ready: false,
-      error: 'P=6 Extended geometry spec not finalized — 결론.md 수준 문서 대기' };
-    default:
-      return { block_type: 'Unknown', geometry_ready: false,
-        error: `P=${P} block type not defined` };
-  }
-}
+const selectBlockType = __Generator.selectBlockType;
 
 // + 양극 캡 실치수 (이론 §5, v0.2.3)
 const PLUS_CAP_DIAMETER_MM = 10.0;
@@ -229,28 +221,8 @@ function getCellPolarity(groupIndex, face) {
   return face === 'top' ? (topIsPlus ? '+' : '-') : (topIsPlus ? '-' : '+');
 }
 
-function calcNickelPattern(S, P) {
-  // P가 전달되지 않은 경우 기본 block_type은 I (하위 호환)
-  const blockInfo = (P != null) ? selectBlockType(P) : { block_type: 'I', geometry_ready: true };
-  const btype = blockInfo.geometry_ready ? blockInfo.block_type : 'I';
-
-  const top = [], bot = [];
-  top.push({ type: 'I', block_type: btype, groups: [0], isTerminal: true, terminal: 'B+' });
-  for (let g = 1; g < S - 1; g += 2)
-    top.push({ type: 'U', block_type: btype, groups: [g, g + 1], isTerminal: false, terminal: null });
-  if (S % 2 === 0)
-    top.push({ type: 'I', block_type: btype, groups: [S - 1], isTerminal: false, terminal: null });
-
-  for (let g = 0; g < S - 1; g += 2)
-    bot.push({ type: 'U', block_type: btype, groups: [g, g + 1], isTerminal: false, terminal: null });
-  if (S % 2 !== 0)
-    bot.push({ type: 'I', block_type: btype, groups: [S - 1], isTerminal: true, terminal: 'B-' });
-  else if (bot.length > 0) {
-    bot[bot.length - 1].isTerminal = true;
-    bot[bot.length - 1].terminal   = 'B-';
-  }
-  return { top, bot };
-}
+// M4 Phase 2: generator.js로 단일화 — shim
+const calcNickelPattern = __Generator.calcNickelPattern;
 
 // ═══════════════════════════════════════════════
 // 4. SVG 드로잉
@@ -332,43 +304,8 @@ function drawNickelU(cx_colL, cx_colR, cy_arr, R, nw, barH, arrangement, fill) {
  *   등임피던스: 거리 비례 branch 폭 보정 (중앙 ×0.75, 외곽 ×1.30)
  *   반환: trunk 위치, feed 좌표, branch 배열
  */
-function calcTypeAGeometry(cx_col, cy_arr, R, nw, params) {
-  const P = cy_arr.length;
-  // 2-3 분할: 위쪽 2셀 / 아래쪽 3셀 (P=5 기준)
-  const split = Math.floor(P / 2);
-  const trunk_y = (cy_arr[split - 1] + cy_arr[split]) / 2;
-  const trunk_w = ((params.trunk_w_mm || params.nickel_w_mm * 1.5)) * params.scale;
-
-  // trunk X 범위: 셀 클러스터 바깥으로 feed_extend 연장 (dual feed 연결점)
-  const feed_extend = nw * 1.5;
-  const min_x = Math.min(...cx_col);
-  const max_x = Math.max(...cx_col);
-  const trunk_x1 = min_x - feed_extend;
-  const trunk_x2 = max_x + feed_extend;
-
-  // 등임피던스 branch 폭: 거리 비례 보정
-  const distances  = cy_arr.map(cy => Math.abs(cy - trunk_y));
-  const max_dist   = Math.max(...distances) || 1;
-  const c_ratio    = params.branch_w_ratio_center != null ? params.branch_w_ratio_center : 0.75;
-  const o_ratio    = params.branch_w_ratio_outer  != null ? params.branch_w_ratio_outer  : 1.30;
-  const neck_w_px  = (params.fuse_neck_w_mm || 1.5) * params.scale;
-  const neck_l_px  = (params.fuse_neck_l_mm || 3.0) * params.scale;
-
-  const branches = cy_arr.map((cy, i) => {
-    const dist_ratio = distances[i] / max_dist;
-    const w_ratio    = c_ratio + (o_ratio - c_ratio) * dist_ratio;
-    return {
-      cell_x:      cx_col[i],
-      cell_y:      cy,
-      branch_w:    nw * w_ratio,
-      neck_w:      neck_w_px,
-      neck_l:      neck_l_px,
-      above_trunk: cy < trunk_y,
-    };
-  });
-
-  return { trunk_y, trunk_w, trunk_x1, trunk_x2, feed_xs: [trunk_x1, trunk_x2], branches };
-}
+// M4 Phase 2: generator.js로 단일화 — shim
+const calcTypeAGeometry = __Generator.calcTypeAGeometry;
 
 /**
  * 닫힌 사다리(Closed Ladder) 니켈 렌더링
@@ -465,32 +402,8 @@ function drawNickelTypeA(cx_col, cy_arr, R, nw, params, fill) {
  *     total:  S,
  *   }
  */
-function buildSnakeLayout(S, P, options) {
-  const max_rows = (options && options.max_rows) || 2;
-
-  // S개 블록을 max_rows 행으로 분배 (앞 행이 ceil)
-  const rows = [];
-  let remaining = S;
-  for (let r = 0; r < max_rows && remaining > 0; r++) {
-    const size = Math.ceil(remaining / (max_rows - r));
-    rows.push(size);
-    remaining -= size;
-  }
-
-  // 직렬 순서 → (grid_row, grid_col) 매핑
-  const blocks = [];
-  let serial = 0;
-  for (let rowIdx = 0; rowIdx < rows.length; rowIdx++) {
-    const ltr  = (rowIdx % 2 === 0);  // 짝수 행: 좌→우, 홀수 행: 우→좌
-    const size = rows[rowIdx];
-    for (let pos = 0; pos < size; pos++) {
-      const grid_col = ltr ? pos : (size - 1 - pos);
-      blocks.push({ serial_idx: serial++, grid_row: rowIdx, grid_col });
-    }
-  }
-
-  return { blocks, rows, total: S };
-}
+// M4 Phase 2: generator.js로 단일화 — shim
+const buildSnakeLayout = __Generator.buildSnakeLayout;
 
 function drawTerminal(cx, cy_center, R, nw, side, label) {
   const tabW  = nw * 1.8, tabH = nw * 0.85, dotR = nw * 0.28, boxW = 38, boxH = 22;
@@ -767,12 +680,144 @@ function renderCustomGrid(params, spec, N, cols, rows) {
 }
 
 // ═══════════════════════════════════════════════
+// 4c. 커스텀 행별 셀 수(rows=[n1,n2,...]) 직접 렌더 (F14, M4 Phase 3)
+//    - params.arrangement==='custom' && params.rows=[...] 입력 지원
+//    - 좌표 계산: generator.calcCustomCenters (단일 출처)
+//    - 니켈 병합 패턴: 상면 [G0][G1∪G2]..., 하면 [G0∪G1]..., isAdj 인접 쌍 stroke
+// ═══════════════════════════════════════════════
+function renderCustomRows(params) {
+  const rows = params.rows;
+  if (!Array.isArray(rows) || rows.length === 0) {
+    throw new Error('[renderer.renderCustomRows] params.rows must be non-empty array');
+  }
+  const { pts, R, W, H } = __Generator.calcCustomCenters(rows, params, CELL_SPEC);
+  const S  = params.S;
+  const N  = pts.length;
+  const nw = params.nickel_w_mm * params.scale;
+  const cellsPerGroup = Math.ceil(N / S);
+
+  // 행-단위 보스트로페돈(snake) 그룹 배정 (app.js renderCustomLayout과 동일)
+  const byRow = rows.map(() => []);
+  pts.forEach(pt => byRow[pt.row].push(pt));
+  const snake = [];
+  for (let r = 0; r < byRow.length; r++) {
+    const row = [...byRow[r]];
+    if (r % 2 === 1) row.reverse();
+    snake.push(...row);
+  }
+
+  const groupCells = Array.from({ length: S }, () => []);
+  snake.forEach((pt, i) => {
+    const g = Math.min(S - 1, Math.floor(i / cellsPerGroup));
+    groupCells[g].push(pt);
+  });
+
+  const isAdj = (a, b) => Math.abs(a.row - b.row) + Math.abs(a.col - b.col) === 1;
+
+  function buildNickel(face) {
+    if (!params.show_nickel) return '';
+    const parts = [];
+    const sw = nw.toFixed(1);
+    const fc = NICKEL_FILL;
+    const plates = [];
+    const paired = new Set();
+    const pStart = (face === 'top') ? 1 : 0;
+    for (let g = pStart; g + 1 < S; g += 2) {
+      plates.push([...groupCells[g], ...groupCells[g + 1]]);
+      paired.add(g); paired.add(g + 1);
+    }
+    for (let g = 0; g < S; g++) {
+      if (!paired.has(g))
+        plates.splice(g === 0 ? 0 : plates.length, 0, [...groupCells[g]]);
+    }
+    plates.forEach(plate => {
+      if (!plate.length) return;
+      for (let a = 0; a < plate.length; a++) {
+        for (let b = a + 1; b < plate.length; b++) {
+          if (isAdj(plate[a], plate[b])) {
+            parts.push(`<line x1="${plate[a].x.toFixed(1)}" y1="${plate[a].y.toFixed(1)}" x2="${plate[b].x.toFixed(1)}" y2="${plate[b].y.toFixed(1)}" stroke="${fc}" stroke-width="${sw}" stroke-linecap="round"/>`);
+          }
+        }
+      }
+    });
+    return parts.join('');
+  }
+
+  function buildTerminals(face) {
+    if (!params.show_terminal) return '';
+    const parts = [];
+    if (face === 'top') {
+      const c0 = groupCells[0]?.[0];
+      if (c0) {
+        parts.push(`<circle cx="${c0.x.toFixed(1)}" cy="${c0.y.toFixed(1)}" r="${(nw*0.7).toFixed(1)}" fill="#C0392B" stroke="#7B241C" stroke-width="1"/>`);
+        parts.push(`<text font-family="Arial" font-size="11" font-weight="bold" fill="#ffffff" text-anchor="middle" x="${c0.x.toFixed(1)}" y="${(c0.y+4).toFixed(1)}">B+</text>`);
+      }
+    }
+    const bMinusOnTop = (S % 2 === 0);
+    if ((face === 'top' && bMinusOnTop) || (face === 'bottom' && !bMinusOnTop)) {
+      const lastG = groupCells[S - 1];
+      const cL    = lastG?.[lastG.length - 1];
+      if (cL) {
+        parts.push(`<circle cx="${cL.x.toFixed(1)}" cy="${cL.y.toFixed(1)}" r="${(nw*0.7).toFixed(1)}" fill="#0C447C" stroke="#042C53" stroke-width="1"/>`);
+        parts.push(`<text font-family="Arial" font-size="11" font-weight="bold" fill="#ffffff" text-anchor="middle" x="${cL.x.toFixed(1)}" y="${(cL.y+4).toFixed(1)}">B-</text>`);
+      }
+    }
+    return parts.join('');
+  }
+
+  const topCells = snake.map((pt, i) => {
+    const g = Math.min(S - 1, Math.floor(i / cellsPerGroup));
+    return drawCell(pt.x, pt.y, R, getCellPolarity(g, 'top'), params.scale);
+  });
+  const botCells = snake.map((pt, i) => {
+    const g = Math.min(S - 1, Math.floor(i / cellsPerGroup));
+    return drawCell(pt.x, pt.y, R, getCellPolarity(g, 'bottom'), params.scale);
+  });
+
+  const faceFilter = params.face || 'all';
+  const showTop    = faceFilter !== 'bottom';
+  const showBot    = faceFilter !== 'top';
+  const gap        = params.gap_section;
+  const svgH       = (showTop && showBot) ? H * 2 + gap + 50 : H + 44;
+  const ln         = [];
+  ln.push(`<svg width="100%" viewBox="0 0 ${Math.ceil(W)} ${Math.ceil(svgH)}" xmlns="http://www.w3.org/2000/svg" role="img">`);
+  ln.push(`<title>${S}S custom rows=[${rows.join(',')}] (${params.cell_type})</title>`);
+  ln.push(`<desc>커스텀 행별 셀 수, N=${N}, ${S}S, 이론 ${RENDERER_VERSION}</desc>`);
+
+  if (showTop && showBot) {
+    ln.push(`<text font-family="Arial" font-size="12" fill="#5F5E5A" text-anchor="middle" x="${W/2}" y="18">top face</text>`);
+    ln.push(`<g transform="translate(0,24)">${buildNickel('top')}${topCells.join('')}${buildTerminals('top')}</g>`);
+    const divY = H + 24 + gap / 2;
+    ln.push(`<line x1="20" y1="${divY}" x2="${W-20}" y2="${divY}" stroke="#cccccc" stroke-width="1" stroke-dasharray="4 3"/>`);
+    ln.push(`<text font-family="Arial" font-size="12" fill="#5F5E5A" text-anchor="middle" x="${W/2}" y="${H + 24 + gap / 2 + 14}">bottom face</text>`);
+    ln.push(`<g transform="translate(0,${H + 24 + gap})">${buildNickel('bottom')}${botCells.join('')}${buildTerminals('bottom')}</g>`);
+  } else if (showTop) {
+    ln.push(`<text font-family="Arial" font-size="12" fill="#5F5E5A" text-anchor="middle" x="${W/2}" y="18">top face</text>`);
+    ln.push(`<g transform="translate(0,24)">${buildNickel('top')}${topCells.join('')}${buildTerminals('top')}</g>`);
+  } else {
+    ln.push(`<text font-family="Arial" font-size="12" fill="#5F5E5A" text-anchor="middle" x="${W/2}" y="18">bottom face</text>`);
+    ln.push(`<g transform="translate(0,24)">${buildNickel('bottom')}${botCells.join('')}${buildTerminals('bottom')}</g>`);
+  }
+
+  ln.push(`<text font-family="Arial" font-size="8" fill="#27AE60" text-anchor="middle" x="${W/2}" y="${svgH - 6}">`
+    + `${RENDERER_VERSION} · custom · rows=[${rows.join(',')}] · N=${N} · ${S}S`
+    + `</text>`);
+  ln.push('</svg>');
+  return ln.join('\n');
+}
+
+// ═══════════════════════════════════════════════
 // 5. 메인 render
 // ═══════════════════════════════════════════════
 function render(userParams = {}) {
   const params = { ...DEFAULT_PARAMS, ...userParams };
   const spec   = CELL_SPEC[params.cell_type];
   if (!spec) throw new Error(`Unknown cell_type: ${params.cell_type}`);
+
+  // F14 (M4 Phase 3): custom 행별 셀 수 직접 지원
+  if (params.arrangement === 'custom' && Array.isArray(params.rows) && params.rows.length > 0) {
+    return renderCustomRows(params);
+  }
 
   const { S, P } = params;
   const N        = S * P;
@@ -866,4 +911,10 @@ if (typeof module !== 'undefined' && require.main === module) {
   console.log(`저장 완료: ${filename}`);
 }
 
-if (typeof module !== 'undefined') module.exports = { render, calcNickelPattern, getCellPolarity, calcCellCenters, CELL_SPEC };
+if (typeof module !== 'undefined') module.exports = {
+  render, calcNickelPattern, getCellPolarity, calcCellCenters, CELL_SPEC,
+  // M4 Phase 1 — generator.js 회귀 검증용 추가 export
+  canonicalSig, selectBlockType, calcTypeAGeometry, buildSnakeLayout,
+  // M4 Phase 3 — F14 custom rows 직접 렌더
+  renderCustomRows, resolveLayout,
+};

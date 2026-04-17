@@ -103,9 +103,9 @@
     {
       "id": "F14",
       "category": "렌더 엔진 통합",
-      "name": "renderer.js rows[] 파라미터 직접 지원",
-      "description": "render()에 rows=[] 추가 → app.js renderCustomLayout() 제거 후 render() 단일 호출 통합. app.js 주석에 '차기 버전' 명시.",
-      "passes": false
+      "name": "renderer.js rows[] 파라미터 직접 지원 + doRender() 제거",
+      "description": "render()에 rows=[] 추가 완료 (renderCustomRows). app.js renderCustomLayout/calcCustomCenters/convexHull2D 제거 + doRender() 삭제, rerender() 유일 진입점. M5 완료 2026-04-17.",
+      "passes": true
     },
 
     {
