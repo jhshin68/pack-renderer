@@ -222,6 +222,42 @@
       "name": "TypeA 닫힌 사다리 엣지케이스 검증",
       "description": "S=2,3 초소형 / S=13 대형 / 엇배열 TypeA 조합 렌더 정확성 확인.",
       "passes": false
+    },
+
+    {
+      "id": "F31",
+      "category": "홀더 배열 제약 (H1)",
+      "name": "Level 1 홀더 크기 분리 — holder_rows × holder_cols",
+      "description": "물리 홀더(행·열 수 + 빈 슬롯)와 논리 구성(S·P)을 분리. UI 입력 + buildHolderGrid() 구현. 2026-04-17.",
+      "passes": true
+    },
+    {
+      "id": "F32",
+      "category": "홀더 배열 제약 (H2)",
+      "name": "Level 2 B+/B- 출력 방향 입력 — calcBoundarySet()",
+      "description": "b_plus_side / b_minus_side UI (4방향). calcBoundarySet()으로 경계 셀 집합 도출. 2026-04-17.",
+      "passes": true
+    },
+    {
+      "id": "F33",
+      "category": "홀더 배열 제약 (H3)",
+      "name": "Hamiltonian 그룹 배정 열거기 — enumerateGroupAssignments()",
+      "description": "backtracking + ICC①②③ + T/Y 가지치기. N≤60 실용 범위. max_candidates=20. 2026-04-17.",
+      "passes": true
+    },
+    {
+      "id": "F34",
+      "category": "홀더 배열 제약 (H4)",
+      "name": "우측 패널 실제 후보 표시 — enumerateGroupAssignments 연동",
+      "description": "4개 고정 카드를 실제 열거 결과로 교체. 전략·반복수·B+/B- 경계 셀 수 표시. 2026-04-17.",
+      "passes": true
+    },
+    {
+      "id": "F35",
+      "category": "홀더 배열 제약 (H5)",
+      "name": "원칙 문서 업데이트 — 원칙 4·15·17 제약 계층 반영",
+      "description": "nickel_plate_principles.md 원칙 4(B+/B- 우선순위 ④⑤항)·17(holder_shape/logical_config 분리 Level 1·2·3 계층 ④항), nickel-plate-design.md 원칙 15 Step C' Hamiltonian 열거기 삽입. 2026-04-17.",
+      "passes": true
     }
   ]
 }

@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>Battery Pack Intelligence — SL Power</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -44,27 +47,29 @@
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+html, body { height: 100%; }
+
 body {
   font-family: 'Inter', sans-serif;
   background: var(--bg);
   color: var(--dt);
-  height: 100vh;
   overflow: hidden;
 }
 
-/* ── APP SHELL ──────────────────────────────── */
+/* ── APP SHELL — 뷰포트 전체를 확실히 덮도록 fixed+inset:0 ── */
+/*   사이드바는 브라우저 폭에 비례해 확장: 최소 260/280px, 최대 380/400px */
 .app {
+  position: fixed;
+  inset: 0;
   display: grid;
-  grid-template-columns: 260px 1fr 280px;
-  height: 100vh;
-  width: 100vw;
+  grid-template-columns: clamp(260px, 20%, 380px) 1fr clamp(280px, 21%, 400px);
   overflow: hidden;
 }
 
 /* ── SIDEBAR ──────────────────────────────── */
 .sidebar {
   grid-column: 1;
-  height: 100vh;
+  height: 100%;
   background: var(--sb);
   display: flex;
   flex-direction: column;
@@ -99,13 +104,13 @@ body {
 }
 .logo-sub {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 8px; letter-spacing: 1.5px; text-transform: uppercase;
+  font-size: 9.5px; letter-spacing: 1.5px; text-transform: uppercase;
   color: var(--dt2); margin-top: 1px;
 }
 .logo-ver {
   margin-left: auto;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 8px; color: var(--dt3); letter-spacing: .5px;
+  font-size: 9.5px; color: var(--dt3); letter-spacing: .5px;
   flex-shrink: 0;
 }
 
@@ -114,7 +119,7 @@ body {
 
 /* Section label */
 .ctrl-label {
-  font-size: 8.5px; letter-spacing: 1.4px; text-transform: uppercase;
+  font-size: 10.5px; letter-spacing: 1.4px; text-transform: uppercase;
   color: var(--dt2); font-family: 'JetBrains Mono', monospace;
   margin-bottom: 3px;
 }
@@ -126,9 +131,9 @@ body {
   border-radius: var(--r); padding: 2px;
 }
 .seg-btn {
-  flex: 1; padding: 4px 3px; border: none;
+  flex: 1; padding: 5px 4px; border: none;
   background: transparent; color: var(--dt2);
-  font-family: 'JetBrains Mono', monospace; font-size: 9px;
+  font-family: 'JetBrains Mono', monospace; font-size: 11px;
   border-radius: 4px; cursor: pointer; transition: all .15s;
   white-space: nowrap;
 }
@@ -142,12 +147,12 @@ body {
 .num-row { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
 .num-pair { display: flex; align-items: center; gap: 3px; }
 .num-tag {
-  font-family: 'JetBrains Mono', monospace; font-size: 8px;
-  color: var(--dt2); min-width: 12px;
+  font-family: 'JetBrains Mono', monospace; font-size: 10px;
+  color: var(--dt2); min-width: 14px;
 }
 .num-val {
-  font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 500;
-  color: #F1F5F9; min-width: 24px; text-align: center;
+  font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 500;
+  color: #F1F5F9; min-width: 26px; text-align: center;
 }
 /* 직접 타이핑 가능한 숫자 입력 (S·P 직렬·병렬) */
 input.num-val {
@@ -160,8 +165,8 @@ input.num-val::-webkit-outer-spin-button,
 input.num-val::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 input.num-val[type=number] { -moz-appearance: textfield; }
 .num-btn {
-  width: 18px; height: 18px; border: 1px solid var(--sb-bdr);
-  background: var(--sb2); color: var(--dt2); font-size: 11px;
+  width: 20px; height: 20px; border: 1px solid var(--sb-bdr);
+  background: var(--sb2); color: var(--dt2); font-size: 13px;
   border-radius: 4px; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   transition: all .15s; user-select: none;
@@ -172,7 +177,7 @@ input.num-val[type=number] { -moz-appearance: textfield; }
 
 /* Toggle */
 .toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 1px 0; }
-.toggle-label { font-size: 10px; color: var(--dt2); }
+.toggle-label { font-size: 12px; color: var(--dt2); }
 .toggle {
   width: 34px; height: 18px; background: var(--sb-bdr);
   border-radius: 9px; cursor: pointer; position: relative;
@@ -190,16 +195,16 @@ input.num-val[type=number] { -moz-appearance: textfield; }
 #customRows {
   width: 100%; background: var(--sb2); color: var(--dt);
   border: 1px solid var(--sb-bdr); border-radius: 5px;
-  padding: 6px 8px; font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  padding: 6px 8px; font-family: 'JetBrains Mono', monospace; font-size: 13px;
   resize: vertical; transition: border-color .15s;
 }
 #customRows:focus { outline: none; border-color: var(--accent); }
-.hint { font-size: 9px; color: var(--dt3); font-family: 'JetBrains Mono', monospace; line-height: 1.5; }
+.hint { font-size: 11px; color: var(--dt3); font-family: 'JetBrains Mono', monospace; line-height: 1.5; }
 
 /* Render button */
 .render-btn {
-  padding: 8px 12px; border: none; border-radius: var(--r); cursor: pointer;
-  font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 600;
+  padding: 10px 14px; border: none; border-radius: var(--r); cursor: pointer;
+  font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600;
   letter-spacing: .2px; color: #fff;
   background: var(--accent);
   box-shadow: 0 2px 12px rgba(37,99,235,.35);
@@ -212,8 +217,8 @@ input.num-val[type=number] { -moz-appearance: textfield; }
 /* Info box */
 .info-box {
   background: var(--sb2); border: 1px solid var(--sb-bdr);
-  border-radius: var(--r); padding: 7px 10px;
-  font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--dt2);
+  border-radius: var(--r); padding: 8px 11px;
+  font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--dt2);
   line-height: 1.7;
 }
 .info-box .row { display: flex; justify-content: space-between; align-items: baseline; gap: 4px; }
@@ -223,22 +228,22 @@ input.num-val[type=number] { -moz-appearance: textfield; }
 .info-box .val.amber { color: #FBBF24; }
 .info-box .divider { border-top: 1px solid var(--sb-bdr); margin: 5px 0; }
 .info-title {
-  font-size: 8px; letter-spacing: 1.5px; text-transform: uppercase;
+  font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase;
   color: var(--dt3); margin-bottom: 5px;
 }
 
 /* Download */
 .dl-btn {
-  padding: 9px 14px; background: transparent;
+  padding: 10px 14px; background: transparent;
   border: 1px solid var(--sb-bdr); color: var(--dt2);
-  border-radius: var(--r); font-family: 'Inter', sans-serif; font-size: 11px;
+  border-radius: var(--r); font-family: 'Inter', sans-serif; font-size: 13px;
   cursor: pointer; transition: all .15s; text-align: center;
 }
 .dl-btn:hover { border-color: var(--green); color: #34D399; }
 
 /* Footer tag */
 .theory-tag {
-  font-family: 'JetBrains Mono', monospace; font-size: 8px;
+  font-family: 'JetBrains Mono', monospace; font-size: 9.5px;
   color: var(--dt3); text-align: center;
   padding: 8px 0 10px; border-top: 1px solid var(--sb-bdr);
   letter-spacing: .8px;
@@ -247,7 +252,7 @@ input.num-val[type=number] { -moz-appearance: textfield; }
 /* ── MAIN PANEL ──────────────────────────────── */
 .main {
   grid-column: 2;
-  height: 100vh;
+  height: 100%;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -292,16 +297,17 @@ input.num-val[type=number] { -moz-appearance: textfield; }
   align-items: flex-start;
 }
 
-/* SVG card — 자연 크기 (width:auto, viewBox 기준) */
+/* SVG card — 가용 폭 유동, 최대 1400px 캡 */
 .svg-container {
   background: var(--canvas);
   border: 1px solid var(--border-l);
   border-radius: 8px;
   padding: 20px;
   box-shadow: 0 1px 6px rgba(0,0,0,.06), 0 4px 20px rgba(0,0,0,.04);
-  max-width: 100%;
+  width: 100%;
+  max-width: 1400px;
 }
-.svg-container svg { display: block; max-width: 100%; height: auto; }
+.svg-container svg { display: block; width: 100%; height: auto; }
 
 /* Empty state */
 .empty {
@@ -326,7 +332,7 @@ input.num-val[type=number] { -moz-appearance: textfield; }
 /* ── RIGHT PANEL ──────────────────────────────── */
 .right-panel {
   grid-column: 3;
-  height: 100vh;
+  height: 100%;
   background: var(--sb);
   border-left: 1px solid var(--sb-bdr);
   display: flex;
@@ -340,13 +346,13 @@ input.num-val[type=number] { -moz-appearance: textfield; }
   flex-shrink: 0;
 }
 .rp-title {
-  font-size: 11px; font-weight: 600; color: var(--dt); letter-spacing: .3px;
+  font-size: 13px; font-weight: 600; color: var(--dt); letter-spacing: .3px;
 }
 .rp-badge {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 9px; color: var(--dt3);
+  font-size: 11px; color: var(--dt3);
   background: var(--sb2); border: 1px solid var(--sb-bdr);
-  border-radius: 10px; padding: 1px 7px;
+  border-radius: 10px; padding: 2px 8px;
 }
 .rp-body {
   padding: 10px 12px;
@@ -369,11 +375,11 @@ input.num-val[type=number] { -moz-appearance: textfield; }
   display: flex; align-items: center; justify-content: space-between;
   margin-bottom: 3px;
 }
-.cand-name { font-size: 10px; font-weight: 500; color: var(--dt); }
+.cand-name { font-size: 12px; font-weight: 500; color: var(--dt); }
 
 .score-chip {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 8px; padding: 1px 5px; border-radius: 3px; font-weight: 700;
+  font-size: 10px; padding: 2px 6px; border-radius: 3px; font-weight: 700;
 }
 .score-chip.pos  { background: rgba(5,150,105,.2);  color: #34D399; }
 .score-chip.neg  { background: rgba(220,38,38,.2);  color: #F87171; }
@@ -381,11 +387,11 @@ input.num-val[type=number] { -moz-appearance: textfield; }
 
 .cand-scores {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 9px; color: var(--dt3); line-height: 1.5;
+  font-size: 11px; color: var(--dt3); line-height: 1.5;
 }
 .cand-desc {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 8px; color: var(--dt3); margin-top: 2px;
+  font-size: 10px; color: var(--dt3); margin-top: 2px;
 }
 </style>
 </head>
@@ -400,7 +406,7 @@ input.num-val[type=number] { -moz-appearance: textfield; }
         <div class="logo-brand">SL Power</div>
         <div class="logo-sub">Pack Intelligence</div>
       </div>
-      <div class="logo-ver">v0.2.24</div>
+      <div class="logo-ver">v0.2.25</div>
     </div>
 
     <div class="sidebar-body">

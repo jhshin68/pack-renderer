@@ -37,6 +37,13 @@ const state = {
   icc3:              false,   // ICC③ 볼록성 ≥ 0.75 (기본 비활성)
   nickel_w_mm:       4.0,     // 니켈 폭 mm (ICC 계산 기준)
   selected_ordering: 0,       // 선택된 배열 후보 인덱스
+  // H1 — Level 1 물리 홀더 (null = S/P와 동일, 후방 호환)
+  holder_rows:   null,        // null → P 사용
+  holder_cols:   null,        // null → S 사용
+  holder_empty:  [],          // [[row,col], ...] 빈 슬롯
+  // H2 — Level 2 B+/B- 출력 방향
+  b_plus_side:   'left',      // 'top'|'bottom'|'left'|'right'
+  b_minus_side:  'right',
 };
 let lastSVG = '';
 
@@ -78,8 +85,9 @@ function setArrangement(a) {
   document.getElementById('btnSquare').classList.toggle('active', a === 'square');
   document.getElementById('btnStag').classList.toggle('active', a === 'staggered');
   document.getElementById('btnCustom').classList.toggle('active', a === 'custom');
-  document.getElementById('rectConfig').style.display   = (a === 'custom') ? 'none'  : 'block';
-  document.getElementById('customGroup').style.display  = (a === 'custom') ? 'block' : 'none';
+  document.getElementById('rectConfig').style.display      = (a === 'custom') ? 'none'  : 'block';
+  document.getElementById('customGroup').style.display     = (a === 'custom') ? 'block' : 'none';
+  document.getElementById('holderSizeGroup').style.display = (a === 'custom') ? 'none'  : 'block';
 }
 
 function setCustomAlign(a) {
@@ -236,6 +244,59 @@ function setFromInput(k, v) {
     const sc = document.getElementById('valScustom');
     if (sc && parseInt(sc.value, 10) !== state.S) sc.value = state.S;
   }
+}
+
+// ── H1 홀더 크기 제어 ─────────────────────────────
+function getHolderRows() { return state.holder_rows != null ? state.holder_rows : state.P; }
+function getHolderCols() { return state.holder_cols != null ? state.holder_cols : state.S; }
+
+function adjHolder(dim, d) {
+  if (dim === 'rows') {
+    const cur = state.holder_rows != null ? state.holder_rows : state.P;
+    const nxt = Math.max(1, cur + d);
+    state.holder_rows = (nxt === state.P) ? null : nxt;
+  } else {
+    const cur = state.holder_cols != null ? state.holder_cols : state.S;
+    const nxt = Math.max(1, cur + d);
+    state.holder_cols = (nxt === state.S) ? null : nxt;
+  }
+  updateHolderUI();
+  populateCandidatePanel();
+}
+
+function updateHolderUI() {
+  const hR = getHolderRows(), hC = getHolderCols();
+  const rowEl = document.getElementById('valHolderRows');
+  const colEl = document.getElementById('valHolderCols');
+  if (rowEl) rowEl.textContent = state.holder_rows != null ? hR : 'auto';
+  if (colEl) colEl.textContent = state.holder_cols != null ? hC : 'auto';
+
+  const totalSlots = hR * hC;
+  const N          = state.S * state.P;
+  const emptyCount = totalSlots - N;
+  const hint = document.getElementById('holderCapHint');
+  if (!hint) return;
+  if (emptyCount < 0) {
+    hint.textContent = `⚠ 슬롯 부족: ${totalSlots} < ${N}셀`;
+    hint.style.color = 'var(--red)';
+  } else if (emptyCount === 0) {
+    hint.textContent = `${hR}×${hC} = ${totalSlots}슬롯 · 빈 슬롯 없음`;
+    hint.style.color = 'var(--dt3)';
+  } else {
+    hint.textContent = `${hR}×${hC} = ${totalSlots}슬롯 · 빈 ${emptyCount}개`;
+    hint.style.color = 'var(--amber)';
+  }
+}
+
+// ── H2 B+/B- 방향 제어 ───────────────────────────
+function setBTermDir(key, side) {
+  state[key] = side;
+  const prefix = key === 'b_plus_side' ? 'bp' : 'bm';
+  ['Top', 'Left', 'Right', 'Bottom'].forEach(s => {
+    const el = document.getElementById(prefix + s);
+    if (el) el.classList.toggle('active', side === s.toLowerCase());
+  });
+  populateCandidatePanel();
 }
 
 function adjGap(d) {
@@ -406,6 +467,7 @@ function rerender() {
   applyFaceFilter();
   fixSVGSize();
   addBmsMarkerToDOM();
+  updateHolderUI();
   populateCandidatePanel();
 
   document.getElementById('emptyState').style.display  = 'none';
@@ -435,138 +497,144 @@ function selectCandidate(idx) {
   _showCandDetail(idx);
 }
 
-// ── 배열 후보 패널 ─────────────────────────────────
+// ── 배열 후보 패널 (H3/H4) ──────────────────────────
+// enumerateGroupAssignments(Generator)를 사용하여 실제 후보 열거
 
-// 행-우선(p=0..P-1, s=0..S-1) 플랫 셀 배열 반환
-function _flatCells() {
-  const { S, P, nickel_w_mm } = state;
-  const params = { ...state, layout: 'auto', scale: 1.5, nickel_w_mm, margin_mm: 8.0 };
+// 홀더 그리드 셀 반환 (holder_rows × holder_cols, 빈 슬롯 제외)
+function _getHolderCells() {
+  const hR = getHolderRows(), hC = getHolderCols();
+  const params = { ...state, layout: 'auto', scale: 1.5, nickel_w_mm: state.nickel_w_mm, margin_mm: 8.0 };
   try {
-    const { cx, cy } = calcCellCenters(S, P, params);
+    if (typeof Generator !== 'undefined' && typeof CELL_SPEC !== 'undefined') {
+      return Generator.buildHolderGrid(hR, hC, state.arrangement, state.holder_empty, params, CELL_SPEC);
+    }
+    // fallback: calcCellCenters (P×S 기본 배열)
+    const { cx, cy } = calcCellCenters(state.S, state.P, params);
     const cells = [];
-    for (let p = 0; p < P; p++)
-      for (let s = 0; s < S; s++)
+    for (let p = 0; p < state.P; p++)
+      for (let s = 0; s < state.S; s++)
         cells.push({ x: cx[s][p], y: cy[p] });
     return cells;
   } catch (_) { return null; }
 }
 
-// 보스트로페돈: startLTR=true → 0번 행 L→R, 1번 행 R→L, …
-function _boustrophedonOrder(cells, S, P, startLTR) {
-  const result = [];
-  for (let p = 0; p < P; p++) {
-    const row = cells.slice(p * S, (p + 1) * S);
-    const ltr = startLTR ? (p % 2 === 0) : (p % 2 !== 0);
-    result.push(...(ltr ? row : [...row].reverse()));
-  }
-  return result;
-}
-
-// 열 우선: s=0..S-1 (또는 역방향), 각 열 p=0..P-1
-function _columnFirstOrder(cells, S, P, rtl) {
-  const result = [];
-  for (let si = 0; si < S; si++) {
-    const s = rtl ? (S - 1 - si) : si;
-    for (let p = 0; p < P; p++)
-      result.push(cells[p * S + s]);
-  }
-  return result;
-}
-
-const _ORDERING_DEFS = [
-  { name: '보스트로페돈 L→R', desc: '행 우선 · 짝수행 L→R' },
-  { name: '보스트로페돈 R→L', desc: '행 우선 · 짝수행 R→L' },
-  { name: '열 우선 L→R',      desc: '열 우선 · 좌열→우열' },
-  { name: '열 우선 R→L',      desc: '열 우선 · 우열→좌열' },
-];
-
-let _candGroups = [];  // 마지막 계산된 후보별 그룹 품질 데이터
+let _enumResult = null;   // 마지막 enumerateGroupAssignments 결과
 
 function populateCandidatePanel() {
-  const { S, P, arrangement } = state;
+  const { S, P, arrangement, icc1, icc2, icc3, nickel_w_mm, b_plus_side, b_minus_side } = state;
   const listEl  = document.getElementById('candList');
   const countEl = document.getElementById('rpCandCount');
   if (!listEl) return;
 
-  // 커스텀 배열: BFS 단일 후보만 지원
+  const hasGen = typeof Generator !== 'undefined';
+
+  // 커스텀 배열: 단일 BFS 후보 (열거기 미지원)
   if (arrangement === 'custom') {
-    listEl.innerHTML =
-      '<div class="hint" style="color:var(--dt3);margin-top:4px">커스텀 배열<br>BFS 자동 순서 적용</div>';
+    listEl.innerHTML = '<div class="hint" style="color:var(--dt3);margin-top:4px">커스텀 배열<br>BFS 자동 순서 적용</div>';
     if (countEl) countEl.textContent = '1개';
-    _candGroups = [];
+    _enumResult = null;
     const detailEl = document.getElementById('candDetail');
     if (detailEl) detailEl.style.display = 'none';
     const divEl = document.getElementById('rpDetailDivider');
     if (divEl) divEl.style.display = 'none';
+    _updateEnumStatus(null);
     return;
   }
 
-  const flatCells = _flatCells();
-  if (!flatCells) {
+  if (!hasGen) {
+    listEl.innerHTML = '<div class="hint">Generator 미로드</div>';
+    if (countEl) countEl.textContent = '—';
+    return;
+  }
+
+  const cells = _getHolderCells();
+  if (!cells || cells.length === 0) {
     listEl.innerHTML = '<div class="hint">셀 데이터 없음</div>';
     if (countEl) countEl.textContent = '—';
     return;
   }
 
-  const orderings = [
-    _boustrophedonOrder(flatCells, S, P, true),
-    _boustrophedonOrder(flatCells, S, P, false),
-    _columnFirstOrder(flatCells, S, P, false),
-    _columnFirstOrder(flatCells, S, P, true),
-  ];
+  // 열거기 실행
+  let result;
+  try {
+    result = Generator.enumerateGroupAssignments({
+      cells, S, P, arrangement,
+      b_plus_side, b_minus_side,
+      icc1, icc2, icc3,
+      nickel_w: nickel_w_mm * 1.5,  // scale 반영 근사
+      max_candidates: 20,
+    });
+  } catch (e) {
+    listEl.innerHTML = `<div class="hint" style="color:var(--red)">열거 오류: ${e.message}</div>`;
+    if (countEl) countEl.textContent = '오류';
+    return;
+  }
 
-  if (countEl) countEl.textContent = orderings.length + '개';
+  _enumResult = result;
+  _updateEnumStatus(result);
+
+  const candidates = result.candidates || [];
+  if (countEl) countEl.textContent = candidates.length + '개';
+
   listEl.innerHTML = '';
-  _candGroups = [];
+  if (candidates.length === 0) {
+    listEl.innerHTML = '<div class="hint" style="margin-top:4px">후보 없음<br>(제약 완화 필요)</div>';
+    _showCandDetail(-1);
+    return;
+  }
 
-  orderings.forEach((ordered, idx) => {
-    // 각 그룹(P개 셀)의 품질 점수 계산
-    const groups = [];
-    const hasGen = typeof Generator !== 'undefined';
-    for (let g = 0; g < S; g++) {
-      const gc = ordered.slice(g * P, (g + 1) * P);
-      let score = 0;
-      if (hasGen && gc.length > 0) {
-        try {
-          const edges = Generator.buildAdjacency(gc, arrangement, null);
-          score = Generator.groupQualityScore(gc, edges);
-        } catch (_) {}
-      }
-      groups.push({ index: g, cells: gc, score });
-    }
-    _candGroups.push(groups);
+  candidates.forEach((cand, idx) => {
+    const groups  = cand.groups || [];
+    const posN    = groups.filter(g => g.quality_score > 0).length;
+    const negN    = groups.filter(g => g.quality_score < 0).length;
+    const isSel   = idx === state.selected_ordering;
 
-    const posN  = groups.filter(g => g.score > 0).length;
-    const negN  = groups.filter(g => g.score < 0).length;
-    const def   = _ORDERING_DEFS[idx];
-    const isSel = idx === state.selected_ordering;
-
-    // 점수 한 줄 요약 (최대 6그룹 표시)
     const scoreStr = groups.slice(0, 6)
-      .map(g => g.score > 0 ? '+10' : g.score < 0 ? '−10' : ' 0 ')
+      .map(g => g.quality_score > 0 ? '+10' : g.quality_score < 0 ? '−10' : ' 0 ')
       .join(' ') + (S > 6 ? ' …' : '');
 
-    const badgeClass = posN > 0 && negN === 0 ? 'pos'
-                     : negN > 0               ? 'neg'
-                     : 'zero';
-    const badgeText  = posN > 0 && negN === 0 ? posN + '×+10'
-                     : negN > 0               ? negN + '×−10'
+    const badgeClass = posN > 0 && negN === 0 ? 'pos' : negN > 0 ? 'neg' : 'zero';
+    const badgeText  = posN > 0 && negN === 0 ? `${posN}×+10`
+                     : negN > 0               ? `${negN}×−10`
                      : 'neutral';
+
+    const bTag = cand.b_plus_ok && cand.b_minus_ok ? '' :
+      ` <span style="color:var(--amber);font-size:8px">B±?</span>`;
+    const iccTag = (cand.icc_violations || 0) > 0 ?
+      ` <span style="color:var(--amber);font-size:8px">ICC✗${cand.icc_violations}</span>` : '';
+    const label  = cand.name || `후보 ${idx + 1}`;
 
     const card = document.createElement('div');
     card.className = 'cand-card' + (isSel ? ' selected' : '');
     card.onclick   = () => selectCandidate(idx);
     card.innerHTML =
       `<div class="cand-hdr">` +
-        `<span class="cand-name">${def.name}</span>` +
+        `<span class="cand-name">${label}${bTag}${iccTag}</span>` +
         `<span class="score-chip ${badgeClass}">${badgeText}</span>` +
       `</div>` +
       `<div class="cand-scores">${scoreStr}</div>` +
-      `<div class="cand-desc">${def.desc}</div>`;
+      `<div class="cand-desc">${cand.desc || ''}</div>`;
     listEl.appendChild(card);
   });
 
+  // selected_ordering이 범위를 벗어나면 0번으로 리셋
+  if (state.selected_ordering >= candidates.length) state.selected_ordering = 0;
+  // 카드 하이라이트 + 상세 패널
+  document.querySelectorAll('.cand-card').forEach((el, i) => {
+    el.classList.toggle('selected', i === state.selected_ordering);
+  });
   _showCandDetail(state.selected_ordering);
+}
+
+// 열거 상태 표시 (strategy / iterations)
+function _updateEnumStatus(result) {
+  const el = document.getElementById('rpEnumStatus');
+  if (!el) return;
+  if (!result) { el.textContent = ''; return; }
+  const stratLabel = { backtracking: 'BT', beam: 'Beam', heuristic: 'Heuristic', none: '—' };
+  const s = result.strategy || 'none';
+  const iter = result.iterations_used ? `${(result.iterations_used / 1000).toFixed(1)}k` : '';
+  el.textContent = `${stratLabel[s] || s}  ${iter}${result.max_iter_hit ? ' !' : ''}`;
 }
 
 function _showCandDetail(idx) {
@@ -574,23 +642,38 @@ function _showCandDetail(idx) {
   const divEl    = document.getElementById('rpDetailDivider');
   const boxEl    = document.getElementById('candDetailBox');
   if (!detailEl || !boxEl) return;
-  if (!_candGroups[idx]) { detailEl.style.display = 'none'; if (divEl) divEl.style.display = 'none'; return; }
 
-  const groups  = _candGroups[idx];
-  const posN    = groups.filter(g => g.score > 0).length;
-  const negN    = groups.filter(g => g.score < 0).length;
+  const cand = _enumResult && _enumResult.candidates && _enumResult.candidates[idx];
+  if (!cand) {
+    detailEl.style.display = 'none';
+    if (divEl) divEl.style.display = 'none';
+    return;
+  }
+
+  const groups  = cand.groups || [];
+  const posN    = groups.filter(g => g.quality_score > 0).length;
+  const negN    = groups.filter(g => g.quality_score < 0).length;
   const neutral = groups.length - posN - negN;
 
   detailEl.style.display = 'block';
   if (divEl) divEl.style.display = 'block';
+
+  const r = _enumResult;
   boxEl.innerHTML =
-    `<div class="info-title">${_ORDERING_DEFS[idx].name}</div>` +
+    `<div class="info-title">${cand.name || '후보 ' + (idx + 1)}</div>` +
     `<div class="row"><span class="key">총 그룹</span><span class="val">${groups.length}개</span></div>` +
+    `<div class="row"><span class="key">총합 점수</span><span class="val ${cand.total_score > 0 ? 'green' : ''}">${cand.total_score >= 0 ? '+' : ''}${cand.total_score}</span></div>` +
     `<div class="row"><span class="key">+10 컴팩트</span><span class="val green">${posN}개</span></div>` +
     `<div class="row"><span class="key">−10 T/Y형</span><span class="val" style="color:#F87171">${negN}개</span></div>` +
     `<div class="row"><span class="key">0 체인형</span><span class="val">${neutral}개</span></div>` +
     `<div class="divider"></div>` +
-    `<div class="info-title">ICC 적용 (선택)</div>` +
+    `<div class="info-title">열거 정보</div>` +
+    `<div class="row"><span class="key">전략</span><span class="val">${r.strategy || '—'}</span></div>` +
+    `<div class="row"><span class="key">반복수</span><span class="val">${r.iterations_used || 0}</span></div>` +
+    `<div class="row"><span class="key">B+ 충족</span><span class="val ${cand.b_plus_ok ? 'green' : ''}">${cand.b_plus_ok ? '✓' : '✗'} (${r.boundary_plus_count || 0}셀)</span></div>` +
+    `<div class="row"><span class="key">B− 충족</span><span class="val ${cand.b_minus_ok ? 'green' : ''}">${cand.b_minus_ok ? '✓' : '✗'} (${r.boundary_minus_count || 0}셀)</span></div>` +
+    `<div class="divider"></div>` +
+    `<div class="info-title">ICC 제약</div>` +
     `<div class="row"><span class="key">ICC①</span><span class="val">${state.icc1 ? '행스팬≤2' : '비활성'}</span></div>` +
     `<div class="row"><span class="key">ICC②</span><span class="val">${state.icc2 ? '종횡비≤2.0' : '비활성'}</span></div>` +
     `<div class="row"><span class="key">ICC③</span><span class="val">${state.icc3 ? '볼록≥0.75' : '비활성'}</span></div>`;

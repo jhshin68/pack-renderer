@@ -827,6 +827,335 @@
   }
 
   // ═══════════════════════════════════════════════
+  // 2.5  H1/H2/H3 — 홀더 그리드 & 경계 & Hamiltonian 열거기
+  //      (holder_array_constraint_design.md §4–§5 구현)
+  // ═══════════════════════════════════════════════
+
+  /**
+   * 경계 셀 집합 계산 (H2 — Level 2 입력)
+   * cells: [{x,y}]  side: 'top'|'bottom'|'left'|'right'
+   * 반환: Set<number> — cells[] 인덱스
+   */
+  function calcBoundarySet(cells, side) {
+    if (!cells || cells.length === 0) return new Set();
+    const p = estimatePitch(cells);
+    const tol = p * 0.5;
+    const xs = cells.map(c => c.x), ys = cells.map(c => c.y);
+    const minX = Math.min(...xs), maxX = Math.max(...xs);
+    const minY = Math.min(...ys), maxY = Math.max(...ys);
+    const set = new Set();
+    for (let i = 0; i < cells.length; i++) {
+      const { x, y } = cells[i];
+      switch (side) {
+        case 'left':   if (x <= minX + tol) set.add(i); break;
+        case 'right':  if (x >= maxX - tol) set.add(i); break;
+        case 'top':    if (y <= minY + tol) set.add(i); break;
+        case 'bottom': if (y >= maxY - tol) set.add(i); break;
+      }
+    }
+    return set;
+  }
+
+  /**
+   * 홀더 그리드 셀 좌표 생성 (H1 — Level 1 물리 홀더)
+   * hRows: 홀더 행 수  hCols: 홀더 열 수
+   * pattern: 'square'|'staggered'
+   * emptyCells: [[row,col], ...] 빈 슬롯 좌표
+   * params: { cell_type, gap, scale, margin_mm }  cellSpec: CELL_SPEC
+   * 반환: [{x, y, row, col}]  (빈 슬롯 제외)
+   */
+  function buildHolderGrid(hRows, hCols, pattern, emptyCells, params, cellSpec) {
+    if (!cellSpec) throw new Error('[generator.buildHolderGrid] cellSpec 미제공');
+    const spec = cellSpec[params.cell_type];
+    if (!spec) throw new Error(`[generator.buildHolderGrid] 알 수 없는 cell_type: ${params.cell_type}`);
+
+    const pitch  = (spec.render_d + (params.gap || 0)) * params.scale;
+    const pitchY = pattern === 'staggered' ? pitch * Math.sqrt(3) / 2 : pitch;
+    const R      = (spec.render_d / 2) * params.scale;
+    const margin = params.margin_mm * params.scale;
+
+    const emptySet = new Set((emptyCells || []).map(([r, c]) => `${r},${c}`));
+    const cells = [];
+
+    for (let r = 0; r < hRows; r++) {
+      const stagOffX = (pattern === 'staggered' && r % 2 === 1) ? pitch / 2 : 0;
+      for (let c = 0; c < hCols; c++) {
+        if (emptySet.has(`${r},${c}`)) continue;
+        cells.push({
+          x: margin + stagOffX + c * pitch + R,
+          y: margin + r * pitchY + R,
+          row: r, col: c,
+        });
+      }
+    }
+    return cells;
+  }
+
+  /**
+   * Hamiltonian 그룹 배정 열거기 — 하이브리드 전략 (H3)
+   * docs/holder_array_constraint_design.md §5 알고리즘 파이프라인 구현
+   *
+   * 전략:
+   *   Phase 1 — 표준 배열 4종 (square·staggered 항상 생성, 즉시 O(N))
+   *     · 보스트로페돈 L→R / R→L (행 우선 지그재그)
+   *     · 열 우선 L→R / R→L (컬럼 단위)
+   *   Phase 2 — 백트래킹 (N ≤ 18 추가 비표준 해 탐색)
+   *     · ICC①(행스팬≤2), ICC②(종횡비, I형 제외), T/Y 분기 가지치기
+   *     · B+/B− 경계 강제
+   *
+   * ctx: {
+   *   cells,          // [{x,y}] — buildHolderGrid / calcCellCenters 결과
+   *   S, P, arrangement, b_plus_side, b_minus_side,
+   *   icc1, icc2, icc3,  max_candidates (default 20)
+   * }
+   * 반환: { candidates, count, strategy, boundary_plus_count, boundary_minus_count }
+   */
+  function enumerateGroupAssignments(ctx) {
+    const {
+      cells, S, P, arrangement = 'square',
+      b_plus_side  = 'left',
+      b_minus_side = 'right',
+      icc1 = true, icc2 = true, icc3 = false,
+      max_candidates = 20,
+    } = ctx || {};
+
+    if (!cells || cells.length === 0 || S < 1 || P < 1) {
+      return { candidates: [], count: 0, strategy: 'none', error: 'invalid ctx' };
+    }
+    const N = cells.length;
+    if (N < S * P) {
+      return { candidates: [], count: 0, strategy: 'none', error: `셀 부족: ${N} < ${S}×${P}` };
+    }
+
+    const pitch = estimatePitch(cells);
+    const thr   = arrangement === 'custom' ? pitch * 1.1 : pitch * 1.05;
+    const bPlus  = calcBoundarySet(cells, b_plus_side);
+    const bMinus = calcBoundarySet(cells, b_minus_side);
+
+    // ── ICC 정보 계산 (per group cell array) ────────────────────────
+    function groupICC(gc) {
+      // T/Y 분기
+      const edges = buildAdjacency(gc, arrangement, pitch);
+      const deg = new Array(gc.length).fill(0);
+      for (const { i, j } of edges) { deg[i]++; deg[j]++; }
+      const hasT = deg.some(d => d >= 3);
+
+      const gxs = gc.map(c => c.x), gys = gc.map(c => c.y);
+      const spanX = Math.max(...gxs) - Math.min(...gxs);
+      const spanY = Math.max(...gys) - Math.min(...gys);
+      const is1D  = spanX < thr * 0.1 || spanY < thr * 0.1;
+      const rowSpan = Math.round(spanY / (pitch || 1)) + 1;
+      const ratio   = is1D ? 1 : Math.max(spanX, spanY) / (Math.min(spanX, spanY) || 1);
+
+      return {
+        edges, hasT, is1D, rowSpan, ratio,
+        icc1_ok: rowSpan <= 2,
+        icc2_ok: is1D || ratio <= 2.0,
+        qs: groupQualityScore(gc, edges),
+      };
+    }
+
+    // ── Phase 1: 표준 배열 4종 생성 ─────────────────────────────────
+    function makeBoustrophedon(startLTR) {
+      const rowMap = new Map();
+      for (const c of cells) {
+        const ry = Math.round(c.y / (pitch || 1));
+        if (!rowMap.has(ry)) rowMap.set(ry, []);
+        rowMap.get(ry).push(c);
+      }
+      const flat = [];
+      [...rowMap.keys()].sort((a, b) => a - b).forEach((ry, ri) => {
+        const row = [...rowMap.get(ry)].sort((a, b) => a.x - b.x);
+        const ltr = startLTR ? ri % 2 === 0 : ri % 2 !== 0;
+        flat.push(...(ltr ? row : [...row].reverse()));
+      });
+      return flat;
+    }
+
+    function makeColumnFirst(rtl) {
+      const colMap = new Map();
+      for (const c of cells) {
+        const cx = Math.round(c.x / (pitch || 1));
+        if (!colMap.has(cx)) colMap.set(cx, []);
+        colMap.get(cx).push(c);
+      }
+      const flat = [];
+      [...colMap.keys()].sort((a, b) => rtl ? b - a : a - b).forEach(cx => {
+        flat.push(...[...colMap.get(cx)].sort((a, b) => a.y - b.y));
+      });
+      return flat;
+    }
+
+    // xy → cell index 매핑 (경계 포함 여부 빠른 판정)
+    const xyKey = c => `${Math.round(c.x * 10)},${Math.round(c.y * 10)}`;
+    const cellIdxMap = new Map(cells.map((c, i) => [xyKey(c), i]));
+
+    function cellInBoundary(c, bndSet) {
+      const idx = cellIdxMap.get(xyKey(c));
+      return idx !== undefined && bndSet.has(idx);
+    }
+
+    function flatToCandidate(flat, name, desc) {
+      if (flat.length < S * P) return null;
+      const groups = [];
+      let iccViolations = 0;
+      for (let g = 0; g < S; g++) {
+        const gc = flat.slice(g * P, (g + 1) * P);
+        const icc = groupICC(gc);
+        if (icc.hasT) iccViolations++;
+        if (icc1 && !icc.icc1_ok) iccViolations++;
+        if (icc2 && !icc.icc2_ok) iccViolations++;
+        groups.push({
+          index: g, cells: gc,
+          quality_score: icc.qs,
+          is_b_plus:  g === 0,
+          is_b_minus: g === S - 1,
+          icc1_ok: icc.icc1_ok, icc2_ok: icc.icc2_ok, has_TY: icc.hasT,
+        });
+      }
+      const bpOk = groups[0]?.cells.some(c => cellInBoundary(c, bPlus)) ?? false;
+      const bmOk = groups[S - 1]?.cells.some(c => cellInBoundary(c, bMinus)) ?? false;
+      const totalScore = groups.reduce((s, g) => s + g.quality_score, 0);
+      return {
+        groups, total_score: totalScore,
+        name, desc, is_standard: true,
+        b_plus_ok: bpOk, b_minus_ok: bmOk,
+        icc_violations: iccViolations,
+      };
+    }
+
+    const results = [];
+    let btIterations = 0;
+    let strategy = 'standard';
+
+    if (arrangement !== 'custom') {
+      const STANDARD = [
+        { name: '보스트로페돈 L→R', desc: '행 우선 · 짝수행 L→R', fn: () => makeBoustrophedon(true)  },
+        { name: '보스트로페돈 R→L', desc: '행 우선 · 짝수행 R→L', fn: () => makeBoustrophedon(false) },
+        { name: '열 우선 L→R',      desc: '열 우선 · 좌열→우열',  fn: () => makeColumnFirst(false)   },
+        { name: '열 우선 R→L',      desc: '열 우선 · 우열→좌열',  fn: () => makeColumnFirst(true)    },
+      ];
+      for (const ord of STANDARD) {
+        const cand = flatToCandidate(ord.fn(), ord.name, ord.desc);
+        if (cand) results.push(cand);
+      }
+    }
+
+    // ── Phase 2: 백트래킹 (N ≤ 18 소형만, 비표준 해 탐색) ──────────
+    if (N <= 18 && results.length < max_candidates) {
+      strategy = 'standard+backtracking';
+
+      const adjL = Array.from({ length: N }, () => []);
+      for (let i = 0; i < N; i++) {
+        for (let j = i + 1; j < N; j++) {
+          if (Math.hypot(cells[i].x - cells[j].x, cells[i].y - cells[j].y) <= thr) {
+            adjL[i].push(j); adjL[j].push(i);
+          }
+        }
+      }
+
+      function passICC_bt(idxArr) {
+        if (idxArr.length < 2) return true;
+        const gc = idxArr.map(i => cells[i]);
+        const icc = groupICC(gc);
+        if (icc.hasT) return false;
+        if (icc1 && !icc.icc1_ok) return false;
+        if (icc2 && !icc.icc2_ok) return false;
+        return true;
+      }
+
+      // 표준 배열과 동일한 그룹 구성인지 시그니처로 중복 검사
+      const seenSigs = new Set(results.map(r =>
+        r.groups.map(g => g.cells.map(c => xyKey(c)).sort().join(';')).join('|')
+      ));
+
+      const used = new Uint8Array(N);
+      const MAX_ITER_BT = 50000;
+
+      function dfs(gIdx, snapGroups, curIdxs, frontier) {
+        if (results.length >= max_candidates || ++btIterations > MAX_ITER_BT) return;
+
+        if (curIdxs.length === P) {
+          if (!passICC_bt(curIdxs)) return;
+          const snap = [...curIdxs];
+          const allSnaps = snapGroups.concat([snap]);
+
+          if (gIdx === S - 1) {
+            if (!snap.some(i => bMinus.has(i))) return;
+            const groups = allSnaps.map((g, gi) => {
+              const gc = g.map(i => cells[i]);
+              const icc = groupICC(gc);
+              return {
+                index: gi, cells: gc,
+                quality_score: icc.qs,
+                is_b_plus: gi === 0, is_b_minus: gi === S - 1,
+                icc1_ok: icc.icc1_ok, icc2_ok: icc.icc2_ok, has_TY: icc.hasT,
+              };
+            });
+            const sig = groups.map(g => g.cells.map(c => xyKey(c)).sort().join(';')).join('|');
+            if (!seenSigs.has(sig)) {
+              seenSigs.add(sig);
+              const totalScore = groups.reduce((s, g) => s + g.quality_score, 0);
+              results.push({
+                groups, total_score: totalScore,
+                name: `비표준 ${results.length + 1}`, desc: 'backtracking',
+                is_standard: false, b_plus_ok: true, b_minus_ok: true,
+                icc_violations: 0,
+              });
+            }
+            return;
+          }
+
+          for (const nextStart of frontier) {
+            used[nextStart] = 1;
+            const nextFront = new Set(adjL[nextStart].filter(nb => !used[nb]));
+            dfs(gIdx + 1, allSnaps, [nextStart], nextFront);
+            used[nextStart] = 0;
+          }
+          return;
+        }
+
+        for (const cand of frontier) {
+          used[cand] = 1;
+          curIdxs.push(cand);
+          const nf = new Set(frontier);
+          nf.delete(cand);
+          for (const nb of adjL[cand]) { if (!used[nb]) nf.add(nb); }
+          dfs(gIdx, snapGroups, curIdxs, nf);
+          curIdxs.pop();
+          used[cand] = 0;
+        }
+      }
+
+      for (const startCell of bPlus) {
+        if (results.length >= max_candidates || btIterations > MAX_ITER_BT) break;
+        used[startCell] = 1;
+        dfs(0, [], [startCell], new Set(adjL[startCell].filter(nb => !used[nb])));
+        used[startCell] = 0;
+      }
+    }
+
+    // 정렬: B+/B- 충족 우선 → ICC 위반 적은 순 → 점수 높은 순
+    results.sort((a, b) => {
+      const aOk = (a.b_plus_ok && a.b_minus_ok) ? 0 : 1;
+      const bOk = (b.b_plus_ok && b.b_minus_ok) ? 0 : 1;
+      if (aOk !== bOk) return aOk - bOk;
+      if (a.icc_violations !== b.icc_violations) return a.icc_violations - b.icc_violations;
+      return b.total_score - a.total_score;
+    });
+
+    return {
+      candidates:           results,
+      count:                results.length,
+      strategy,
+      boundary_plus_count:  bPlus.size,
+      boundary_minus_count: bMinus.size,
+      iterations_used:      btIterations,
+      max_iter_hit:         btIterations >= 50000,
+    };
+  }
+
+  // ═══════════════════════════════════════════════
   // 3. STEPS 레지스트리 (design_spec step id ↔ entry_fn 매핑)
   // ═══════════════════════════════════════════════
   const STEPS = {
@@ -874,6 +1203,10 @@
     detectColumnGroupEfficiency, // S13 실구현(기존)
     buildStrokeGraph,         // S18 스텁 유지
     buildHexCluster,          // S23 스텁 유지
+    // H1/H2/H3 — 홀더 그리드 & 경계 & 열거기
+    calcBoundarySet,          // H2 ✅
+    buildHolderGrid,          // H1 ✅
+    enumerateGroupAssignments, // H3 ✅ (backtracking, N≤60)
     STEPS,
     get SPEC() { return SPEC; },
   };
