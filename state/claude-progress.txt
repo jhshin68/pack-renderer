@@ -1,10 +1,73 @@
 ========================================
-마지막 업데이트: 2026-04-17 (세션 13.5 — 검증 감사 + 갭 #1 해결 + Type-A 폐기)
+마지막 업데이트: 2026-04-17 (세션 14 시작 직후 종료 — 집에서 재개 예정)
 버전: renderer.js v0.3.2-unified / validator.js v7-tier2b / generator.js v7-M7
 원칙 문서: v7.1 (원칙 4·17 B+/B-·홀더 Level 계층, 원칙 15 Step C')
 개발 규율: skills/tdd-first.md + skills/systematic-debug.md
 테스트 상태: 406/406 PASS (누적 12 test 파일)
-세션 13.5 누적: 커밋 12, assertion 166→406 (+240), 갭 1건 해결, Type-A 폐기
+git 상태: main == origin/main, 미커밋 없음
+========================================
+
+## 🏠 세션 14 → 다음 세션(집) 재개 지침
+
+세션 14는 시작 루틴만 실행하고 종료. 코드 변경 없음.
+집에서 새 세션 시작 시 아래 순서대로:
+
+### 1단계 — 시작 루틴 (필수)
+1. `skills/pack-renderer-session.md` 7단계 루틴 실행
+2. `skills/tdd-first.md` + `skills/systematic-debug.md` 재독
+3. `state/verification_matrix.md` 참조
+
+### 2단계 — 브라우저 시각 확인 (사용자, 미완)
+세션 13.5의 두 근본 수정은 자동 테스트가 SVG 구조만 검증. 실제 시각은 사용자 눈으로 확인 필수:
+
+**확인 A — P=5 니켈 플레이트 (Type-A 폐기 검증)**
+- 조합 예: 4S5P, 13S5P
+- 기대: P=4와 동일 계열 (ㄷ자 5단 사다리, drawNickelU)
+- 문제 시: image copy.png처럼 세로 레일 과다 → 추가 조사 필요
+
+**확인 B — S 짝수 B- 라벨 (갭 #1 해결 검증)**
+- 조합 예: 2S/4S/6S/8S × P 임의
+- 기대: B- 라벨이 **상면** 오른쪽 끝 G_{S-1} 단독 I형 플레이트에 표시
+- S 홀수는 하면 (기존과 동일)
+
+### 3단계 — F11/F12 처리 방향 사용자 결정 (미완)
+Type-A 폐기로 P=3(Compact-H), P=6(Extended)도 Generic 처리 가능.
+`feature_list.json` F11·F12를 아래 중 하나로:
+- (가) `passes:true`로 변경 — 일반 U/I 경로 자동 지원
+- (나) 항목 제거 — 특수 타입 폐기
+- (다) `passes:false` 유지 + description 갱신
+
+### 4단계 — 다음 작업 옵션 선택 (사용자 결정)
+
+**(옵션 A) P14 checkFaceMerging 즉시 구현 (권장)** — 갭 #1 해결로 선결 조건 해소됨.
+- 난이도: 🟡 Tier 2c, 1~1.5h
+- 검증: calcNickelPattern 결과가 원칙 14 ①②③④⑤ 전부 만족
+- 파일: `src/validator.js` checkFaceMerging, `tests/test_p14_face_merging.js` 신규
+- TDD 순서: RED → GREEN → REFACTOR
+
+**(옵션 B) S15D `minimizeShapeCount` TDD**
+- 진행 순서 (엄수):
+  1. `skills/tdd-first.md` 재독
+  2. `skills/nickel-plate-design.md` LAYER 3 원칙 15 Step D + 원칙 12 재독
+  3. `tests/test_s15d.js` 신규 — 케이스 A~D (동일 형상 5그룹, I형/2×2 혼재, 빈 배열, 회전 합동)
+  4. FAIL 확인 → `src/generator.js minimizeShapeCount` 실구현 (canonicalSig 재활용)
+  5. 회귀 전체 + 커밋
+
+**(옵션 C) 원칙 25 ④항 조사**
+- 갭 #1처럼 "탭 이종 극성 방향 금지"가 구현과 괴리 있는지 확인
+- `skills/nickel_plate_principles.md` 원칙 25 vs `renderer.js drawTerminal`
+- 갭 발견 시 systematic-debug.md 5단계 프로토콜
+
+### 5단계 — 백로그 정리 (시간 남으면)
+- **`.gitignore` 정비**: `image*.png`, `png/session*`, `.claude/settings.local.json` 등 커밋 제외 후보 (세션 13.5 커밋 6f1ecf8에 실수로 포함됨)
+- **문서 검증**: `docs/architecture_v7.md` line 99·136 `calcTypeAGeometry` 언급 잔존. `skills/*.md`에도 TypeA 언급이 있다면 정리
+- **미완료 feature 재평가**: F13(P≥7), F21(custom BMS), F24(PNG export), F29(회귀자동화), F30(TypeA 엣지 — 폐기로 무효?)
+
+### 우선순위 권장 (집에서 재개 시)
+1. 브라우저 시각 확인 A·B (5분) — 세션 13.5 수정의 실제 동작 검증
+2. F11/F12 결정 (2분) — Type-A 폐기 후속
+3. 옵션 A (P14) 또는 옵션 B (S15D) 중 택일
+
 ========================================
 
 ## 🚨 새 세션 시작 시 반드시 이 순서로
