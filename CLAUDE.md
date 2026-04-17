@@ -14,6 +14,19 @@
 | SVG 렌더링, 색상·레이어·표시 | `skills/nickel_render_rules.md` (LAYER 4) |
 | 작업 종류 불명확 | 위 3개 모두 |
 
+## 개발 규율 (필수 준수)
+
+아래 2개 파일은 **코드를 작성·수정하기 전에 항상** 적용한다. 읽지 않고 코드 수정 금지.
+
+| 상황 | 필독 파일 |
+|---|---|
+| generator.js / validator.js / renderer.js 순수계산 함수 **추가·수정** | `skills/tdd-first.md` (RED-GREEN-REFACTOR) |
+| 버그 보고 수신 / 기대와 다른 출력 발견 | `skills/systematic-debug.md` (5단계 프로토콜) |
+
+핵심 철칙:
+- **테스트 없이 알고리즘 코드 커밋 금지** — tdd-first.md
+- **재현 불가 버그 수정 금지 / 가설 없이 패치 금지 / 같은 파일 3회 같은 의도 수정 시 중단** — systematic-debug.md
+
 ## 레이어 구조 요약
 - LAYER 0 (원칙 1·6·8·9·26) — 절대 불변. 위반 시 설계 즉시 폐기.
 - LAYER 1 (원칙 4·17) — 선행 결정. 형상 생성 전 확정.
