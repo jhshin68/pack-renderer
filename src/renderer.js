@@ -559,7 +559,7 @@ function renderCustomRows(params) {
   if (!Array.isArray(rows) || rows.length === 0) {
     throw new Error('[renderer.renderCustomRows] params.rows must be non-empty array');
   }
-  const { pts, R, W, H } = __Generator.calcCustomCenters(rows, params, CELL_SPEC);
+  const { pts, R, W, H, pitch: pitchPx } = __Generator.calcCustomCenters(rows, params, CELL_SPEC);
   const S  = params.S;
   const N  = pts.length;
   const nw = params.nickel_w_mm * params.scale;
@@ -581,7 +581,10 @@ function renderCustomRows(params) {
     groupCells[g].push(pt);
   });
 
-  const isAdj = (a, b) => Math.abs(a.row - b.row) + Math.abs(a.col - b.col) === 1;
+  const isAdj = (a, b) => {
+    const dx = a.x - b.x, dy = a.y - b.y;
+    return dx * dx + dy * dy <= pitchPx * pitchPx * 1.1025; // 1.05² — 픽셀 거리 기반 (원칙 9)
+  };
 
   // 원칙 9 검증: 연속 그룹 간 ≥1개 인접 쌍 필수
   let p9ViolationIdx = -1;
