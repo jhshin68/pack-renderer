@@ -758,9 +758,7 @@ function populateCandidatePanel() {
     // ★ Phase 4: pentomino 도형 배지
     let shapeTag = '';
     if (cand.is_pentomino) {
-      const sig = cand.shape_signature || 'P';
-      const sigText = sig === 'P' ? `P-pent ×${S}` : sig;
-      shapeTag = ` <span style="background:#166534;color:#86efac;font-size:8px;padding:1px 4px;border-radius:3px;font-weight:600">${sigText}</span>`;
+      shapeTag = ` <span style="background:#166534;color:#86efac;font-size:8px;padding:1px 4px;border-radius:3px;font-weight:600">${cand.name}</span>`;
     } else if (cand.is_standard) {
       shapeTag = ` <span style="background:var(--bg2);color:var(--dt3);font-size:8px;padding:1px 4px;border-radius:3px">snake</span>`;
     }

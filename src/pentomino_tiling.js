@@ -1,11 +1,11 @@
 /**
- * pentomino_tiling.js  —  P-pentomino DLX 타일링 열거기
+ * pentomino_tiling.js  —  범용 폴리오미노 DLX 타일링 열거기
  *
  * 공개 API: enumeratePentominoTilings(cells, S, P, opts)
  * - cells: [{x,y,row,col}] 전체 셀 배열 (N = S×P 개)
  * - S: 그룹(직렬) 수
- * - P: 그룹당 셀 수 (현재 P=5만 지원)
- * - opts.allow_I/allow_U: Tier B 도형 허용 여부 (기본 false)
+ * - P: 그룹당 셀 수 (P=1~8, 모든 값 지원)
+ * - opts.allow_I/allow_U: Tier B 체인 도형 허용 여부 (기본 false)
  * - opts.g0_anchor: 'TL'|'TR'|'BL'|'BR'|{row,col} — G0 시작 위치 제약
  * - opts.b_plus_side, b_minus_side: 경계 방향 (기본 'left','right')
  * - opts.max_candidates: 최대 반환 후보 수 (기본 20)
@@ -97,38 +97,72 @@ function calcBoundarySet(cells, side) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Shape Library  —  Tier A (P, 항상), Tier B (I/U, 옵션), Tier C (없음)
+// Fixed polyomino enumeration — Redelmeier algorithm
 // ─────────────────────────────────────────────────────────────────────────
 
-// P-pentomino 8 방향 (row, col 오프셋; anchor = bbox 최소 좌표)
-const P_SHAPES = [
-  { name: 'P', offsets: [[0,0],[0,1],[1,0],[1,1],[2,0]] },  // tall ↗
-  { name: 'P', offsets: [[0,0],[0,1],[1,0],[1,1],[2,1]] },  // tall ↖ mirror
-  { name: 'P', offsets: [[0,1],[1,0],[1,1],[2,0],[2,1]] },  // tall 180°
-  { name: 'P', offsets: [[0,0],[1,0],[1,1],[2,0],[2,1]] },  // tall 180° mirror
-  { name: 'P', offsets: [[0,0],[0,1],[0,2],[1,0],[1,1]] },  // wide →
-  { name: 'P', offsets: [[0,0],[0,1],[0,2],[1,1],[1,2]] },  // wide → mirror
-  { name: 'P', offsets: [[0,1],[0,2],[1,0],[1,1],[1,2]] },  // wide 180°
-  { name: 'P', offsets: [[0,0],[0,1],[1,0],[1,1],[1,2]] },  // wide 180° mirror
-];
+const _polyCache = new Map();
 
-const I_SHAPES = [
-  { name: 'I', offsets: [[0,0],[0,1],[0,2],[0,3],[0,4]] },
-  { name: 'I', offsets: [[0,0],[1,0],[2,0],[3,0],[4,0]] },
-];
+function _genAllFixedPolyominoes(P) {
+  if (_polyCache.has(P)) return _polyCache.get(P);
+  if (P <= 0 || P > 8) { _polyCache.set(P, []); return []; }
+  const results = [];
+  const seen = new Set();
+  const DIRS = [[-1,0],[0,-1],[0,1],[1,0]];
 
-const U_SHAPES = [
-  { name: 'U', offsets: [[0,0],[0,2],[1,0],[1,1],[1,2]] },  // open bottom
-  { name: 'U', offsets: [[0,0],[0,1],[1,0],[2,0],[2,1]] },  // open right
-  { name: 'U', offsets: [[0,0],[0,1],[0,2],[1,0],[1,2]] },  // open top
-  { name: 'U', offsets: [[0,0],[0,1],[1,1],[2,0],[2,1]] },  // open left
-];
+  function extend(poly, inPoly, N_arr) {
+    if (poly.length === P) {
+      const minR = Math.min(...poly.map(c => c[0]));
+      const minC = Math.min(...poly.map(c => c[1]));
+      const norm = poly.map(([r,c]) => [r-minR, c-minC]);
+      norm.sort((a,b) => a[0]!==b[0] ? a[0]-b[0] : a[1]-b[1]);
+      const k = norm.map(([r,c]) => `${r},${c}`).join('|');
+      if (!seen.has(k)) { seen.add(k); results.push(norm); }
+      return;
+    }
+    for (let i = 0; i < N_arr.length; i++) {
+      const [r, c] = N_arr[i];
+      const ck = `${r},${c}`;
+      inPoly.add(ck);
+      poly.push([r, c]);
+      const childN = new Map();
+      for (let j = i + 1; j < N_arr.length; j++) {
+        childN.set(`${N_arr[j][0]},${N_arr[j][1]}`, N_arr[j]);
+      }
+      for (const [dr,dc] of DIRS) {
+        const nr = r+dr, nc = c+dc;
+        const nk = `${nr},${nc}`;
+        if (!inPoly.has(nk) && !childN.has(nk)) childN.set(nk, [nr, nc]);
+      }
+      const childNArr = [...childN.values()].sort((a,b) => a[0]!==b[0] ? a[0]-b[0] : a[1]-b[1]);
+      extend(poly, inPoly, childNArr);
+      poly.pop();
+      inPoly.delete(ck);
+    }
+  }
 
-function buildShapeLibrary(allowI, allowU) {
-  const lib = [...P_SHAPES];
-  if (allowI) lib.push(...I_SHAPES);
-  if (allowU) lib.push(...U_SHAPES);
-  return lib;
+  extend([[0,0]], new Set(['0,0']), [[-1,0],[0,-1],[0,1],[1,0]]);
+  _polyCache.set(P, results);
+  return results;
+}
+
+function _scoreOffsets(offsets) {
+  const cells = offsets.map(([r,c]) => ({ x: c, y: r, row: r, col: c }));
+  return groupQS(cells, buildAdj(cells, 1));
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Shape Library  —  Tier A (compact cycle +10, 항상), Tier B (chain 0, 옵션), Tier C (없음)
+// ─────────────────────────────────────────────────────────────────────────
+
+function buildShapeLibrary(P, allowChain) {
+  const tierA = [], tierB = [];
+  for (const offsets of _genAllFixedPolyominoes(P)) {
+    const score = _scoreOffsets(offsets);
+    if (score === 10) tierA.push({ name: 'A', offsets });
+    else if (score === 0) tierB.push({ name: 'B', offsets });
+  }
+  const useChain = allowChain || tierA.length === 0;
+  return useChain ? [...tierA, ...tierB] : tierA;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -371,7 +405,7 @@ function enumeratePentominoTilings(cells, S, P, opts) {
     time_budget_ms = 1500,
   } = opts;
 
-  if (!cells || cells.length === 0 || P !== 5) return [];
+  if (!cells || cells.length === 0 || P < 1) return [];
   const N = cells.length;
   if (N !== S * P) return [];
 
@@ -402,15 +436,32 @@ function enumeratePentominoTilings(cells, S, P, opts) {
   }
 
   // ── Shape 라이브러리 & Placement 생성 ────────────────
-  const shapes = buildShapeLibrary(allow_I, allow_U);
-  const placements = generatePlacements(cells, shapes, pitch);
+  const allowChain = allow_I || allow_U;
+  let shapes = buildShapeLibrary(P, allowChain);
+  if (shapes.length === 0) return [];
+  let placements = generatePlacements(cells, shapes, pitch);
   if (placements.length === 0) return [];
 
   // ── DLX ──────────────────────────────────────────────
-  const remaining = time_budget_ms - (Date.now() - t0);
+  let remaining = time_budget_ms - (Date.now() - t0);
   if (remaining <= 10) return [];
 
-  const rawSolutions = solveDLX(N, placements, 5000, remaining);
+  let rawSolutions = solveDLX(N, placements, 5000, remaining);
+
+  // Auto-fallback: Tier A 단독으로 해가 없으면 Tier B 포함하여 재시도
+  if (rawSolutions.length === 0 && !allowChain) {
+    const shapesAB = buildShapeLibrary(P, true);
+    if (shapesAB.length > shapes.length) {
+      const placementsAB = generatePlacements(cells, shapesAB, pitch);
+      if (placementsAB.length > 0) {
+        remaining = time_budget_ms - (Date.now() - t0);
+        if (remaining > 10) {
+          rawSolutions = solveDLX(N, placementsAB, 5000, remaining);
+          placements = placementsAB;
+        }
+      }
+    }
+  }
 
   // ── 해 후처리 ─────────────────────────────────────────
   const results = [];
@@ -485,13 +536,15 @@ function enumeratePentominoTilings(cells, S, P, opts) {
     const totalScore = groups.reduce((s, g) => s + g.quality_score, 0);
     const bPlusOk  = placements[sol[path[0]]].cellIdxs.some(ci => bPlus.has(ci));
     const bMinusOk = placements[sol[path[S - 1]]].cellIdxs.some(ci => bMinus.has(ci));
-    const usedShapes = new Set(path.map(gi => placements[sol[gi]].name));
-    const shapeSig = [...usedShapes].sort().join('+') || 'P';
+    const usedNames = new Set(path.map(gi => placements[sol[gi]].name));
+    const shapeSig = [...usedNames].sort().join('+') || 'A';
+    const POLY_NAMES = {1:'monomino',2:'domino',3:'triomino',4:'tetromino',5:'pentomino',6:'hexomino',7:'heptomino',8:'octomino'};
+    const pname = POLY_NAMES[P] || `P${P}-omino`;
 
     results.push({
       groups: groups.map(({ _pIdx, ...rest }) => rest),
       total_score: totalScore,
-      name: `P-pentomino ×${S}`,
+      name: `${pname} ×${S}`,
       desc: `DLX · ${shapeSig}`,
       is_standard: false,
       is_pentomino: true,

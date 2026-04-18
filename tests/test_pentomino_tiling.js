@@ -179,11 +179,16 @@ function makeGrid(rows, cols) {
   }
 }
 
-// ── 7. P≠5 → 빈 배열 반환 ──────────────────────────────────────────────
+// ── 7. P=3 (tri): 3행×4열 그리드 → triomino 솔루션 반환 ──────────────
 {
-  const cells = makeGrid(4, 3);
+  const cells = makeGrid(4, 3);  // 12셀, S=4, P=3
   const r3 = T.enumeratePentominoTilings(cells, 4, 3, {});
-  assert('P≠5 → [] 반환', Array.isArray(r3) && r3.length === 0);
+  assert('P=3 tri: 솔루션 ≥1', Array.isArray(r3) && r3.length >= 1,
+    `got ${r3.length}`);
+  if (r3.length > 0) {
+    assert('P=3 tri: groups.length === 4', r3[0].groups.length === 4);
+    assert('P=3 tri: is_pentomino === true', r3[0].is_pentomino === true);
+  }
 }
 
 // ── 8. cells 부족 → 빈 배열 반환 ──────────────────────────────────────

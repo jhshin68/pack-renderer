@@ -1348,8 +1348,8 @@
       }
     }
 
-    // ── Phase 4: P-pentomino DLX (P=5, non-custom) ─────────────────
-    if (_PT && arrangement !== 'custom' && P === 5 && S >= 2) {
+    // ── Phase 4: 폴리오미노 DLX (P>=2, non-custom) ──────────────────
+    if (_PT && arrangement !== 'custom' && P >= 2 && S >= 2) {
       const pentResults = _PT.enumeratePentominoTilings(cells, S, P, {
         b_plus_side, b_minus_side,
         g0_anchor,

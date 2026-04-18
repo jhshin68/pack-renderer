@@ -64,17 +64,20 @@ function makeGrid(rows, cols, arrangement = 'square') {
   }
 }
 
-// ── 2. P≠5 (10S3P): pentomino 후보 없음 ──────────────────────────────
+// ── 2. P=3 (10S3P): triomino 후보 존재 ───────────────────────────────
 {
   const cells = makeGrid(3, 10);
   const result = G.enumerateGroupAssignments({
     cells, S: 10, P: 3, arrangement: 'square',
     b_plus_side: 'left', b_minus_side: 'right',
   });
-  const pentCands = result.candidates.filter(c => c.is_pentomino);
-  assert('10S3P: pentomino 후보 없음', pentCands.length === 0,
-    `got ${pentCands.length}`);
-  assert('10S3P: 스네이크 후보 존재', result.candidates.length > 0);
+  assert('10S3P: candidates ≥ 1', result.candidates.length >= 1);
+  assert('10S3P: 스네이크 후보 존재',
+    result.candidates.some(c => c.is_standard));
+  // P=3도 polyomino 후보 생성 (triomino)
+  const polyCands = result.candidates.filter(c => c.is_pentomino);
+  assert('10S3P: polyomino(triomino) 후보 존재', polyCands.length >= 1,
+    `got ${polyCands.length}`);
 }
 
 // ── 3. custom arrangement: pentomino 미실행 ──────────────────────────
@@ -146,9 +149,9 @@ function makeGrid(rows, cols, arrangement = 'square') {
   assert('13S3P: candidates 존재', result.candidates.length > 0);
   assert('13S3P: 모든 후보 groups.length === 13',
     result.candidates.every(c => c.groups.length === 13));
-  // pentomino 없어야 함 (P=3)
-  assert('13S3P: pentomino 없음',
-    result.candidates.every(c => !c.is_pentomino));
+  // P=3도 polyomino(triomino) 후보 포함
+  assert('13S3P: polyomino 또는 snake 후보 존재',
+    result.candidates.some(c => c.is_pentomino || c.is_standard));
 }
 
 console.log(`\n총 ${pass + fail}개 중 ${pass} PASS, ${fail} FAIL`);
