@@ -327,7 +327,9 @@ function adjHolder(dim, d) {
     state.holder_cols = (nxt === state.S) ? null : nxt;
   }
   updateHolderUI();
-  populateCandidatePanel();
+  state.selected_ordering = 0;
+  if (lastSVG) rerender();
+  else populateCandidatePanel();
 }
 
 function updateHolderUI() {
@@ -362,7 +364,9 @@ function setBTermDir(key, side) {
     const el = document.getElementById(prefix + s);
     if (el) el.classList.toggle('active', side === s.toLowerCase());
   });
-  populateCandidatePanel();
+  state.selected_ordering = 0;
+  if (lastSVG) rerender();
+  else populateCandidatePanel();
 }
 
 function adjGap(d) {
@@ -558,7 +562,9 @@ function toggleICC(key) {
   const ids = { icc1: 'togICC1', icc2: 'togICC2', icc3: 'togICC3' };
   const el  = document.getElementById(ids[key]);
   if (el) el.classList.toggle('on', state[key]);
-  populateCandidatePanel();
+  state.selected_ordering = 0;   // 새 제약 → 1번 카드로 리셋
+  if (lastSVG) rerender();       // 이미 1회 이상 렌더했다면 메인 SVG 즉시 갱신
+  else populateCandidatePanel(); // 첫 Generate 전이면 패널만
 }
 
 // ★ Phase 2: G0 앵커 (1번 셀 위치) 제약 핸들러
