@@ -46,6 +46,9 @@ const state = {
   b_minus_side:  'right',
   // H3 보조 — G0 앵커 (1번 셀 위치 제약)
   g0_anchor:     null,        // null | 'TL' | 'TR' | 'BL' | 'BR' | {row, col}
+  // Phase 4 — pentomino 도형 허용 토글
+  allow_I:       false,       // 1자(I-pentomino) 허용 여부
+  allow_U:       false,       // ㄷ자(U-pentomino) 허용 여부
 };
 let lastSVG = '';
 
@@ -574,6 +577,16 @@ function setG0Anchor(mode) {
   rerender();
 }
 
+// ★ Phase 4: pentomino 도형 허용 토글
+function toggleAllowShape(key) {
+  state[key] = !state[key];
+  const elId = key === 'allow_I' ? 'togAllowI' : 'togAllowU';
+  const el = document.getElementById(elId);
+  if (el) el.classList.toggle('on', state[key]);
+  state.selected_ordering = 0;
+  if (lastSVG) rerender(); else populateCandidatePanel();
+}
+
 function adjNickelW(d) {
   state.nickel_w_mm = Math.max(1.0, Math.min(12.0, +(state.nickel_w_mm + d).toFixed(1)));
   const el = document.getElementById('valNickelW');
@@ -688,6 +701,8 @@ function populateCandidatePanel() {
       nickel_w: nickel_w_mm * 1.5,  // scale 반영 근사
       max_candidates: 20,
       g0_anchor: state.g0_anchor,   // ★ Phase 2: 1번 셀 위치 제약
+      allow_I: state.allow_I,       // ★ Phase 4: I-pentomino 허용
+      allow_U: state.allow_U,       // ★ Phase 4: U-pentomino 허용
     });
   } catch (e) {
     listEl.innerHTML = `<div class="hint" style="color:var(--red)">열거 오류: ${e.message}</div>`;
@@ -740,6 +755,16 @@ function populateCandidatePanel() {
       ` <span style="color:var(--amber);font-size:8px">ICC✗${cand.icc_violations}</span>` : '';
     const label  = cand.name || `후보 ${idx + 1}`;
 
+    // ★ Phase 4: pentomino 도형 배지
+    let shapeTag = '';
+    if (cand.is_pentomino) {
+      const sig = cand.shape_signature || 'P';
+      const sigText = sig === 'P' ? `P-pent ×${S}` : sig;
+      shapeTag = ` <span style="background:#166534;color:#86efac;font-size:8px;padding:1px 4px;border-radius:3px;font-weight:600">${sigText}</span>`;
+    } else if (cand.is_standard) {
+      shapeTag = ` <span style="background:var(--bg2);color:var(--dt3);font-size:8px;padding:1px 4px;border-radius:3px">snake</span>`;
+    }
+
     // ★ Phase 3b: 평균 rowSpan + T/Y 분기 하단 요약
     const rowSpans = groups.map(g => {
       const rows = (g.cells || []).map(c => c.row).filter(v => typeof v === 'number');
@@ -749,8 +774,12 @@ function populateCandidatePanel() {
     const maxRS   = rowSpans.length ? Math.max(...rowSpans) : 1;
     const tyN     = groups.filter(g => g.has_TY).length;
     const totalQS = groups.reduce((s, g) => s + (g.quality_score || 0), 0);
+    const sigmaColor = cand.is_pentomino ? '#86efac' : (totalQS > 0 ? 'var(--green)' : 'var(--dt3)');
+    const sigmaStyle = cand.is_pentomino
+      ? `font-weight:700;color:#86efac;font-size:11px`
+      : `color:${sigmaColor}`;
     const statBits = [
-      `Σ ${totalQS >= 0 ? '+' : ''}${totalQS}`,
+      `<span style="${sigmaStyle}">Σ ${totalQS >= 0 ? '+' : ''}${totalQS}</span>`,
       `행스팬 평균 ${avgRS.toFixed(1)}/최대 ${maxRS}`,
       ...(tyN > 0 ? [`<span style="color:var(--amber)">T/Y ${tyN}</span>`] : []),
     ];
@@ -760,7 +789,7 @@ function populateCandidatePanel() {
     card.onclick   = () => selectCandidate(idx);
     card.innerHTML =
       `<div class="cand-hdr">` +
-        `<span class="cand-name">${label}${bTag}${iccTag}</span>` +
+        `<span class="cand-name">${label}${shapeTag}${bTag}${iccTag}</span>` +
         `<span class="score-chip ${badgeClass}">${badgeText}</span>` +
       `</div>` +
       `<div class="cand-scores">${scoreStr}</div>` +

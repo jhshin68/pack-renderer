@@ -697,6 +697,22 @@ input.num-val[type=number] { -moz-appearance: textfield; }
 
       <div class="rp-divider"></div>
 
+      <!-- 섹션 3b: 도형 허용 (Phase 4) -->
+      <div class="rp-section">
+        <div class="ctrl-label">도형 허용 <span style="font-size:8px;color:var(--dt3)">(기본: P만)</span></div>
+        <div class="toggle-row">
+          <span class="toggle-label">1자 (I)</span>
+          <button class="toggle" id="togAllowI" onclick="toggleAllowShape('allow_I')"></button>
+        </div>
+        <div class="toggle-row">
+          <span class="toggle-label">ㄷ자 (U)</span>
+          <button class="toggle" id="togAllowU" onclick="toggleAllowShape('allow_U')"></button>
+        </div>
+        <div class="hint" style="margin-top:4px">P=5일 때 pentomino 후보에 적용</div>
+      </div>
+
+      <div class="rp-divider"></div>
+
       <!-- 섹션 4: 니켈 폭 -->
       <div>
         <div class="ctrl-label">니켈 폭 nickel_w</div>
