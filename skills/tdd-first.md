@@ -69,11 +69,11 @@ node tests/test_m7_core.js
 모든 테스트 파일이 `node` 단독 실행으로 PASS해야 한다.
 테스트 러너 프레임워크(Jest 등) 도입 금지 — 바닐라 assert로 충분하다.
 
-## M7 잔여 스텁 (TDD 필수 적용)
+## M7 스텁 현황 (전 완료 2026-04-18)
 
-- [ ] S15B `enumerateCongruentPairs`
-- [ ] S15D `minimizeShapeCount`
-- [ ] S18 `buildStrokeGraph`
-- [ ] S23 `buildHexCluster`
+- [x] S15B `enumerateCongruentPairs` — tests/test_s15b.js (세션 13)
+- [x] S15D `minimizeShapeCount` — tests/test_s15d.js (세션 15)
+- [x] S18 `buildStrokeGraph` — tests/test_s18.js (세션 16)
+- [x] S23 `buildHexCluster` — tests/test_s23.js (세션 16)
 
 각 함수는 반드시 **테스트 파일이 먼저 존재**해야 한다.

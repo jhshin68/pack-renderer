@@ -96,7 +96,6 @@ function runValidation(ctx, spec) {
 - `canonicalSig()` (원칙 12 기반 서명)
 - `calcNickelPattern()` (원칙 14 면별 병합)
 - `selectBlockType()` (P→block type 라우팅)
-- `calcTypeAGeometry()` (P=5 geometry)
 - `buildSnakeLayout()` (원칙 24 보스트로페돈 번호 부여)
 
 **이관 대상(현 app.js에서)**:
@@ -138,7 +137,7 @@ function generateDesign(input) {
 - `resolveLayout()` (원칙 3 상하/좌우 자동)
 
 **제거·이관**:
-- `canonicalSig`, `calcNickelPattern`, `selectBlockType`, `calcTypeAGeometry`, `buildSnakeLayout` → generator.js
+- `canonicalSig`, `calcNickelPattern`, `selectBlockType`, `buildSnakeLayout` → generator.js (calcTypeAGeometry 폐기 — 세션 13.5 Type-A 폐기)
 - `OBJECTIVE_WEIGHTS`, `COST_MODEL`, `USER_CONSTRAINTS_DEFAULT` → generator.js
 
 **수정 항목(v7 원칙 반영)**:
