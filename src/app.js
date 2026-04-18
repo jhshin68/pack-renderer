@@ -534,8 +534,13 @@ function rerender() {
   };
 
   // ★ 우측 패널 선택 후보를 렌더에 주입 (square/staggered only)
+  // max_plates 필터를 렌더에도 적용: 필터 통과 후보만 사용
   if (state.arrangement !== 'custom' && _enumResult && _enumResult.candidates && _enumResult.candidates.length > 0) {
-    const cand = _enumResult.candidates[state.selected_ordering];
+    let validCands = _enumResult.candidates;
+    if (state.max_plates > 0) {
+      validCands = validCands.filter(c => (c.total_plates || state.S + 1) <= state.max_plates);
+    }
+    const cand = validCands[state.selected_ordering] || validCands[0];
     if (cand && cand.groups) {
       p.cell_groups = cand.groups.map(g => g.cells);
       p.grid_cols = getHolderCols();
@@ -593,7 +598,7 @@ function setMaxPlates(val) {
   const n = parseInt(val, 10);
   state.max_plates = (isNaN(n) || n <= 0) ? 0 : n;
   const el = document.getElementById('valMaxPlates');
-  if (el) el.value = state.max_plates;
+  if (el) el.textContent = state.max_plates === 0 ? '0' : state.max_plates;
   state.selected_ordering = 0;
   if (lastSVG) rerender(); else populateCandidatePanel();
 }
@@ -646,6 +651,20 @@ function _probeRelief(cfg) {
     nickel_w: nickel_w_mm * 1.5,
     max_candidates: 10,
   };
+  const out = [];
+
+  // max_plates 제약이 원인인 경우 최우선 안내 (재열거 없이 즉시 확인 가능)
+  if (state.max_plates > 0) {
+    const tPlates = S + 1;
+    if (tPlates > state.max_plates) {
+      out.push({
+        label: `최대 플레이트 해제 (현재 ${tPlates}개 필요)`,
+        action: 'setMaxPlates(0)',
+        count: -1,   // 특별값: 재열거 없이 삽입
+      });
+    }
+  }
+
   const trials = [];
   if (icc1) trials.push({ args: { ...baseArgs, icc1: false, icc2, icc3, g0_anchor: state.g0_anchor },
                           label: 'ICC① 해제', action: "toggleICC('icc1')" });
@@ -655,7 +674,6 @@ function _probeRelief(cfg) {
                           label: 'ICC③ 해제', action: "toggleICC('icc3')" });
   if (state.g0_anchor) trials.push({ args: { ...baseArgs, icc1, icc2, icc3, g0_anchor: null },
                                      label: '1번 셀 위치 자동', action: "setG0Anchor('auto')" });
-  const out = [];
   for (const t of trials) {
     let n = 0;
     try {
@@ -664,8 +682,10 @@ function _probeRelief(cfg) {
     } catch (_) { n = 0; }
     if (n > 0) out.push({ label: t.label, action: t.action, count: n });
   }
-  out.sort((a, b) => b.count - a.count);
-  return out.slice(0, 3);
+  // max_plates 항목은 이미 맨앞에 삽입됨 — count=-1은 표시 시 후보 수 미표시 처리
+  const maxPlatesEntry = out.find(x => x.count === -1);
+  const rest = out.filter(x => x.count !== -1).sort((a, b) => b.count - a.count).slice(0, 3);
+  return maxPlatesEntry ? [maxPlatesEntry, ...rest].slice(0, 3) : rest.slice(0, 3);
 }
 
 function populateCandidatePanel() {
@@ -673,6 +693,10 @@ function populateCandidatePanel() {
   const listEl  = document.getElementById('candList');
   const countEl = document.getElementById('rpCandCount');
   if (!listEl) return;
+
+  // hintTotalPlates: 이 S 기준 총 플레이트 수 힌트 업데이트
+  const hintTP = document.getElementById('hintTotalPlates');
+  if (hintTP) hintTP.textContent = S + 1;
 
   const hasGen = typeof Generator !== 'undefined';
 
@@ -741,7 +765,9 @@ function populateCandidatePanel() {
     } else {
       const btns = reliefs.map(r =>
         `<button onclick="${r.action}" style="display:block;width:100%;margin-top:4px;padding:5px 6px;background:var(--bg2);color:var(--dt1);border:1px solid var(--amber);border-radius:3px;font-size:10px;text-align:left;cursor:pointer">` +
-        `${r.label} <span style="color:var(--amber)">→ 후보 ${r.count}개 복구</span></button>`
+        `${r.label}` +
+        (r.count > 0 ? ` <span style="color:var(--amber)">→ 후보 ${r.count}개 복구</span>` : '') +
+        `</button>`
       ).join('');
       listEl.innerHTML = baseHint + btns;
     }
