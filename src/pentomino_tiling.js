@@ -151,18 +151,33 @@ function _scoreOffsets(offsets) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Shape Library  —  Tier A (compact cycle +10, 항상), Tier B (chain 0, 옵션), Tier C (없음)
+// Shape Library  —  Tier A (compact cycle +10), Tier B-I (1자, 옵션), Tier B-O (기타 chain), Tier C (없음)
 // ─────────────────────────────────────────────────────────────────────────
 
-function buildShapeLibrary(P, allowChain) {
-  const tierA = [], tierB = [];
+function _isLinear(offsets) {
+  const rs = new Set(offsets.map(([r]) => r));
+  const cs = new Set(offsets.map(([,c]) => c));
+  return rs.size === 1 || cs.size === 1;
+}
+
+// allowI: 1자(직선) 도형 허용 여부 — false이면 어떤 상황에서도 직선 형상 제외
+// allowChain: 비직선 Tier B(chain) 도형 허용 여부 — Tier A 없으면 자동 true
+function buildShapeLibrary(P, allowI, allowChain) {
+  const tierA = [], tierBLinear = [], tierBOther = [];
   for (const offsets of _genAllFixedPolyominoes(P)) {
     const score = _scoreOffsets(offsets);
     if (score === 10) tierA.push({ name: 'A', offsets });
-    else if (score === 0) tierB.push({ name: 'B', offsets });
+    else if (score === 0) {
+      if (_isLinear(offsets)) tierBLinear.push({ name: 'I', offsets });
+      else                    tierBOther.push({ name: 'B', offsets });
+    }
   }
-  const useChain = allowChain || tierA.length === 0;
-  return useChain ? [...tierA, ...tierB] : tierA;
+  // Tier A가 없으면 비직선 Tier B 자동 포함 (allow_I 제약 유지)
+  const addOther = allowChain || tierA.length === 0;
+  const lib = [...tierA];
+  if (addOther) lib.push(...tierBOther);
+  if (allowI)   lib.push(...tierBLinear);
+  return lib;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -354,39 +369,38 @@ function buildGroupAdj(groupCellIdxArrays, cells, pitch) {
   return adj;
 }
 
-function findHamPath(adj, S, startSet, endSet) {
+function findAllHamPaths(adj, S, startSet, endSet, maxPaths, t0, timeBudgetMs) {
   const visited = new Uint8Array(S);
-  let result = null;
+  const results = [];
+  const deadline = t0 + timeBudgetMs;
 
   function dfs(path) {
+    if (results.length >= maxPaths || Date.now() > deadline) return;
     if (path.length === S) {
       const last = path[S - 1];
-      if (!endSet || endSet.size === 0 || endSet.has(last)) {
-        result = [...path];
-        return true;
-      }
-      return false;
+      if (!endSet || endSet.size === 0 || endSet.has(last)) results.push([...path]);
+      return;
     }
     const cur = path[path.length - 1];
     for (const nb of adj[cur]) {
       if (!visited[nb]) {
         visited[nb] = 1;
         path.push(nb);
-        if (dfs(path)) return true;
+        dfs(path);
         path.pop();
         visited[nb] = 0;
+        if (results.length >= maxPaths || Date.now() > deadline) return;
       }
     }
-    return false;
   }
 
   for (const start of startSet) {
-    if (result) break;
+    if (results.length >= maxPaths || Date.now() > deadline) break;
     visited.fill(0);
     visited[start] = 1;
     dfs([start]);
   }
-  return result;
+  return results;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -436,123 +450,127 @@ function enumeratePentominoTilings(cells, S, P, opts) {
   }
 
   // ── Shape 라이브러리 & Placement 생성 ────────────────
-  const allowChain = allow_I || allow_U;
-  let shapes = buildShapeLibrary(P, allowChain);
+  // allow_I: 1자 도형 허용 여부 (false이면 어떤 fallback에서도 직선 제외)
+  // allow_U: 비직선 Tier B 명시 허용 (Tier A 없으면 자동 활성)
+  let shapes = buildShapeLibrary(P, allow_I, allow_U);
   if (shapes.length === 0) return [];
   let placements = generatePlacements(cells, shapes, pitch);
   if (placements.length === 0) return [];
 
-  // ── DLX ──────────────────────────────────────────────
-  let remaining = time_budget_ms - (Date.now() - t0);
-  if (remaining <= 10) return [];
+  // ── 해 후처리 공통 함수 (클로저) ──────────────────────
+  const results = [];
+  const seenSigs = new Set();
 
-  let rawSolutions = solveDLX(N, placements, 5000, remaining);
+  function processBatch(rawSols, plcmts) {
+    for (const sol of rawSols) {
+      if (Date.now() - t0 > time_budget_ms) break;
+      if (results.length >= max_candidates) break;
 
-  // Auto-fallback: Tier A 단독으로 해가 없으면 Tier B 포함하여 재시도
-  if (rawSolutions.length === 0 && !allowChain) {
-    const shapesAB = buildShapeLibrary(P, true);
-    if (shapesAB.length > shapes.length) {
-      const placementsAB = generatePlacements(cells, shapesAB, pitch);
-      if (placementsAB.length > 0) {
-        remaining = time_budget_ms - (Date.now() - t0);
-        if (remaining > 10) {
-          rawSolutions = solveDLX(N, placementsAB, 5000, remaining);
-          placements = placementsAB;
+      const groupCellIdxs = sol.map(pIdx => plcmts[pIdx].cellIdxs);
+
+      const adj = buildGroupAdj(groupCellIdxs, cells, pitch);
+
+      const g0Set = new Set();
+      const gLastSet = new Set();
+      for (let gi = 0; gi < S; gi++) {
+        const cidxs = groupCellIdxs[gi];
+        if (cidxs.some(ci => bPlus.has(ci)))  g0Set.add(gi);
+        if (cidxs.some(ci => bMinus.has(ci))) gLastSet.add(gi);
+      }
+
+      if (anchorIdxSet && anchorIdxSet.size > 0) {
+        const anchorGroups = new Set(
+          sol.map((pIdx, gi) =>
+            plcmts[pIdx].cellIdxs.some(ci => anchorIdxSet.has(ci)) ? gi : -1
+          ).filter(gi => gi >= 0)
+        );
+        if (anchorGroups.size === 0) continue;
+        for (const gi of [...g0Set]) {
+          if (!anchorGroups.has(gi)) g0Set.delete(gi);
         }
+        if (g0Set.size === 0) continue;
+      }
+
+      const startSet = g0Set.size > 0 ? g0Set : new Set(Array.from({ length: S }, (_, i) => i));
+      const hamTime  = Math.max(50, time_budget_ms - (Date.now() - t0));
+      const paths = findAllHamPaths(adj, S, startSet, gLastSet.size > 0 ? gLastSet : null,
+        10, t0, hamTime);
+      if (paths.length === 0) continue;
+
+      for (const path of paths) {
+        if (results.length >= max_candidates) break;
+
+        const sig = path.map(gi => {
+          const cidxsSorted = [...plcmts[sol[gi]].cellIdxs].sort((a, b) => a - b).join(',');
+          return `${plcmts[sol[gi]].name}:${cidxsSorted}`;
+        }).join('|');
+        if (seenSigs.has(sig)) continue;
+        seenSigs.add(sig);
+
+        const groups = path.map((gi, idx) => {
+          const pIdx = sol[gi];
+          const gcells = plcmts[pIdx].cellIdxs.map(ci => cells[ci]);
+          const edges  = buildAdj(gcells, pitch);
+          const qs     = groupQS(gcells, edges);
+          const rowSpans = gcells.map(c => c.row != null ? c.row : Math.round(_pt(c).y / pitch));
+          const colSpans = gcells.map(c => c.col != null ? c.col : Math.round(_pt(c).x / pitch));
+          const rowSpan = Math.max(...rowSpans) - Math.min(...rowSpans) + 1;
+          const colSpan = Math.max(...colSpans) - Math.min(...colSpans) + 1;
+          return {
+            index: idx,
+            cells: gcells,
+            quality_score: qs,
+            is_b_plus:  idx === 0,
+            is_b_minus: idx === S - 1,
+            icc1_ok: Math.min(rowSpan, colSpan) <= 2,
+            icc2_ok: true,
+            has_TY: false,
+            _pIdx: pIdx,
+          };
+        });
+
+        const totalScore = groups.reduce((s, g) => s + g.quality_score, 0);
+        const bPlusOk  = plcmts[sol[path[0]]].cellIdxs.some(ci => bPlus.has(ci));
+        const bMinusOk = plcmts[sol[path[S - 1]]].cellIdxs.some(ci => bMinus.has(ci));
+        const usedNames = new Set(path.map(gi => plcmts[sol[gi]].name));
+        const shapeSig = [...usedNames].sort().join('+') || 'A';
+        const POLY_NAMES = {1:'monomino',2:'domino',3:'triomino',4:'tetromino',5:'pentomino',6:'hexomino',7:'heptomino',8:'octomino'};
+        const pname = POLY_NAMES[P] || `P${P}-omino`;
+
+        results.push({
+          groups: groups.map(({ _pIdx, ...rest }) => rest),
+          total_score: totalScore,
+          name: `${pname} ×${S}`,
+          desc: `DLX · ${shapeSig}`,
+          is_standard: false,
+          is_pentomino: true,
+          shape_signature: shapeSig,
+          b_plus_ok: bPlusOk,
+          b_minus_ok: bMinusOk,
+          icc_violations: groups.filter(g => !g.icc1_ok || g.quality_score < 0).length,
+        });
       }
     }
   }
 
-  // ── 해 후처리 ─────────────────────────────────────────
-  const results = [];
-  const seenSigs = new Set();
+  // ── 1차 DLX ──────────────────────────────────────────
+  let remaining = time_budget_ms - (Date.now() - t0);
+  if (remaining <= 10) return [];
+  const rawSolutions = solveDLX(N, placements, 5000, remaining);
+  processBatch(rawSolutions, placements);
 
-  for (const sol of rawSolutions) {
-    if (Date.now() - t0 > time_budget_ms) break;
-    if (results.length >= max_candidates) break;
-
-    const groupCellIdxs = sol.map(pIdx => placements[pIdx].cellIdxs);
-
-    // ── Hamiltonian 순서 결정 ─────────────────────────
-    const adj = buildGroupAdj(groupCellIdxs, cells, pitch);
-
-    const g0Set = new Set();
-    const gLastSet = new Set();
-    for (let gi = 0; gi < S; gi++) {
-      const cidxs = groupCellIdxs[gi];
-      if (cidxs.some(ci => bPlus.has(ci)))  g0Set.add(gi);
-      if (cidxs.some(ci => bMinus.has(ci))) gLastSet.add(gi);
-    }
-
-    // 앵커 제약으로 g0Set 축소
-    if (anchorIdxSet && anchorIdxSet.size > 0) {
-      const anchorGroups = new Set(
-        sol.map((pIdx, gi) =>
-          placements[pIdx].cellIdxs.some(ci => anchorIdxSet.has(ci)) ? gi : -1
-        ).filter(gi => gi >= 0)
-      );
-      if (anchorGroups.size === 0) continue;
-      for (const gi of [...g0Set]) {
-        if (!anchorGroups.has(gi)) g0Set.delete(gi);
+  // ── Auto-expand: 후보 부족(< 5)이면 비직선 Tier B 추가 ──
+  // allow_I=false 제약은 여기서도 유지 — 1자 배열 금지는 항상 존중
+  if (results.length < 5 && !allow_U) {
+    const shapesExp = buildShapeLibrary(P, allow_I, true);
+    if (shapesExp.length > shapes.length) {
+      const placementsExp = generatePlacements(cells, shapesExp, pitch);
+      remaining = time_budget_ms - (Date.now() - t0);
+      if (placementsExp.length > 0 && remaining > 10) {
+        const rawSolExp = solveDLX(N, placementsExp, 5000, remaining);
+        processBatch(rawSolExp, placementsExp);
       }
-      if (g0Set.size === 0) continue;
     }
-
-    const startSet = g0Set.size > 0 ? g0Set : new Set(Array.from({ length: S }, (_, i) => i));
-    const path = findHamPath(adj, S, startSet, gLastSet.size > 0 ? gLastSet : null);
-    if (!path) continue;
-
-    // ── 중복 제거 ─────────────────────────────────────
-    const sig = path.map(gi => {
-      const cidxsSorted = [...placements[sol[gi]].cellIdxs].sort((a, b) => a - b).join(',');
-      return `${placements[sol[gi]].name}:${cidxsSorted}`;
-    }).join('|');
-    if (seenSigs.has(sig)) continue;
-    seenSigs.add(sig);
-
-    // ── 후보 객체 구성 ────────────────────────────────
-    const groups = path.map((gi, idx) => {
-      const pIdx = sol[gi];
-      const gcells = placements[pIdx].cellIdxs.map(ci => cells[ci]);
-      const edges  = buildAdj(gcells, pitch);
-      const qs     = groupQS(gcells, edges);
-      const rowSpans = gcells.map(c => c.row != null ? c.row : Math.round(_pt(c).y / pitch));
-      const colSpans = gcells.map(c => c.col != null ? c.col : Math.round(_pt(c).x / pitch));
-      const rowSpan = Math.max(...rowSpans) - Math.min(...rowSpans) + 1;
-      const colSpan = Math.max(...colSpans) - Math.min(...colSpans) + 1;
-      return {
-        index: idx,
-        cells: gcells,
-        quality_score: qs,
-        is_b_plus:  idx === 0,
-        is_b_minus: idx === S - 1,
-        icc1_ok: Math.min(rowSpan, colSpan) <= 2,
-        icc2_ok: true,
-        has_TY: false,
-        _pIdx: pIdx,
-      };
-    });
-
-    const totalScore = groups.reduce((s, g) => s + g.quality_score, 0);
-    const bPlusOk  = placements[sol[path[0]]].cellIdxs.some(ci => bPlus.has(ci));
-    const bMinusOk = placements[sol[path[S - 1]]].cellIdxs.some(ci => bMinus.has(ci));
-    const usedNames = new Set(path.map(gi => placements[sol[gi]].name));
-    const shapeSig = [...usedNames].sort().join('+') || 'A';
-    const POLY_NAMES = {1:'monomino',2:'domino',3:'triomino',4:'tetromino',5:'pentomino',6:'hexomino',7:'heptomino',8:'octomino'};
-    const pname = POLY_NAMES[P] || `P${P}-omino`;
-
-    results.push({
-      groups: groups.map(({ _pIdx, ...rest }) => rest),
-      total_score: totalScore,
-      name: `${pname} ×${S}`,
-      desc: `DLX · ${shapeSig}`,
-      is_standard: false,
-      is_pentomino: true,
-      shape_signature: shapeSig,
-      b_plus_ok: bPlusOk,
-      b_minus_ok: bMinusOk,
-      icc_violations: groups.filter(g => !g.icc1_ok || g.quality_score < 0).length,
-    });
   }
 
   // ── 랭킹 ─────────────────────────────────────────────
