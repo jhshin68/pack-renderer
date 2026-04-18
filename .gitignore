@@ -26,3 +26,10 @@ npm-debug.log*
 
 # 빈 레거시 폴더 (수동 삭제 대기 중)
 image/
+
+# 자동 생성 산출물
+graphify-out/
+
+# IDE
+.vs/
+.claude/worktrees/

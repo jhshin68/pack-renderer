@@ -1,0 +1,30 @@
+# ── 세션/툴 상태 ──────────────────────────────────────────
+.playwright-mcp/
+.gstack/
+.archive/
+.bkit/runtime/
+.bkit/snapshots/
+.vs/
+.claude/worktrees/
+
+# ── 이미지·SVG 산출물 (바이너리, 코드 작업에 불필요) ──────
+png/
+image.png
+image copy.png
+image copy 2.png
+image copy 3.png
+image copy 4.png
+fluid-svg-wide.png
+test_custom_13s5p.svg
+
+assets/*.png
+assets/*.svg
+docs/*.png
+docs/*.svg
+
+# ── 레거시/임시 폴더 ──────────────────────────────────────
+~/
+node_modules/
+
+# ── .gitignore와 중복 방지용 메모 (실제 무시 효과 없음) ──
+# .git/ 은 Claude가 자동 제외
