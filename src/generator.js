@@ -690,17 +690,18 @@
         continue;
       }
 
-      // ICC ①: 행 스팬 ≤ 2
+      // ICC ①: min(rowSpan, colSpan) ≤ 2 — 세로 P-pentomino(3×2) 포함 통과
       const ys = cells.map(c => Math.round(_pt(c).y * 10) / 10);
+      const xs = cells.map(c => Math.round(_pt(c).x * 10) / 10);
       const p  = estimatePitch(cells);
       const rowSpan = Math.round((Math.max(...ys) - Math.min(...ys)) / (p || 1)) + 1;
-      if (rowSpan > 2) {
-        violations.push({ group: group.index, rule: 'ICC①_rowSpan', value: rowSpan });
+      const colSpan = Math.round((Math.max(...xs) - Math.min(...xs)) / (p || 1)) + 1;
+      if (Math.min(rowSpan, colSpan) > 2) {
+        violations.push({ group: group.index, rule: 'ICC①_minSpan', value: Math.min(rowSpan, colSpan) });
         continue;
       }
 
       // ICC ②: 종횡비 ≤ 2.0
-      const xs   = cells.map(c => Math.round(_pt(c).x * 10) / 10);
       const spanX = Math.max(...xs) - Math.min(...xs) + p;
       const spanY = Math.max(...ys) - Math.min(...ys) + p;
       const ratio = spanX > spanY ? spanX / spanY : spanY / spanX;
@@ -1232,11 +1233,12 @@
       const spanY = Math.max(...gys) - Math.min(...gys);
       const is1D  = spanX < thr * 0.1 || spanY < thr * 0.1;
       const rowSpan = Math.round(spanY / (pitch || 1)) + 1;
+      const colSpan = Math.round(spanX / (pitch || 1)) + 1;
       const ratio   = is1D ? 1 : Math.max(spanX, spanY) / (Math.min(spanX, spanY) || 1);
 
       return {
-        edges, hasT, is1D, rowSpan, ratio,
-        icc1_ok: rowSpan <= 2,
+        edges, hasT, is1D, rowSpan, colSpan, ratio,
+        icc1_ok: Math.min(rowSpan, colSpan) <= 2,
         icc2_ok: is1D || ratio <= 2.0,
         qs: groupQualityScore(gc, edges),
       };

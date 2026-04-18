@@ -183,20 +183,21 @@ function makeGrid(S, P, pitch = 100) {
   assert('buildPairFirst 정상: candidate_tilings not empty', rOK.candidate_tilings.length > 0);
   assert('buildPairFirst 정상: icc_violations empty', rOK.icc_violations.length === 0);
 
-  // 행스팬 3 → ICC① 위반 → 가지치기
+  // min(rowSpan,colSpan) 3 → ICC① 위반 (3×3 solid = min=3 > 2)
+  // ※ 변경: rowSpan≤2 → min(rowSpan,colSpan)≤2 (세로 P-pent 3×2 통과 위해)
   const grpsSpan = [
     {
       index: 0,
-      quality_score: 0,
+      quality_score: null,
       cells: [
-        { x: 0, y: 0 }, { x: 100, y: 0 },
-        { x: 0, y: 100 }, { x: 100, y: 100 },
-        { x: 0, y: 200 }, { x: 100, y: 200 },
+        { x: 0, y: 0 }, { x: 100, y: 0 }, { x: 200, y: 0 },
+        { x: 0, y: 100 }, { x: 100, y: 100 }, { x: 200, y: 100 },
+        { x: 0, y: 200 }, { x: 100, y: 200 }, { x: 200, y: 200 },
       ],
     },
   ];
   const rSpan = G.buildPairFirst({ groups: grpsSpan, arrangement: 'square', nickel_w: 10 }, {}, {});
-  assert('buildPairFirst 행스팬3: ICC①위반 감지', rSpan.icc_violations.some(v => v.rule === 'ICC①_rowSpan'));
+  assert('buildPairFirst min(3,3)=3 > 2: ICC①위반 감지', rSpan.icc_violations.some(v => v.rule === 'ICC①_minSpan'));
 
   // T형(quality_score=-10) → 즉시 가지치기
   const grpsT = [
