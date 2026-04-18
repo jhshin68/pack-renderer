@@ -1,5 +1,14 @@
 # Pack-Renderer — SL Power 니켈 플레이트 설계 검증기
 
+## ⚡ 세션 최초 액션 (다른 모든 것보다 먼저)
+
+**새 세션이 시작되면 첫 번째 액션으로 반드시 아래 두 파일을 순서대로 읽어라. 사용자 메시지에 응답하기 전에 실행한다.**
+
+1. `graphify-out/GRAPH_REPORT.md` — 코드베이스 신 노드·커뮤니티 구조 파악
+2. `skills/pack-renderer-session.md` — 7단계 시작 루틴 실행
+
+이 순서를 어기거나 건너뛰는 것은 금지한다.
+
 ## 세션 시작·종료 루틴
 새 세션 시작 시 **즉시** `skills/pack-renderer-session.md`를 읽고 7단계 시작 루틴을 실행하라.
 사용자가 "종료·수고했어·오늘 여기까지" 등 종료 신호를 보내면 동일 파일의 종료 루틴을 실행하라.
@@ -66,3 +75,12 @@ Key routing rules:
 - Architecture review → invoke plan-eng-review
 - Save progress, checkpoint, resume → invoke checkpoint
 - Code quality, health check → invoke health
+
+## graphify
+
+This project has a graphify knowledge graph at graphify-out/.
+
+Rules:
+- Before answering architecture or codebase questions, read graphify-out/GRAPH_REPORT.md for god nodes and community structure
+- If graphify-out/wiki/index.md exists, navigate it instead of reading raw files
+- After modifying code files in this session, run `python3 -c "from graphify.watch import _rebuild_code; from pathlib import Path; _rebuild_code(Path('.'))"` to keep the graph current
