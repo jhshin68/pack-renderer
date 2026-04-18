@@ -606,6 +606,38 @@ function _getHolderCells() {
 
 let _enumResult = null;   // 마지막 enumerateGroupAssignments 결과
 
+// ★ Phase 3a: 제약 1개씩 해제 재열거 → 복구 CTA 후보 생성
+function _probeRelief(cfg) {
+  if (typeof Generator === 'undefined') return [];
+  const { cells, S, P, arrangement, b_plus_side, b_minus_side, icc1, icc2, icc3, nickel_w_mm } = cfg;
+  const baseArgs = {
+    cells, S, P, arrangement,
+    b_plus_side, b_minus_side,
+    nickel_w: nickel_w_mm * 1.5,
+    max_candidates: 10,
+  };
+  const trials = [];
+  if (icc1) trials.push({ args: { ...baseArgs, icc1: false, icc2, icc3, g0_anchor: state.g0_anchor },
+                          label: 'ICC① 해제', action: "toggleICC('icc1')" });
+  if (icc2) trials.push({ args: { ...baseArgs, icc1, icc2: false, icc3, g0_anchor: state.g0_anchor },
+                          label: 'ICC② 해제', action: "toggleICC('icc2')" });
+  if (icc3) trials.push({ args: { ...baseArgs, icc1, icc2, icc3: false, g0_anchor: state.g0_anchor },
+                          label: 'ICC③ 해제', action: "toggleICC('icc3')" });
+  if (state.g0_anchor) trials.push({ args: { ...baseArgs, icc1, icc2, icc3, g0_anchor: null },
+                                     label: '1번 셀 위치 자동', action: "setG0Anchor('auto')" });
+  const out = [];
+  for (const t of trials) {
+    let n = 0;
+    try {
+      const r = Generator.enumerateGroupAssignments({ ...t.args });
+      n = (r.candidates || []).length;
+    } catch (_) { n = 0; }
+    if (n > 0) out.push({ label: t.label, action: t.action, count: n });
+  }
+  out.sort((a, b) => b.count - a.count);
+  return out.slice(0, 3);
+}
+
 function populateCandidatePanel() {
   const { S, P, arrangement, icc1, icc2, icc3, nickel_w_mm, b_plus_side, b_minus_side } = state;
   const listEl  = document.getElementById('candList');
@@ -665,7 +697,18 @@ function populateCandidatePanel() {
 
   listEl.innerHTML = '';
   if (candidates.length === 0) {
-    listEl.innerHTML = '<div class="hint" style="margin-top:4px">후보 없음<br>(제약 완화 필요)</div>';
+    // ★ Phase 3a: 각 제약을 1개씩 해제 재열거 → 가장 많이 복구되는 것을 CTA로 제시
+    const reliefs = _probeRelief({ cells, S, P, arrangement, b_plus_side, b_minus_side, icc1, icc2, icc3, nickel_w_mm });
+    const baseHint = '<div class="hint" style="margin-top:4px;color:var(--amber)">현재 제약으로 유효 후보 없음</div>';
+    if (reliefs.length === 0) {
+      listEl.innerHTML = baseHint + '<div class="hint" style="margin-top:4px">ICC/앵커/B± 중 하나를 해제하세요</div>';
+    } else {
+      const btns = reliefs.map(r =>
+        `<button onclick="${r.action}" style="display:block;width:100%;margin-top:4px;padding:5px 6px;background:var(--bg2);color:var(--dt1);border:1px solid var(--amber);border-radius:3px;font-size:10px;text-align:left;cursor:pointer">` +
+        `${r.label} <span style="color:var(--amber)">→ 후보 ${r.count}개 복구</span></button>`
+      ).join('');
+      listEl.innerHTML = baseHint + btns;
+    }
     _showCandDetail(-1);
     return;
   }
@@ -691,6 +734,21 @@ function populateCandidatePanel() {
       ` <span style="color:var(--amber);font-size:8px">ICC✗${cand.icc_violations}</span>` : '';
     const label  = cand.name || `후보 ${idx + 1}`;
 
+    // ★ Phase 3b: 평균 rowSpan + T/Y 분기 하단 요약
+    const rowSpans = groups.map(g => {
+      const rows = (g.cells || []).map(c => c.row).filter(v => typeof v === 'number');
+      return rows.length ? (Math.max(...rows) - Math.min(...rows) + 1) : 1;
+    });
+    const avgRS   = rowSpans.length ? (rowSpans.reduce((a, b) => a + b, 0) / rowSpans.length) : 1;
+    const maxRS   = rowSpans.length ? Math.max(...rowSpans) : 1;
+    const tyN     = groups.filter(g => g.has_TY).length;
+    const totalQS = groups.reduce((s, g) => s + (g.quality_score || 0), 0);
+    const statBits = [
+      `Σ ${totalQS >= 0 ? '+' : ''}${totalQS}`,
+      `행스팬 평균 ${avgRS.toFixed(1)}/최대 ${maxRS}`,
+      ...(tyN > 0 ? [`<span style="color:var(--amber)">T/Y ${tyN}</span>`] : []),
+    ];
+
     const card = document.createElement('div');
     card.className = 'cand-card' + (isSel ? ' selected' : '');
     card.onclick   = () => selectCandidate(idx);
@@ -700,7 +758,8 @@ function populateCandidatePanel() {
         `<span class="score-chip ${badgeClass}">${badgeText}</span>` +
       `</div>` +
       `<div class="cand-scores">${scoreStr}</div>` +
-      `<div class="cand-desc">${cand.desc || ''}</div>`;
+      `<div class="cand-desc">${cand.desc || ''}</div>` +
+      `<div class="cand-stat" style="font-size:9px;color:var(--dt3);margin-top:3px;display:flex;gap:6px;flex-wrap:wrap">${statBits.join(' · ')}</div>`;
     listEl.appendChild(card);
   });
 

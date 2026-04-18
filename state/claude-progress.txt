@@ -1,5 +1,5 @@
 ========================================
-마지막 업데이트: 2026-04-18 (세션 17 — Phase 1 MVP + Phase 2 G0 앵커 완료)
+마지막 업데이트: 2026-04-18 (세션 17 — Phase 1 MVP + Phase 2 G0 앵커 + Phase 3 UX 피드백 완료)
 버전: renderer.js v0.3.2-unified / validator.js v7-tier2c-p14 / generator.js v7-M7-s15d
 원칙 문서: v7.1 (원칙 4·17 B+/B-·홀더 Level 계층, 원칙 15 Step C')
 개발 규율: skills/tdd-first.md + skills/systematic-debug.md
@@ -65,8 +65,15 @@ git 상태: up-to-date (push 완료)
 - 신규: `tests/test_g0_anchor.js` 10/10 PASS
 - 앵커 warning: 'g0_anchor_outside_boundary', 'g0_anchor_no_match', 'g0_anchor_no_row_col_fields'
 
+### Phase 3 UX 피드백 완료 (이 세션 말)
+- 3a: `populateCandidatePanel` candidates=0 시 icc1/icc2/icc3/g0_anchor 각각 1개 해제 재열거
+      → 복구 후보 수 내림차순 정렬 → 상위 3개 클릭 CTA 버튼 (`toggleICC` / `setG0Anchor`) 표시
+- 3b: 각 cand-card에 `Σ quality_score`, 행스팬 평균/최대, T/Y 분기 개수 하단 배지 추가
+- 신규 헬퍼: `_probeRelief(cfg)` — 제약 해제 시도 + 유효 후보 카운트
+- 회귀: test_cell_group_override 10/10, test_g0_anchor 10/10, F29 144/144 baseline 일치
+
 ### 남은 Phase
-- Phase 3: UX 피드백 (0개 배너 + 카드 이유 배지)
+- (보류) 홀더 직접 클릭 → G0 앵커, 대칭 중복제거, 분할 비교 뷰, hover 프리뷰
 
 ### 브라우저 확인 완료
 - 3S3P: 카드 클릭 → 니켈 연결 시각 변화 ✓ (Phase 1)
