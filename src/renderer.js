@@ -583,6 +583,31 @@ function renderCustomRows(params) {
 
   const isAdj = (a, b) => Math.abs(a.row - b.row) + Math.abs(a.col - b.col) === 1;
 
+  // 원칙 9 검증: 연속 그룹 간 ≥1개 인접 쌍 필수
+  let p9ViolationIdx = -1;
+  for (let g = 0; g + 1 < S; g++) {
+    const ok = groupCells[g].some(ca => groupCells[g + 1].some(cb => isAdj(ca, cb)));
+    if (!ok) { p9ViolationIdx = g; break; }
+  }
+
+  if (p9ViolationIdx >= 0) {
+    const errMsg = `원칙 9 위반: G${p9ViolationIdx}↔G${p9ViolationIdx + 1} 비인접 — S·P·행 배열을 재조정하세요`;
+    const allCells = snake.map((pt, i) => {
+      const g = Math.min(S - 1, Math.floor(i / cellsPerGroup));
+      return drawCell(pt.x, pt.y, R, getCellPolarity(g, 'top'), params.scale);
+    });
+    const errH = H + 80;
+    const ln = [];
+    ln.push(`<svg width="100%" viewBox="0 0 ${Math.ceil(W)} ${Math.ceil(errH)}" xmlns="http://www.w3.org/2000/svg" role="img">`);
+    ln.push(`<title>원칙 9 위반 — 렌더 불가</title>`);
+    ln.push(`<rect x="0" y="0" width="${Math.ceil(W)}" height="${Math.ceil(errH)}" fill="#FFF5F5"/>`);
+    ln.push(`<g transform="translate(0,24)">${allCells.join('')}</g>`);
+    ln.push(`<rect x="10" y="${H + 30}" width="${Math.ceil(W) - 20}" height="36" rx="4" fill="#E74C3C" opacity="0.9"/>`);
+    ln.push(`<text font-family="Arial" font-size="12" font-weight="bold" fill="#ffffff" text-anchor="middle" x="${W / 2}" y="${H + 52}">${errMsg}</text>`);
+    ln.push('</svg>');
+    return ln.join('\n');
+  }
+
   function buildNickel(face) {
     if (!params.show_nickel) return '';
     const parts = [];
