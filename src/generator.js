@@ -35,7 +35,7 @@
  *   - buildStrokeGraph           (S18)
  *   - buildHexCluster            (S23)
  *
- * 최종 업데이트: 2026-04-17 (v7 M4 Phase 1)
+ * 최종 업데이트: 2026-04-18 (v7 세션 15 — S15D minimizeShapeCount 실구현)
  */
 
 (function (global) {
@@ -729,13 +729,53 @@
   }
 
   // ─── S15D 종수 최소화 ──────────────────────────
-  function minimizeShapeCount(candidates) {
-    // TODO M7: ICC 통과 후보군 내 m_distinct 최소 탐색
-    return {
-      m_distinct_min: null,
-      optimal_tilings: [],
-      stub: 'S15D',
-    };
+  /**
+   * 그룹 형상 캐노니컬 서명 — centroid 원점 이동 후 회전만 고려(원칙 12)
+   *   rotSteps: 4 (square) | 6 (hex/staggered)
+   */
+  function _shapeSigOf(group, rotSteps) {
+    const cells = (group && group.cells) || [];
+    if (cells.length === 0) return '[]';
+    const pts = cells.map(c => {
+      const p = _pt(c);
+      return [p.x, p.y];
+    });
+    const cx = pts.reduce((s, p) => s + p[0], 0) / pts.length;
+    const cy = pts.reduce((s, p) => s + p[1], 0) / pts.length;
+    const shifted = pts.map(([x, y]) => [x - cx, y - cy]);
+    return canonicalSig(shifted, rotSteps);
+  }
+
+  /**
+   * 원칙 15 Step D — 종수 최소화
+   *   ICC 통과 후보 타일링 집합에서 각 candidate의 그룹 형상 개수(m_distinct)를
+   *   canonicalSig(회전만, 거울 제외) 기반으로 산출하고 최소값 후보만 선택.
+   *
+   * @param {Array} candidates - buildPairFirst.candidate_tilings 형식
+   * @param {object} [options] - { rotSteps: 4|6 } (기본 4 square)
+   * @returns {{ m_distinct_min: number|null, optimal_tilings: Array }}
+   */
+  function minimizeShapeCount(candidates, options) {
+    if (!Array.isArray(candidates) || candidates.length === 0) {
+      return { m_distinct_min: null, optimal_tilings: [] };
+    }
+    const rotSteps = (options && options.rotSteps) || 4;
+
+    const scored = candidates.map(c => {
+      const sigs = new Set();
+      for (const g of (c.groups || [])) sigs.add(_shapeSigOf(g, rotSteps));
+      return { candidate: c, m_distinct: sigs.size, signatures: [...sigs] };
+    });
+
+    const minVal = scored.reduce((m, r) => Math.min(m, r.m_distinct), Infinity);
+    const optimal_tilings = scored
+      .filter(r => r.m_distinct === minVal)
+      .map(r => Object.assign({}, r.candidate, {
+        m_distinct: r.m_distinct,
+        signatures: r.signatures,
+      }));
+
+    return { m_distinct_min: minVal, optimal_tilings };
   }
 
   // ─── S15 전체 파이프라인 ───────────────────────
@@ -1278,7 +1318,7 @@
   // 4. export (Node + Browser 양쪽 지원)
   // ═══════════════════════════════════════════════
   const api = {
-    VERSION: 'v7-M7',
+    VERSION: 'v7-M7-s15d',
     loadSpec,
     // 이관된 6개 실함수
     canonicalSig,
