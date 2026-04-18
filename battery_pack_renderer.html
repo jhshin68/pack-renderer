@@ -520,6 +520,19 @@ input.num-val[type=number] { -moz-appearance: textfield; }
         <div class="hint" style="margin-top:4px">경계 셀 집합 → 열거기 시작/종료 제약</div>
       </div>
 
+      <!-- H3 보조: G0 앵커 (1번 셀 위치) -->
+      <div style="margin-top:8px">
+        <div class="ctrl-label">1번 셀 위치 <span style="font-size:8px;color:var(--dt3)">(선택)</span></div>
+        <select id="g0AnchorMode" onchange="setG0Anchor(this.value)" style="width:100%;padding:4px;background:var(--bg2);color:var(--dt1);border:1px solid var(--bd);border-radius:3px;font-size:11px">
+          <option value="auto">자동 (기본)</option>
+          <option value="TL">좌상단 (Top-Left)</option>
+          <option value="TR">우상단 (Top-Right)</option>
+          <option value="BL">좌하단 (Bottom-Left)</option>
+          <option value="BR">우하단 (Bottom-Right)</option>
+        </select>
+        <div class="hint" style="margin-top:4px">G0 시작 셀 고정 → 후보 수 감소</div>
+      </div>
+
       <!-- Gap -->
       <div>
         <div class="ctrl-label">Gap (mm)</div>

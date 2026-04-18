@@ -1156,6 +1156,7 @@
       b_minus_side = 'right',
       icc1 = true, icc2 = true, icc3 = false,
       max_candidates = 20,
+      g0_anchor = null,  // ★ Phase 2: 1번 셀 위치 제약 (null | 'TL' | 'TR' | 'BL' | 'BR' | {row, col})
     } = ctx || {};
 
     if (!cells || cells.length === 0 || S < 1 || P < 1) {
@@ -1170,6 +1171,53 @@
     const thr   = arrangement === 'custom' ? pitch * 1.1 : pitch * 1.05;
     const bPlus  = calcBoundarySet(cells, b_plus_side);
     const bMinus = calcBoundarySet(cells, b_minus_side);
+
+    // ★ Phase 2: G0 앵커 매칭 헬퍼
+    //   TL/TR/BL/BR: row 최소/최대 × col 최소/최대 교차
+    //   {row, col}:  셀의 row/col 필드와 정확 일치
+    let anchorCells = null;  // 앵커에 부합하는 셀 배열 (null → 제약 없음)
+    let anchorWarning = null;
+    if (g0_anchor) {
+      const rows = cells.map(c => c.row).filter(v => typeof v === 'number');
+      const cols = cells.map(c => c.col).filter(v => typeof v === 'number');
+      if (rows.length === 0 || cols.length === 0) {
+        anchorWarning = 'g0_anchor_no_row_col_fields';
+      } else {
+        const rMin = Math.min(...rows), rMax = Math.max(...rows);
+        const cMin = Math.min(...cols), cMax = Math.max(...cols);
+        const pred = (typeof g0_anchor === 'object')
+          ? (c => c.row === g0_anchor.row && c.col === g0_anchor.col)
+          : ({
+              'TL': c => c.row === rMin && c.col === cMin,
+              'TR': c => c.row === rMin && c.col === cMax,
+              'BL': c => c.row === rMax && c.col === cMin,
+              'BR': c => c.row === rMax && c.col === cMax,
+            }[g0_anchor] || (() => true));
+        anchorCells = cells.filter(pred);
+        if (anchorCells.length === 0) {
+          anchorWarning = 'g0_anchor_no_match';
+        } else {
+          // B+ 경계와 교집합 체크
+          const anchorIdxs = anchorCells.map(c => cellIdxMapLocal(c));
+          const inBPlus = anchorIdxs.some(i => i != null && bPlus.has(i));
+          if (!inBPlus) anchorWarning = 'g0_anchor_outside_boundary';
+        }
+      }
+    }
+
+    // cellIdxMap을 앵커 체크에서 먼저 쓰기 위한 로컬 헬퍼 (하단 cellIdxMap 정의와 동일 로직)
+    function cellIdxMapLocal(c) {
+      const key = `${Math.round(c.x * 10)},${Math.round(c.y * 10)}`;
+      for (let i = 0; i < cells.length; i++) {
+        if (`${Math.round(cells[i].x * 10)},${Math.round(cells[i].y * 10)}` === key) return i;
+      }
+      return null;
+    }
+
+    const anchorMatches = (cell) => {
+      if (!anchorCells) return true;
+      return anchorCells.some(ac => ac.row === cell.row && ac.col === cell.col);
+    };
 
     // ── ICC 정보 계산 (per group cell array) ────────────────────────
     function groupICC(gc) {
@@ -1275,7 +1323,16 @@
         { name: '열 우선 R→L',      desc: '열 우선 · 우열→좌열',  fn: () => makeColumnFirst(true)    },
       ];
       for (const ord of STANDARD) {
-        const cand = flatToCandidate(ord.fn(), ord.name, ord.desc);
+        let flat = ord.fn();
+        // ★ G0 앵커: 첫 셀이 앵커와 불일치면 reverse 시도, 여전히 불일치면 drop
+        if (anchorCells) {
+          if (flat.length > 0 && !anchorMatches(flat[0])) {
+            const reversed = [...flat].reverse();
+            if (reversed.length > 0 && anchorMatches(reversed[0])) flat = reversed;
+            else continue;  // 이 전략은 앵커 불만족 → 스킵
+          }
+        }
+        const cand = flatToCandidate(flat, ord.name, ord.desc);
         if (cand) results.push(cand);
       }
     }
@@ -1366,7 +1423,11 @@
         }
       }
 
-      for (const startCell of bPlus) {
+      // ★ G0 앵커: 시작 셀을 앵커 일치 셀로 제한
+      const bPlusFiltered = anchorCells
+        ? [...bPlus].filter(i => anchorMatches(cells[i]))
+        : [...bPlus];
+      for (const startCell of bPlusFiltered) {
         if (results.length >= max_candidates || btIterations > MAX_ITER_BT) break;
         used[startCell] = 1;
         dfs(0, [], [startCell], new Set(adjL[startCell].filter(nb => !used[nb])));
@@ -1391,6 +1452,7 @@
       boundary_minus_count: bMinus.size,
       iterations_used:      btIterations,
       max_iter_hit:         btIterations >= 50000,
+      warning:              anchorWarning,  // ★ Phase 2
     };
   }
 

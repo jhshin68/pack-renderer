@@ -44,6 +44,8 @@ const state = {
   // H2 — Level 2 B+/B- 출력 방향
   b_plus_side:   'left',      // 'top'|'bottom'|'left'|'right'
   b_minus_side:  'right',
+  // H3 보조 — G0 앵커 (1번 셀 위치 제약)
+  g0_anchor:     null,        // null | 'TL' | 'TR' | 'BL' | 'BR' | {row, col}
 };
 let lastSVG = '';
 
@@ -559,6 +561,13 @@ function toggleICC(key) {
   populateCandidatePanel();
 }
 
+// ★ Phase 2: G0 앵커 (1번 셀 위치) 제약 핸들러
+function setG0Anchor(mode) {
+  state.g0_anchor = (mode === 'auto') ? null : mode;
+  state.selected_ordering = 0;  // 새 제약으로 후보 재생성 → 첫 카드로 리셋
+  rerender();
+}
+
 function adjNickelW(d) {
   state.nickel_w_mm = Math.max(1.0, Math.min(12.0, +(state.nickel_w_mm + d).toFixed(1)));
   const el = document.getElementById('valNickelW');
@@ -640,6 +649,7 @@ function populateCandidatePanel() {
       icc1, icc2, icc3,
       nickel_w: nickel_w_mm * 1.5,  // scale 반영 근사
       max_candidates: 20,
+      g0_anchor: state.g0_anchor,   // ★ Phase 2: 1번 셀 위치 제약
     });
   } catch (e) {
     listEl.innerHTML = `<div class="hint" style="color:var(--red)">열거 오류: ${e.message}</div>`;

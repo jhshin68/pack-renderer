@@ -1,5 +1,5 @@
 ========================================
-마지막 업데이트: 2026-04-18 (세션 17 — 우측 패널 ↔ 렌더 연결 Phase 1 MVP 완료)
+마지막 업데이트: 2026-04-18 (세션 17 — Phase 1 MVP + Phase 2 G0 앵커 완료)
 버전: renderer.js v0.3.2-unified / validator.js v7-tier2c-p14 / generator.js v7-M7-s15d
 원칙 문서: v7.1 (원칙 4·17 B+/B-·홀더 Level 계층, 원칙 15 Step C')
 개발 규율: skills/tdd-first.md + skills/systematic-debug.md
@@ -56,14 +56,23 @@ git 상태: up-to-date (push 완료)
 보스트로페돈 후보(5셀 동일 y)는 세로선 퇴화. 올바른 해결은 `renderCustomGrid` 재활용
 (per-cell {x,y,row,col} + isAdj 기반 니켈 병합 이미 구현).
 
+### Phase 2 G0 앵커 완료 (이 세션 후반)
+- 수정:
+  · `src/generator.js enumerateGroupAssignments` — g0_anchor ctx 파라미터 + anchorCells 계산
+    + 표준 4종 필터 (reverse 시도) + 백트래킹 bPlusFiltered + warning 필드
+  · `src/app.js` — state.g0_anchor 신설, setG0Anchor() 핸들러, populateCandidatePanel 전달
+  · `battery_pack_renderer.html` — 1번 셀 위치 select (자동/TL/TR/BL/BR 5옵션)
+- 신규: `tests/test_g0_anchor.js` 10/10 PASS
+- 앵커 warning: 'g0_anchor_outside_boundary', 'g0_anchor_no_match', 'g0_anchor_no_row_col_fields'
+
 ### 남은 Phase
-- Phase 2: G0 앵커 제약 (1번 셀 위치 4방위 프리셋 지정 → 후보 수 감소)
 - Phase 3: UX 피드백 (0개 배너 + 카드 이유 배지)
 
 ### 브라우저 확인 완료
-- 3S3P: 카드 클릭 → 니켈 연결 시각 변화 ✓
-- 10S5P: ICC 토글 → 우측 카드 목록 갱신 ✓
-- 작은 S×P: side_by_side 레이아웃 복원 ✓
+- 3S3P: 카드 클릭 → 니켈 연결 시각 변화 ✓ (Phase 1)
+- 10S5P: ICC 토글 → 우측 카드 목록 갱신 ✓ (Phase 1)
+- 작은 S×P: side_by_side 레이아웃 복원 ✓ (Phase 1)
+- 3S3P + TL anchor: 후보 목록 감소 ✓ (Phase 2)
 - 회귀: 기존 조합 모두 정상 ✓
 ========================================
 ========================================
