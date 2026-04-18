@@ -1,5 +1,5 @@
 ========================================
-마지막 업데이트: 2026-04-18 (세션 16 종료 — 원칙9 isAdj 수정 + F29/F13 완료)
+마지막 업데이트: 2026-04-18 (세션 16 최종 — 브라우저 시각 확인 완료 + 문서 정리)
 버전: renderer.js v0.3.2-unified / validator.js v7-tier2c-p14 / generator.js v7-M7-s15d
 원칙 문서: v7.1 (원칙 4·17 B+/B-·홀더 Level 계층, 원칙 15 Step C')
 개발 규율: skills/tdd-first.md + skills/systematic-debug.md
@@ -22,9 +22,14 @@ git 상태: up-to-date (push 완료)
 - passes:false 항목: 0 (F13·F29 모두 완료)
 - 전체 35개 항목 모두 passes:true
 
+## 브라우저 시각 확인 결과 (2026-04-18 최종)
+- 확인 A (P=5 drawNickelU): 이상 없음 ✓
+- 확인 B (S 짝수 B- 라벨 상면): 이상 없음 ✓
+- 확인 C (center-aligned staircase 대각선 소거): 이상 없음 ✓
+
 ## 다음 세션 재개 시
 - feature_list.json passes:false 없음 → 신규 기능 요구사항 수령 대기
-- 회귀 테스트 추가 시: node tests/test_regression_all_sp.js --compare
+- 회귀 테스트: node tests/test_regression_all_sp.js --compare
 - 신규 S×P 조합 추가 시: --save 로 baseline 갱신 필요
 ========================================
 
