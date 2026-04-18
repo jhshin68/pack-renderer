@@ -13,11 +13,11 @@
  *   LAYER 2 (rule)      : prune_candidate → SFMT 후보 가지치기만, passed 유지
  *                         (단, P10·P14는 예외적으로 abort_design)
  *
- * 현 버전: Tier 2a — 7건 (P01·P04·P06·P08·P09·P17·P21) 실구현 + 나머지 7건 스텁
+ * 현 버전: Tier 2c/P14 — 11건 (P01·P04·P06·P08·P09·P10·P12·P14·P17·P21·P26) 실구현 + 3건 스텁(P07·P16·P25)
  *                   skip 정책: 필수 ctx 필드 누락 시 {ok:true, detail:'skipped...'} 반환
  *                   (test_validator_stub.js 빈 ctx 호환 유지)
  *
- * 최종 업데이트: 2026-04-17 (v7 세션 13.5 Tier 2a)
+ * 최종 업데이트: 2026-04-18 (v7 세션 15 Tier 2c P14)
  */
 
 (function (global) {
@@ -347,10 +347,152 @@
     return { ok: true };
   }
 
+  /**
+   * P14 — 면별 병합 불변 (원칙 14)
+   *   skip: face_pattern 또는 S 없음
+   *   검증 축:
+   *     P14.1 상면: [G0] | [G1∪G2] | [G3∪G4] | … | (S짝수 → [G_{S-1}])
+   *     P14.2 하면: [G0∪G1] | [G2∪G3] | …       | (S홀수 → [G_{S-1}])
+   *     P14.3 B+ 기본 상면 G0 — ctx.b_plus_face==='bottom'이면 P04 override 허용
+   *     P14.4 B-: S짝수 → 상면 G_{S-1} 단독 I / S홀수 → 하면 G_{S-1} 단독 I
+   *     P14.5 bridge anchor — P22(LAYER 3)에 위임, ctx.bridge_anchor_points 없으면 skip
+   *   fail_action: abort_design (principles_spec.json)
+   */
   function checkFaceMerging(ctx, params) {
-    // P14: 상·하면 병합 패턴, B+/B− S홀짝 배치, 브리지 기준점 P22 연동
-    // TODO M7: top_plates/bottom_plates 패턴 검증
-    return { ok: true, stub: 'P14' };
+    const fp = ctx && ctx.face_pattern;
+    const S  = ctx && ctx.S;
+    if (!fp || typeof S !== 'number') {
+      return { ok: true, detail: 'skipped: face_pattern/S 없음' };
+    }
+    const top = Array.isArray(fp.top) ? fp.top : [];
+    const bot = Array.isArray(fp.bot) ? fp.bot : [];
+
+    // ── P14.1 상면 기대 패턴 생성 ────────────────
+    const expectedTop = [[0]];
+    for (let g = 1; g < S - 1; g += 2) expectedTop.push([g, g + 1]);
+    if (S % 2 === 0) expectedTop.push([S - 1]);
+
+    if (top.length !== expectedTop.length) {
+      return {
+        ok: false,
+        detail: `상면 플레이트 수 ${top.length} ≠ 기대 ${expectedTop.length} (P14.1, S=${S})`,
+        data: {
+          axis: 'P14.1', S,
+          actual_count: top.length, expected_count: expectedTop.length,
+        },
+      };
+    }
+    for (let i = 0; i < top.length; i++) {
+      const gs = (top[i] && top[i].groups) || [];
+      const exp = expectedTop[i];
+      const match = gs.length === exp.length && gs.every((v, k) => v === exp[k]);
+      if (!match) {
+        return {
+          ok: false,
+          detail: `상면 플레이트[${i}] groups=[${gs}] ≠ 기대 [${exp}] (P14.1)`,
+          data: { axis: 'P14.1', index: i, actual: gs, expected: exp },
+        };
+      }
+    }
+
+    // ── P14.2 하면 기대 패턴 생성 ────────────────
+    const expectedBot = [];
+    for (let g = 0; g < S - 1; g += 2) expectedBot.push([g, g + 1]);
+    if (S % 2 !== 0) expectedBot.push([S - 1]);
+
+    if (bot.length !== expectedBot.length) {
+      return {
+        ok: false,
+        detail: `하면 플레이트 수 ${bot.length} ≠ 기대 ${expectedBot.length} (P14.2, S=${S})`,
+        data: {
+          axis: 'P14.2', S,
+          actual_count: bot.length, expected_count: expectedBot.length,
+        },
+      };
+    }
+    for (let i = 0; i < bot.length; i++) {
+      const gs = (bot[i] && bot[i].groups) || [];
+      const exp = expectedBot[i];
+      const match = gs.length === exp.length && gs.every((v, k) => v === exp[k]);
+      if (!match) {
+        return {
+          ok: false,
+          detail: `하면 플레이트[${i}] groups=[${gs}] ≠ 기대 [${exp}] (P14.2)`,
+          data: { axis: 'P14.2', index: i, actual: gs, expected: exp },
+        };
+      }
+    }
+
+    // ── P14.3 B+ 위치 ───────────────────────────
+    const findTerm = (plates, tag) =>
+      plates.findIndex(p => p && p.terminal === tag);
+    const bPlusFace = ctx.b_plus_face; // undefined | 'top' | 'bottom'
+    if (bPlusFace !== 'bottom') {
+      // 기본/top: 상면 G0 단독에 B+
+      const idx = findTerm(top, 'B+');
+      const gs  = idx >= 0 ? ((top[idx] && top[idx].groups) || []) : [];
+      if (idx < 0 || gs.length !== 1 || gs[0] !== 0) {
+        return {
+          ok: false,
+          detail: `B+ 기본 위치 상면 G0 위반 (P14.3): 상면 index=${idx}, groups=[${gs}]`,
+          data: { axis: 'P14.3', b_plus_face: bPlusFace || 'default', top_index: idx, groups: gs },
+        };
+      }
+    } else {
+      // P04 override — 하면 어딘가 B+ 존재만 확인 (세부는 P04가 담당)
+      const idx = findTerm(bot, 'B+');
+      if (idx < 0) {
+        return {
+          ok: false,
+          detail: `b_plus_face=bottom override 선언했으나 하면에 B+ 없음 (P14.3)`,
+          data: { axis: 'P14.3', b_plus_face: 'bottom' },
+        };
+      }
+    }
+
+    // ── P14.4 B- 위치 (S홀짝 분기) ───────────────
+    const bMinusTop = findTerm(top, 'B-');
+    const bMinusBot = findTerm(bot, 'B-');
+    if (S % 2 === 0) {
+      // 상면 G_{S-1} 단독 I
+      const gs = bMinusTop >= 0 ? ((top[bMinusTop] && top[bMinusTop].groups) || []) : [];
+      if (bMinusTop < 0 || gs.length !== 1 || gs[0] !== S - 1) {
+        return {
+          ok: false,
+          detail: `S=${S}(짝수) → B- 상면 G${S - 1} 단독 I 기대 (P14.4): top index=${bMinusTop}, groups=[${gs}]`,
+          data: { axis: 'P14.4', S, expected: `top G${S - 1}`, top_index: bMinusTop, groups: gs },
+        };
+      }
+      if (bMinusBot >= 0) {
+        return {
+          ok: false,
+          detail: `S=${S}(짝수)인데 하면에도 B- 존재 (P14.4): bot index=${bMinusBot}`,
+          data: { axis: 'P14.4', S, bot_index: bMinusBot },
+        };
+      }
+    } else {
+      // 하면 G_{S-1} 단독 I
+      const gs = bMinusBot >= 0 ? ((bot[bMinusBot] && bot[bMinusBot].groups) || []) : [];
+      if (bMinusBot < 0 || gs.length !== 1 || gs[0] !== S - 1) {
+        return {
+          ok: false,
+          detail: `S=${S}(홀수) → B- 하면 G${S - 1} 단독 I 기대 (P14.4): bot index=${bMinusBot}, groups=[${gs}]`,
+          data: { axis: 'P14.4', S, expected: `bottom G${S - 1}`, bot_index: bMinusBot, groups: gs },
+        };
+      }
+      if (bMinusTop >= 0) {
+        return {
+          ok: false,
+          detail: `S=${S}(홀수)인데 상면에도 B- 존재 (P14.4): top index=${bMinusTop}`,
+          data: { axis: 'P14.4', S, top_index: bMinusTop },
+        };
+      }
+    }
+
+    // ── P14.5 bridge anchor — ctx.bridge_anchor_points 없으면 skip (P22 LAYER 3 위임)
+    // TODO: 스키마 확정 시 여기에 BMS 최단거리 기준점 검증 추가
+
+    return { ok: true };
   }
 
   function checkICC(ctx, params) {
@@ -485,7 +627,7 @@
   // export (Node + Browser 양쪽 지원)
   // ═══════════════════════════════════════════════
   const api = {
-    VERSION: 'v7-tier2b',
+    VERSION: 'v7-tier2c-p14',
     loadSpec,
     runValidation,
     CHECKS,
