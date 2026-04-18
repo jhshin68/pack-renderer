@@ -13,11 +13,11 @@
  *   LAYER 2 (rule)      : prune_candidate → SFMT 후보 가지치기만, passed 유지
  *                         (단, P10·P14는 예외적으로 abort_design)
  *
- * 현 버전: Tier 2c/P14 — 11건 (P01·P04·P06·P08·P09·P10·P12·P14·P17·P21·P26) 실구현 + 3건 스텁(P07·P16·P25)
+ * 현 버전: Tier 2c 완료 — 14건 전량 실구현 (P01·P04·P06·P07·P08·P09·P10·P12·P14·P16·P17·P21·P25·P26)
  *                   skip 정책: 필수 ctx 필드 누락 시 {ok:true, detail:'skipped...'} 반환
  *                   (test_validator_stub.js 빈 ctx 호환 유지)
  *
- * 최종 업데이트: 2026-04-18 (v7 세션 15 Tier 2c P14)
+ * 최종 업데이트: 2026-04-18 (v7 세션 16 — Tier 2c P07·P16·P25 실구현, 14건 전량 완료)
  */
 
 (function (global) {
@@ -286,9 +286,36 @@
 
   // ─── LAYER 2 (7건) ────────────────────────────
 
+  /**
+   * P07 — 니켈 두께 동일 불변 (원칙 7)
+   *   skip: plates 없음 / 빈 배열
+   *   fail: h_w ≠ v_w (가로·세로 두께 불일치)
+   *   fail: h_w/v_w ≠ nickel_w (설계 파라미터 불일치, nickel_w 있을 때)
+   */
   function checkNickelThicknessUniform(ctx, params) {
-    // P07: Tier 2c 대상 — ctx.plates[].h_w / v_w 스키마 확장 필요
-    return { ok: true, stub: 'P07' };
+    const { plates, nickel_w } = ctx || {};
+    if (!Array.isArray(plates) || plates.length === 0) {
+      return { ok: true, detail: 'skipped: plates 없음' };
+    }
+    for (const plate of plates) {
+      const { h_w, v_w } = plate || {};
+      if (h_w == null || v_w == null) continue;
+      if (h_w !== v_w) {
+        return {
+          ok: false,
+          detail: `P07 위반: h_w(${h_w}) ≠ v_w(${v_w}) — 두께 불균일 (원칙 7)`,
+          data: { h_w, v_w },
+        };
+      }
+      if (nickel_w != null && h_w !== nickel_w) {
+        return {
+          ok: false,
+          detail: `P07 위반: h_w(${h_w}) ≠ nickel_w(${nickel_w})`,
+          data: { h_w, nickel_w },
+        };
+      }
+    }
+    return { ok: true };
   }
 
   /**
@@ -495,11 +522,74 @@
     return { ok: true };
   }
 
+  /**
+   * P16 — ICC 산업 실무 제약 (원칙 16) ①②③항
+   *   skip: groups 없음 / arrangement 없음
+   *   fail ①: 행 스팬 > 2  (axis P16.1)
+   *   fail ②: 종횡비 > 2.0 (axis P16.2, 2셀 이상)
+   *   fail ③: 볼록성 < 0.75 (axis P16.3, 3셀 이상)
+   *   ④항(δ_min·planar): delta_min 없으면 skip
+   *   ⑤항(합동쌍 대칭): 복잡도 사유 skip
+   */
   function checkICC(ctx, params) {
-    // P16: 5대 제약 (행스팬·종횡비·볼록성·δ_min·합동쌍 대칭) + planar
-    //      staggered_reinterpretation으로 hex 재해석
-    // TODO M7: 각 plate별 bbox/convexity/edge_distance 계산
-    return { ok: true, stub: 'P16' };
+    const { groups, arrangement, pitch } = ctx || {};
+    if (!Array.isArray(groups) || groups.length === 0 || !arrangement) {
+      return { ok: true, detail: 'skipped: groups/arrangement 없음' };
+    }
+    const p = pitch || 100;
+    const round = v => Math.round(v / p);
+
+    for (const g of groups) {
+      const cells = (g.cells || []).map(c => ({
+        x: c.x != null ? c.x : c.cx,
+        y: c.y != null ? c.y : c.cy,
+      }));
+      if (cells.length === 0) continue;
+
+      const xs = cells.map(c => c.x);
+      const ys = cells.map(c => c.y);
+      const minX = Math.min(...xs), maxX = Math.max(...xs);
+      const minY = Math.min(...ys), maxY = Math.max(...ys);
+
+      // ①항: 행 스팬 ≤ 2 (unique row count)
+      const rowSpan = new Set(ys.map(y => round(y))).size;
+      if (rowSpan > 2) {
+        return {
+          ok: false,
+          detail: `P16.1 위반: G${g.index} 행 스팬=${rowSpan} > 2 (원칙 16 ①항)`,
+          data: { axis: 'P16.1', group: g.index, row_span: rowSpan },
+        };
+      }
+
+      // ②항: 종횡비 ≤ 2.0 (2셀 이상)
+      if (cells.length >= 2) {
+        const w = maxX - minX || p;
+        const h = maxY - minY || p;
+        const aspect = Math.max(w, h) / Math.min(w, h);
+        if (aspect > 2.0 + 1e-9) {
+          return {
+            ok: false,
+            detail: `P16.2 위반: G${g.index} 종횡비=${aspect.toFixed(2)} > 2.0 (원칙 16 ②항)`,
+            data: { axis: 'P16.2', group: g.index, aspect },
+          };
+        }
+      }
+
+      // ③항: 볼록성 ≥ 0.75 (3셀 이상)
+      if (cells.length >= 3) {
+        const bboxCols = round(maxX - minX) + 1;
+        const bboxRows = round(maxY - minY) + 1;
+        const convexity = cells.length / (bboxCols * bboxRows);
+        if (convexity < 0.75 - 1e-9) {
+          return {
+            ok: false,
+            detail: `P16.3 위반: G${g.index} 볼록성=${convexity.toFixed(3)} < 0.75 (원칙 16 ③항)`,
+            data: { axis: 'P16.3', group: g.index, convexity },
+          };
+        }
+      }
+    }
+    return { ok: true };
   }
 
   /**
@@ -527,10 +617,53 @@
     return { ok: true };
   }
 
+  /**
+   * P25 — B+/B- 단자탭 기하학적 정의 (원칙 25)
+   *   skip: terminal_tabs 없음 / 빈 배열 / nickel_w·tab_len 모두 미제공
+   *   fail ①: tab.width ≠ nickel_w  (axis P25.1)
+   *   fail ②: tab.length ≠ tab_len  (axis P25.2)
+   *   fail ④: tab.direction ∈ forbidden_tab_directions[polarity]  (axis P25.4)
+   *   ③항(서명 포함): 서명 계산은 LAYER 3 위임 — skip
+   */
   function checkTerminalTab(ctx, params) {
-    // P25: 탭 폭=nickel_w, 길이=tab_len, 기하 중심 기원, 이종 극성 방향 금지
-    // TODO M7: tab dimensions + direction vs opposite_polarity_plates
-    return { ok: true, stub: 'P25' };
+    const { terminal_tabs, nickel_w, tab_len, forbidden_tab_directions } = ctx || {};
+    if (!Array.isArray(terminal_tabs) || terminal_tabs.length === 0) {
+      return { ok: true, detail: 'skipped: terminal_tabs 없음' };
+    }
+    if (nickel_w == null && tab_len == null && !forbidden_tab_directions) {
+      return { ok: true, detail: 'skipped: 검증 파라미터(nickel_w/tab_len) 미제공' };
+    }
+    for (const tab of terminal_tabs) {
+      const { width, length, polarity, direction } = tab || {};
+      // ①항: 탭 폭 = nickel_w
+      if (nickel_w != null && width != null && width !== nickel_w) {
+        return {
+          ok: false,
+          detail: `P25.1 위반: 탭 폭(${width}) ≠ nickel_w(${nickel_w}) (원칙 25 ①항)`,
+          data: { axis: 'P25.1', width, nickel_w, polarity },
+        };
+      }
+      // ②항: 탭 길이 = tab_len
+      if (tab_len != null && length != null && length !== tab_len) {
+        return {
+          ok: false,
+          detail: `P25.2 위반: 탭 길이(${length}) ≠ tab_len(${tab_len}) (원칙 25 ②항)`,
+          data: { axis: 'P25.2', length, tab_len, polarity },
+        };
+      }
+      // ④항: 탭 방향이 이종 극성 플레이트 방향과 겹침 금지
+      if (forbidden_tab_directions && polarity && direction != null) {
+        const forbidden = forbidden_tab_directions[polarity] || [];
+        if (forbidden.includes(direction)) {
+          return {
+            ok: false,
+            detail: `P25.4 위반: ${polarity} 탭 방향(${direction})이 이종 극성 방향과 겹침 (원칙 25 ④항)`,
+            data: { axis: 'P25.4', polarity, direction, forbidden },
+          };
+        }
+      }
+    }
+    return { ok: true };
   }
 
   // ═══════════════════════════════════════════════

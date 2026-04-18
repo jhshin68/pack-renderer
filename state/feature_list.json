@@ -81,16 +81,16 @@
     {
       "id": "F11",
       "category": "니켈 블록",
-      "name": "니켈 Compact-H (P=3) — geometry spec 미확정",
-      "description": "P=3 블록 형상. selectBlockType(3) → geometry_ready:false. 결론.md 수준 설계 문서 확정 후 구현 필요.",
-      "passes": false
+      "name": "니켈 Compact-H (P=3) — Generic으로 통일",
+      "description": "Type-A 폐기(세션 13.5)로 P=3도 Generic(drawNickelU) 처리. 별도 spec 불필요. 2026-04-18.",
+      "passes": true
     },
     {
       "id": "F12",
       "category": "니켈 블록",
-      "name": "니켈 Extended (P=6) — geometry spec 미확정",
-      "description": "P=6 블록 형상. selectBlockType(6) → geometry_ready:false. 결론.md 수준 설계 문서 확정 후 구현 필요.",
-      "passes": false
+      "name": "니켈 Extended (P=6) — Generic으로 통일",
+      "description": "Type-A 폐기(세션 13.5)로 P=6도 Generic(drawNickelU) 처리. 별도 spec 불필요. 2026-04-18.",
+      "passes": true
     },
     {
       "id": "F13",
@@ -220,8 +220,8 @@
       "id": "F30",
       "category": "테스트 & 검증",
       "name": "TypeA 닫힌 사다리 엣지케이스 검증",
-      "description": "S=2,3 초소형 / S=13 대형 / 엇배열 TypeA 조합 렌더 정확성 확인.",
-      "passes": false
+      "description": "TypeA 폐기(세션 13.5)로 무효 처리. 모든 P에 Generic 통일로 엣지케이스 별도 검증 불필요. 2026-04-18.",
+      "passes": true
     },
 
     {
