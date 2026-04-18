@@ -144,19 +144,19 @@ body {
 .seg-btn:hover:not(.active) { background: var(--sb3); color: var(--dt); }
 
 /* Number stepper */
-.num-row { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
-.num-pair { display: flex; align-items: center; gap: 3px; }
+.num-row { display: flex; align-items: center; gap: 4px; flex-wrap: nowrap; }
+.num-pair { display: flex; align-items: center; gap: 2px; }
 .num-tag {
-  font-family: 'JetBrains Mono', monospace; font-size: 10px;
-  color: var(--dt2); min-width: 14px;
+  font-family: 'JetBrains Mono', monospace; font-size: 9px;
+  color: var(--dt2); min-width: 12px; white-space: nowrap;
 }
 .num-val {
-  font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 500;
-  color: #F1F5F9; min-width: 26px; text-align: center;
+  font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 500;
+  color: #F1F5F9; min-width: 22px; text-align: center;
 }
 /* 직접 타이핑 가능한 숫자 입력 (S·P 직렬·병렬) */
 input.num-val {
-  width: 32px; background: var(--sb3);
+  width: 28px; background: var(--sb3);
   border: 1px solid var(--sb-bdr); border-radius: 4px;
   padding: 2px 0; outline: none; cursor: text;
 }
@@ -165,8 +165,8 @@ input.num-val::-webkit-outer-spin-button,
 input.num-val::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 input.num-val[type=number] { -moz-appearance: textfield; }
 .num-btn {
-  width: 20px; height: 20px; border: 1px solid var(--sb-bdr);
-  background: var(--sb2); color: var(--dt2); font-size: 13px;
+  width: 17px; height: 17px; border: 1px solid var(--sb-bdr);
+  background: var(--sb2); color: var(--dt2); font-size: 11px;
   border-radius: 4px; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   transition: all .15s; user-select: none;
@@ -195,7 +195,7 @@ input.num-val[type=number] { -moz-appearance: textfield; }
 #customRows {
   width: 100%; background: var(--sb2); color: var(--dt);
   border: 1px solid var(--sb-bdr); border-radius: 5px;
-  padding: 6px 8px; font-family: 'JetBrains Mono', monospace; font-size: 13px;
+  padding: 3px 6px; font-family: 'JetBrains Mono', monospace; font-size: 11px;
   resize: vertical; transition: border-color .15s;
 }
 #customRows:focus { outline: none; border-color: var(--accent); }
@@ -451,34 +451,36 @@ input.num-val[type=number] { -moz-appearance: textfield; }
         </div>
       </div>
 
-      <!-- 정배열·엇배열: 가로(S) × 세로(P) 직접 입력 -->
+      <!-- 정배열·엇배열: 가로(S) × 세로(P) 직접 입력 / 커스텀: S만 표시 -->
       <div id="rectConfig">
-        <div class="ctrl-label">가로(S) × 세로(P)</div>
+        <div class="ctrl-label" id="spLabel">직렬(S) × 병렬(P)</div>
         <div class="num-row">
           <div class="num-pair">
             <button class="num-btn" onclick="adj('S',-1)">−</button>
             <input type="number" class="num-val" id="valS" value="3" min="2" max="23"
                    oninput="setFromInput('S', this.value)">
             <button class="num-btn" onclick="adj('S',1)">+</button>
-            <div class="num-tag">S 직렬</div>
+            <div class="num-tag">직렬</div>
           </div>
-          <div class="sp-sep"></div>
-          <div class="num-pair">
+          <div id="spSepEl" class="sp-sep"></div>
+          <div id="pPairEl" class="num-pair">
             <button class="num-btn" onclick="adj('P',-1)">−</button>
             <input type="number" class="num-val" id="valP" value="3" min="1" max="8"
                    oninput="setFromInput('P', this.value)">
             <button class="num-btn" onclick="adj('P',1)">+</button>
-            <div class="num-tag">P 병렬</div>
+            <div class="num-tag">병렬</div>
           </div>
         </div>
-        <div class="hint" style="margin-top:3px">S = 가로 직렬 수 (2–23) · P = 세로 병렬 수 (1–8)</div>
+        <div id="spHint" style="display:none"></div>
       </div>
 
       <!-- 커스텀: 행별 셀 수 직접 입력 -->
       <div id="customGroup" style="display:none">
         <div class="ctrl-label">행별 셀 수 (쉼표 구분)</div>
-        <textarea id="customRows" rows="3" placeholder="예: 8,8,10,13,13,13">8,8,10,13,13,13</textarea>
-        <div class="hint" style="margin-top:4px">각 값 = 해당 행의 셀 수</div>
+        <textarea id="customRows" rows="2" placeholder="예: 8,8,10,13,13,13"
+                  oninput="checkCustomConsistency()">8,8,10,13,13,13</textarea>
+        <div id="customConsistWarn" style="display:none;margin-top:4px;font-size:10px;color:var(--amber);font-family:'JetBrains Mono',monospace;line-height:1.5"></div>
+        <div class="hint" style="margin-top:2px">각 값 = 해당 행의 셀 수</div>
         <div class="ctrl-label" style="margin-top:8px">Row Alignment</div>
         <div class="seg">
           <button class="seg-btn" id="btnAlignLeft"   onclick="setCustomAlign('left')">◀ Left</button>
@@ -496,14 +498,6 @@ input.num-val[type=number] { -moz-appearance: textfield; }
             <button class="seg-btn active" id="btnStagR" onclick="setCustomStaggerDir('R')">오른쪽 ▶</button>
           </div>
           <div class="hint" style="margin-top:4px">2번째 행 시작점: 1번째(하단) 대비 좌·우</div>
-        </div>
-        <div class="ctrl-label" style="margin-top:8px">Series (S)</div>
-        <div class="num-pair">
-          <button class="num-btn" onclick="adj('S',-1)">−</button>
-          <input type="number" class="num-val" id="valScustom" value="13" min="2" max="23"
-                 oninput="setFromInput('S', this.value)">
-          <button class="num-btn" onclick="adj('S',1)">+</button>
-          <div class="num-tag">S</div>
         </div>
       </div>
 

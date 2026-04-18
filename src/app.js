@@ -67,6 +67,26 @@ function parseCustomRows() {
   return raw.split(/[,\n\s]+/).map(s => parseInt(s, 10)).filter(n => Number.isFinite(n) && n > 0);
 }
 
+// ── 커스텀 모드: S×P vs 행 합계 일치 경고 ──────────
+function checkCustomConsistency() {
+  if (state.arrangement !== 'custom') return;
+  const el = document.getElementById('customConsistWarn');
+  if (!el) return;
+  const rows = parseCustomRows();
+  const total = rows.reduce((a, b) => a + b, 0);
+  const sp = state.S * state.P;
+  if (rows.length === 0) {
+    el.style.display = 'none';
+  } else if (total !== sp) {
+    el.textContent = `⚠ S×P = ${state.S}×${state.P} = ${sp}  ≠  행 합계 ${total}`;
+    el.style.display = 'block';
+  } else {
+    el.textContent = `✓ S×P = ${sp} = 행 합계 ${total}`;
+    el.style.color = 'var(--green)';
+    el.style.display = 'block';
+  }
+}
+
 // ── M5 제거됨 ────────────────────────────────────────
 // calcCustomCenters → generator.calcCustomCenters (단일 출처, LAYER 3)
 // convexHull2D      → 미사용 dead code 제거
@@ -85,9 +105,11 @@ function setArrangement(a) {
   document.getElementById('btnSquare').classList.toggle('active', a === 'square');
   document.getElementById('btnStag').classList.toggle('active', a === 'staggered');
   document.getElementById('btnCustom').classList.toggle('active', a === 'custom');
-  document.getElementById('rectConfig').style.display      = (a === 'custom') ? 'none'  : 'block';
-  document.getElementById('customGroup').style.display     = (a === 'custom') ? 'block' : 'none';
-  document.getElementById('holderSizeGroup').style.display = (a === 'custom') ? 'none'  : 'block';
+  const isCustom = (a === 'custom');
+  document.getElementById('rectConfig').style.display      = 'block';
+  document.getElementById('customGroup').style.display     = isCustom ? 'block' : 'none';
+  document.getElementById('holderSizeGroup').style.display = isCustom ? 'none'  : 'block';
+  if (isCustom) checkCustomConsistency();
 }
 
 function setCustomAlign(a) {
@@ -136,13 +158,33 @@ function calcBmsDistances() {
     let bpX, bpY, bmX, bmY, faceW, faceH;
 
     if (arrangement === 'custom') {
-      // F21: 커스텀 배열 BMS 거리 계산
+      // F21: 커스텀 배열 BMS 거리 계산 (인라인 — Generator/CELL_SPEC 의존 없음)
       const rows = parseCustomRows();
       if (!rows || rows.length === 0) return { distBp: null, distBm: null, ok: false };
-      const { pts, W, H } = Generator.calcCustomCenters(rows, p, CELL_SPEC);
+      const _specs = { '18650': { render_d: 19.0 }, '21700': { render_d: 22.0 } };
+      const _sp   = _specs[p.cell_type] || _specs['21700'];
+      const _pit  = (_sp.render_d + (p.gap || 0)) * p.scale;
+      const _R    = (_sp.render_d / 2) * p.scale;
+      const _mg   = (p.margin_mm || 8) * p.scale;
+      const _stag = !!p.custom_stagger;
+      const _pitY = _stag ? _pit * Math.sqrt(3) / 2 : _pit;
+      const _maxN = Math.max(...rows);
+      const _aln  = p.custom_align || 'center';
+      const _sd   = p.custom_stagger_dir === 'L' ? -1 : 1;
+      const _lp   = (_stag && _sd === -1) ? _pit / 2 : 0;
+      const pts = [];
+      for (let r = 0; r < rows.length; r++) {
+        const n = rows[r], fb = rows.length - 1 - r;
+        const sOff = (_stag && fb % 2 === 1) ? _sd * _pit / 2 : 0;
+        const aOff = _aln === 'left' ? 0 : _aln === 'right' ? (_maxN - n) * _pit : (_maxN - n) * _pit / 2;
+        for (let i = 0; i < n; i++)
+          pts.push({ x: _mg + _lp + aOff + sOff + i * _pit + _R, y: _mg + r * _pitY + _R, row: r });
+      }
+      const W = _mg * 2 + _maxN * _pit + (_stag ? _pit / 2 : 0);
+      const H = _mg * 2 + (rows.length - 1) * _pitY + 2 * _R;
+      // snake boustrophedon (renderCustomRows와 동일 순서)
       const N = pts.length;
       const cellsPerGroup = Math.ceil(N / S);
-      // snake boustrophedon (renderCustomRows와 동일 순서)
       const byRow = rows.map(() => []);
       pts.forEach(pt => byRow[pt.row].push(pt));
       const snake = [];
@@ -158,7 +200,7 @@ function calcBmsDistances() {
       });
       const g0 = groupCells[0], gL = groupCells[S - 1];
       if (!g0?.length || !gL?.length) return { distBp: null, distBm: null, ok: false };
-      bpX = g0[0].x;            bpY = g0[0].y;
+      bpX = g0[0].x;             bpY = g0[0].y;
       bmX = gL[gL.length - 1].x; bmY = gL[gL.length - 1].y;
       faceW = W; faceH = H;
     } else {
@@ -183,7 +225,8 @@ function calcBmsDistances() {
     const distBp = Math.round((Math.abs(bpX - bmsX) + Math.abs(bpY - bmsY)) / sc);
     const distBm = Math.round((Math.abs(bmX - bmsX) + Math.abs(bmY - bmsY)) / sc);
     return { distBp, distBm, bmsX, bmsY, faceW, faceH, ok: true };
-  } catch (_) {
+  } catch (err) {
+    console.error('[calcBmsDistances] error:', err);
     return { distBp: null, distBm: null, ok: false };
   }
 }
@@ -252,10 +295,7 @@ function adj(k, d) {
   if (k === 'P') state.P = Math.max(1, Math.min(8,  state.P + d));
   const el = document.getElementById('val' + k);
   if (el) el.value = state[k];
-  if (k === 'S') {
-    const sc = document.getElementById('valScustom');
-    if (sc) sc.value = state.S;
-  }
+  checkCustomConsistency();
 }
 
 // 직접 타이핑 입력 처리 (input[type=number] oninput 핸들러)
@@ -267,10 +307,7 @@ function setFromInput(k, v) {
   // 범위 벗어난 경우 입력칸 값도 정규화
   const el = document.getElementById('val' + k);
   if (el && parseInt(el.value, 10) !== state[k]) el.value = state[k];
-  if (k === 'S') {
-    const sc = document.getElementById('valScustom');
-    if (sc && parseInt(sc.value, 10) !== state.S) sc.value = state.S;
-  }
+  checkCustomConsistency();
 }
 
 // ── H1 홀더 크기 제어 ─────────────────────────────
