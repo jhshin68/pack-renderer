@@ -7,6 +7,7 @@
 # Test output (SVG/PNG) — tests/ 하위 산출물
 tests/*.svg
 tests/*.png
+tests/regression/svg/
 test_*.svg
 test_*.png
 test_nickel_*.png

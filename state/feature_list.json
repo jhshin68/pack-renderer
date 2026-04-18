@@ -213,8 +213,8 @@
       "id": "F29",
       "category": "테스트 & 검증",
       "name": "전 S×P 조합 회귀 테스트 자동화",
-      "description": "주요 조합(2~13S × 1~6P) 렌더 결과를 PNG로 저장하고 이전 버전과 비교. png/ 폴더 활용.",
-      "passes": false
+      "description": "2~13S × 1~6P × [square,staggered] = 144 조합. SVG 유효성(NaN·크래시·셀수) 검사 + SHA-256 해시 baseline 비교. tests/test_regression_all_sp.js — --save: baseline 저장, --compare: 회귀 탐지. 2026-04-18.",
+      "passes": true
     },
     {
       "id": "F30",
