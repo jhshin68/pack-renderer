@@ -548,6 +548,7 @@ function enumeratePentominoTilings(cells, S, P, opts) {
           b_plus_ok: bPlusOk,
           b_minus_ok: bMinusOk,
           icc_violations: groups.filter(g => !g.icc1_ok || g.quality_score < 0).length,
+          total_plates: S + 1,
         });
       }
     }

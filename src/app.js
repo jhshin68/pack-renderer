@@ -49,6 +49,8 @@ const state = {
   // Phase 4 — pentomino 도형 허용 토글
   allow_I:       false,       // 1자(I-pentomino) 허용 여부
   allow_U:       false,       // ㄷ자(U-pentomino) 허용 여부
+  // Phase 5 — 니켈 플레이트 수 제한
+  max_plates:    0,           // 0 = 제한 없음, N = total_plates ≤ N인 후보만 표시
 };
 let lastSVG = '';
 
@@ -587,6 +589,15 @@ function toggleAllowShape(key) {
   if (lastSVG) rerender(); else populateCandidatePanel();
 }
 
+function setMaxPlates(val) {
+  const n = parseInt(val, 10);
+  state.max_plates = (isNaN(n) || n <= 0) ? 0 : n;
+  const el = document.getElementById('valMaxPlates');
+  if (el) el.value = state.max_plates;
+  state.selected_ordering = 0;
+  if (lastSVG) rerender(); else populateCandidatePanel();
+}
+
 function adjNickelW(d) {
   state.nickel_w_mm = Math.max(1.0, Math.min(12.0, +(state.nickel_w_mm + d).toFixed(1)));
   const el = document.getElementById('valNickelW');
@@ -713,7 +724,11 @@ function populateCandidatePanel() {
   _enumResult = result;
   _updateEnumStatus(result);
 
-  const candidates = result.candidates || [];
+  let candidates = result.candidates || [];
+  // ★ max_plates 필터: total_plates ≤ state.max_plates인 후보만 표시
+  if (state.max_plates && state.max_plates > 0) {
+    candidates = candidates.filter(c => (c.total_plates || S + 1) <= state.max_plates);
+  }
   if (countEl) countEl.textContent = candidates.length + '개';
 
   listEl.innerHTML = '';
@@ -776,8 +791,10 @@ function populateCandidatePanel() {
     const sigmaStyle = cand.is_pentomino
       ? `font-weight:700;color:#86efac;font-size:11px`
       : `color:${sigmaColor}`;
+    const platesVal = cand.total_plates != null ? cand.total_plates : (S + 1);
     const statBits = [
       `<span style="${sigmaStyle}">Σ ${totalQS >= 0 ? '+' : ''}${totalQS}</span>`,
+      `<span style="color:var(--dt3)">플레이트 ${platesVal}개</span>`,
       `행스팬 평균 ${avgRS.toFixed(1)}/최대 ${maxRS}`,
       ...(tyN > 0 ? [`<span style="color:var(--amber)">T/Y ${tyN}</span>`] : []),
     ];

@@ -1319,6 +1319,7 @@
         name, desc, is_standard: true,
         b_plus_ok: bpOk, b_minus_ok: bmOk,
         icc_violations: iccViolations,
+        total_plates: S + 1,
       };
     }
 
@@ -1423,6 +1424,7 @@
                 name: `비표준 ${results.length + 1}`, desc: 'backtracking',
                 is_standard: false, b_plus_ok: true, b_minus_ok: true,
                 icc_violations: 0,
+                total_plates: S + 1,
               });
             }
             return;

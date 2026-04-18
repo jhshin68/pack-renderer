@@ -711,6 +711,19 @@ input.num-val[type=number] { -moz-appearance: textfield; }
         <div class="hint" style="margin-top:4px">P=5일 때 pentomino 후보에 적용</div>
       </div>
 
+      <!-- 섹션 3c: 플레이트 수 제한 (Phase 5) -->
+      <div class="rp-section" style="margin-top:8px">
+        <div class="ctrl-label">최대 플레이트 수 <span style="font-size:8px;color:var(--dt3)">(0=제한없음)</span></div>
+        <div class="num-pair">
+          <button onclick="setMaxPlates(Math.max(0,(state.max_plates||0)-1))" class="adj-btn">−</button>
+          <input id="valMaxPlates" type="number" min="0" max="99" step="1" value="0"
+            style="width:44px;text-align:center;background:var(--bg2);color:var(--dt1);border:1px solid var(--border);border-radius:3px;padding:2px 4px;font-size:11px"
+            onchange="setMaxPlates(this.value)" oninput="setMaxPlates(this.value)">
+          <button onclick="setMaxPlates((state.max_plates||0)+1)" class="adj-btn">+</button>
+        </div>
+        <div class="hint" style="margin-top:4px">S×P 기준 총 플레이트 = S+1개</div>
+      </div>
+
       <div class="rp-divider"></div>
 
       <!-- 섹션 4: 니켈 폭 -->

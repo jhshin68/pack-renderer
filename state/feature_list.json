@@ -258,6 +258,13 @@
       "name": "원칙 문서 업데이트 — 원칙 4·15·17 제약 계층 반영",
       "description": "nickel_plate_principles.md 원칙 4(B+/B- 우선순위 ④⑤항)·17(holder_shape/logical_config 분리 Level 1·2·3 계층 ④항), nickel-plate-design.md 원칙 15 Step C' Hamiltonian 열거기 삽입. 2026-04-17.",
       "passes": true
+    },
+    {
+      "id": "F36",
+      "category": "니켈 플레이트 제약",
+      "name": "총 플레이트 수(total_plates) 필드 + max_plates 필터 UI",
+      "description": "모든 후보 객체에 total_plates = S+1 필드 추가(generator.js 3지점, pentomino_tiling.js 1지점). 후보 카드에 플레이트 수 배지 표시. 우측 패널에 max_plates 입력창 — 설정 시 total_plates > max인 후보 필터링. TDD: test_total_plates.js 32/32 PASS. 2026-04-18.",
+      "passes": true
     }
   ]
 }
