@@ -35,7 +35,7 @@
  *   - buildStrokeGraph           (S18)
  *   - buildHexCluster            (S23)
  *
- * 최종 업데이트: 2026-04-18 (v7 세션 16 — S18 buildStrokeGraph 실구현)
+ * 최종 업데이트: 2026-04-18 (v7 세션 16 — S18·S23 실구현, M7 스텁 전량 완료)
  */
 
 (function (global) {
@@ -1003,16 +1003,65 @@
   }
 
   // ─── S23 엇배열 hex 클러스터 ───────────────────
+  /**
+   * 원칙 23 — hex 6방향 adjacency spanning tree + cell 원형 배경
+   *   입력 ctx: { group_cells:[{x,y}|{cx,cy}], hex_adjacency_graph:[{i,j}], R? }
+   *   출력: { hex_spanning_tree:[{i,j}], stroke_graph_hex:{V,E}, svg_elements }
+   *     hex_spanning_tree: BFS spanning tree (사이클 제거, 방법 B)
+   *     svg_elements: V별 circle(r=R) + E별 line(strokeWidth=2R, linecap=round)
+   *   floating segment 금지: 모든 E endpoint는 V 인덱스 범위 내.
+   */
   function buildHexCluster(ctx) {
-    // TODO M7: hex 6방향 spanning tree
-    const { group_cells, hex_adjacency_graph } = ctx || {};
+    const { group_cells = [], hex_adjacency_graph = [], R = 33 } = ctx || {};
+    const V = group_cells;
+    const n = V.length;
+
+    // BFS spanning tree — 방법 B (hex 6-이웃 기반)
+    const adj = Array.from({ length: n }, () => []);
+    for (const e of hex_adjacency_graph) {
+      if (!Number.isInteger(e.i) || !Number.isInteger(e.j)) continue;
+      if (e.i < 0 || e.i >= n || e.j < 0 || e.j >= n || e.i === e.j) continue;
+      adj[e.i].push(e.j);
+      adj[e.j].push(e.i);
+    }
+    const visited = new Array(n).fill(false);
+    const spanTree = [];
+    for (let start = 0; start < n; start++) {
+      if (visited[start]) continue;
+      visited[start] = true;
+      const queue = [start];
+      while (queue.length) {
+        const u = queue.shift();
+        for (const v of adj[u]) {
+          if (visited[v]) continue;
+          visited[v] = true;
+          spanTree.push({ i: Math.min(u, v), j: Math.max(u, v) });
+          queue.push(v);
+        }
+      }
+    }
+
+    // svg_elements — 원칙 23 (stroke=2R, linecap=round + cell 원형 배경)
+    const svg_elements = [];
+    for (const c of V) {
+      const p = _pt(c);
+      svg_elements.push({ type: 'circle', cx: p.x, cy: p.y, r: R });
+    }
+    for (const e of spanTree) {
+      const a = _pt(V[e.i]);
+      const b = _pt(V[e.j]);
+      svg_elements.push({
+        type: 'line',
+        x1: a.x, y1: a.y, x2: b.x, y2: b.y,
+        strokeWidth: 2 * R,
+        linecap: 'round',
+      });
+    }
+
     return {
-      hex_spanning_tree: [],
-      stroke_graph_hex: {
-        V: group_cells || [],
-        E: hex_adjacency_graph || [],
-      },
-      stub: 'S23',
+      hex_spanning_tree: spanTree,
+      stroke_graph_hex: { V, E: spanTree },
+      svg_elements,
     };
   }
 
@@ -1391,7 +1440,7 @@
     selectBmsOptimal,         // S22 ✅ 실구현
     detectColumnGroupEfficiency, // S13 실구현(기존)
     buildStrokeGraph,         // S18 실구현 (원칙 18 spanning tree)
-    buildHexCluster,          // S23 스텁 유지
+    buildHexCluster,          // S23 실구현 (원칙 23 hex spanning tree)
     // H1/H2/H3 — 홀더 그리드 & 경계 & 열거기
     calcBoundarySet,          // H2 ✅
     buildHolderGrid,          // H1 ✅
