@@ -70,6 +70,13 @@
   }
 
   // ═══════════════════════════════════════════════
+  // Phase 4: pentomino_tiling.js 로드 (Node: require / Browser: global)
+  // ═══════════════════════════════════════════════
+  const _PT = (typeof require !== 'undefined' && typeof module !== 'undefined')
+    ? require('./pentomino_tiling.js')
+    : (typeof PentominoTiling !== 'undefined' ? PentominoTiling : null); // eslint-disable-line no-undef
+
+  // ═══════════════════════════════════════════════
   // 1. 이관 함수 — renderer.js에서 그대로 이동 (1:1 복사, 로직 동일)
   // ═══════════════════════════════════════════════
 
@@ -1158,6 +1165,8 @@
       icc1 = true, icc2 = true, icc3 = false,
       max_candidates = 20,
       g0_anchor = null,  // ★ Phase 2: 1번 셀 위치 제약 (null | 'TL' | 'TR' | 'BL' | 'BR' | {row, col})
+      allow_I = false,   // ★ Phase 4: I-pentomino 허용 여부
+      allow_U = false,   // ★ Phase 4: U-pentomino 허용 여부
     } = ctx || {};
 
     if (!cells || cells.length === 0 || S < 1 || P < 1) {
@@ -1336,6 +1345,21 @@
         }
         const cand = flatToCandidate(flat, ord.name, ord.desc);
         if (cand) results.push(cand);
+      }
+    }
+
+    // ── Phase 4: P-pentomino DLX (P=5, non-custom) ─────────────────
+    if (_PT && arrangement !== 'custom' && P === 5 && S >= 2) {
+      const pentResults = _PT.enumeratePentominoTilings(cells, S, P, {
+        b_plus_side, b_minus_side,
+        g0_anchor,
+        allow_I, allow_U,
+        max_candidates: Math.max(20, max_candidates),
+        time_budget_ms: 1500,
+      });
+      if (pentResults.length > 0) {
+        results.push(...pentResults);
+        strategy = 'standard+pentomino';
       }
     }
 
