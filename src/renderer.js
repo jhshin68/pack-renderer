@@ -421,21 +421,42 @@ function renderCustomGrid(params, spec, N, cols, rows) {
     gridMap[r][c] = cell;
   }
 
-  // v0.2.12 행-단위 스네이크(boustrophedon) 그룹 배정
-  // r 짝수: L→R, r 홀수: R→L. 실셀만 추려 일렬화한 뒤 P개씩 끊어 S그룹.
-  const snake = [];
-  for (let r = 0; r < rows; r++) {
-    const rowCells = [];
-    for (let c = 0; c < cols; c++) if (gridMap[r][c]) rowCells.push(gridMap[r][c]);
-    if (r % 2 === 1) rowCells.reverse();
-    snake.push(...rowCells);
+  // ★ 외부 그룹 주입 (우측 패널 후보 선택) — 내부 snake 대체
+  // params.cell_groups: [{row, col}, ...][] — S개 그룹, 각 그룹이 P개 셀
+  const externalGroups = Array.isArray(params.cell_groups) ? params.cell_groups : null;
+  let groups;
+  if (externalGroups && externalGroups.length === S) {
+    groups = [];
+    for (let gi = 0; gi < S; gi++) {
+      const grp = [];
+      const cellList = externalGroups[gi] || [];
+      for (const ec of cellList) {
+        const target = (ec && typeof ec.row === 'number' && typeof ec.col === 'number')
+          ? (gridMap[ec.row] ? gridMap[ec.row][ec.col] : null)
+          : null;
+        if (target) { target.g = gi; grp.push(target); }
+      }
+      if (grp.length === 0) { groups = null; break; }  // 무효 → 폴백
+      groups.push(grp);
+    }
   }
-  const groups = [];
-  for (let gi = 0; gi < S; gi++) {
-    const grp = snake.slice(gi * P, (gi + 1) * P);
-    if (grp.length === 0) break;
-    grp.forEach(c => { c.g = gi; });
-    groups.push(grp);
+  if (!groups) {
+    // v0.2.12 행-단위 스네이크(boustrophedon) 그룹 배정 — 폴백 경로
+    // r 짝수: L→R, r 홀수: R→L. 실셀만 추려 일렬화한 뒤 P개씩 끊어 S그룹.
+    const snake = [];
+    for (let r = 0; r < rows; r++) {
+      const rowCells = [];
+      for (let c = 0; c < cols; c++) if (gridMap[r][c]) rowCells.push(gridMap[r][c]);
+      if (r % 2 === 1) rowCells.reverse();
+      snake.push(...rowCells);
+    }
+    groups = [];
+    for (let gi = 0; gi < S; gi++) {
+      const grp = snake.slice(gi * P, (gi + 1) * P);
+      if (grp.length === 0) break;
+      grp.forEach(c => { c.g = gi; });
+      groups.push(grp);
+    }
   }
 
   // 인접 판정 (격자 좌표 기준)
@@ -524,25 +545,54 @@ function renderCustomGrid(params, spec, N, cols, rows) {
 
   const headerH = 40;
   const gapSec  = params.gap_section;
-  const svgW    = faceW;
-  const svgH    = faceH * 2 + gapSec + headerH + 40;
-  const topDY   = headerH;
-  const botDY   = headerH + faceH + gapSec;
 
+  // ★ 레이아웃 해석: canonical(cols=S,rows=P) 케이스는 작은 팩을 side_by_side로
+  const layout = resolveLayout(S, P, params.layout);
   const ln = [];
-  ln.push(`<svg width="100%" viewBox="0 0 ${Math.ceil(svgW)} ${Math.ceil(svgH)}" xmlns="http://www.w3.org/2000/svg" role="img">`);
-  ln.push(`<title>${S}S${P}P (${cols}×${rows}, ${params.arrangement})</title>`);
-  ln.push(`<desc>전기: ${S}S${P}P=${N}셀, 격자: ${cols}×${rows}, 공란: ${cols*rows - N}개</desc>`);
-  ln.push(`<text font-family="Arial" font-size="13" fill="#5F5E5A" text-anchor="middle" x="${svgW/2}" y="18">top face</text>`);
-  ln.push(`<text font-family="Arial" font-size="13" fill="#5F5E5A" text-anchor="middle" x="${svgW/2}" y="${faceH+topDY+gapSec/2+12}">bottom face</text>`);
-  const divY = faceH + topDY + gapSec/2 - 5;
-  ln.push(`<line x1="20" y1="${divY}" x2="${svgW-20}" y2="${divY}" stroke="#cccccc" stroke-width="1" stroke-dasharray="4 3"/>`);
-  ln.push(`<g transform="translate(0, ${topDY})">`);
-  ln.push(buildFace('top'));
-  ln.push(`</g>`);
-  ln.push(`<g transform="translate(0, ${botDY})">`);
-  ln.push(buildFace('bottom'));
-  ln.push(`</g>`);
+  let svgW, svgH;
+
+  if (layout === 'side_by_side') {
+    svgW = faceW * 2 + gapSec;
+    svgH = faceH + headerH + 40;
+    const topDX = 0;
+    const botDX = faceW + gapSec;
+    const topDY = headerH;
+
+    ln.push(`<svg width="100%" viewBox="0 0 ${Math.ceil(svgW)} ${Math.ceil(svgH)}" xmlns="http://www.w3.org/2000/svg" role="img">`);
+    ln.push(`<title>${S}S${P}P (${cols}×${rows}, ${params.arrangement})</title>`);
+    ln.push(`<desc>전기: ${S}S${P}P=${N}셀, 격자: ${cols}×${rows}, 공란: ${cols*rows - N}개</desc>`);
+    ln.push(`<text font-family="Arial" font-size="13" fill="#5F5E5A" text-anchor="middle" x="${faceW/2}" y="18">top face</text>`);
+    ln.push(`<text font-family="Arial" font-size="13" fill="#5F5E5A" text-anchor="middle" x="${faceW + gapSec + faceW/2}" y="18">bottom face</text>`);
+    const divX = faceW + gapSec / 2;
+    ln.push(`<line x1="${divX}" y1="20" x2="${divX}" y2="${svgH-20}" stroke="#cccccc" stroke-width="1" stroke-dasharray="4 3"/>`);
+    ln.push(`<g transform="translate(${topDX}, ${topDY})">`);
+    ln.push(buildFace('top'));
+    ln.push(`</g>`);
+    ln.push(`<g transform="translate(${botDX}, ${topDY})">`);
+    ln.push(buildFace('bottom'));
+    ln.push(`</g>`);
+  } else {
+    // top_bottom (세로 스택) — 기존 동작 유지
+    svgW = faceW;
+    svgH = faceH * 2 + gapSec + headerH + 40;
+    const topDY = headerH;
+    const botDY = headerH + faceH + gapSec;
+
+    ln.push(`<svg width="100%" viewBox="0 0 ${Math.ceil(svgW)} ${Math.ceil(svgH)}" xmlns="http://www.w3.org/2000/svg" role="img">`);
+    ln.push(`<title>${S}S${P}P (${cols}×${rows}, ${params.arrangement})</title>`);
+    ln.push(`<desc>전기: ${S}S${P}P=${N}셀, 격자: ${cols}×${rows}, 공란: ${cols*rows - N}개</desc>`);
+    ln.push(`<text font-family="Arial" font-size="13" fill="#5F5E5A" text-anchor="middle" x="${svgW/2}" y="18">top face</text>`);
+    ln.push(`<text font-family="Arial" font-size="13" fill="#5F5E5A" text-anchor="middle" x="${svgW/2}" y="${faceH+topDY+gapSec/2+12}">bottom face</text>`);
+    const divY = faceH + topDY + gapSec/2 - 5;
+    ln.push(`<line x1="20" y1="${divY}" x2="${svgW-20}" y2="${divY}" stroke="#cccccc" stroke-width="1" stroke-dasharray="4 3"/>`);
+    ln.push(`<g transform="translate(0, ${topDY})">`);
+    ln.push(buildFace('top'));
+    ln.push(`</g>`);
+    ln.push(`<g transform="translate(0, ${botDY})">`);
+    ln.push(buildFace('bottom'));
+    ln.push(`</g>`);
+  }
+
   ln.push(`<text font-family="Arial" font-size="9" fill="#27AE60" text-anchor="middle" x="${svgW/2}" y="${svgH-6}">이론 ${RENDERER_VERSION} · ${S}S${P}P · ${cols}×${rows} · ${N}셀 + ${cols*rows-N}공란 · ${params.arrangement}</text>`);
   ln.push('</svg>');
   return ln.join('\n');
@@ -725,6 +775,11 @@ function render(userParams = {}) {
 
   // 커스텀 격자(canonical이 아님) → 셀만 그리고 니켈 생략
   if (!isCanonical) return renderCustomGrid(params, spec, N, cols, rows);
+
+  // ★ 외부 그룹 주입 시 canonical도 per-cell 경로로 라우팅 (우측 패널 후보 선택)
+  if (Array.isArray(params.cell_groups) && params.cell_groups.length === S) {
+    return renderCustomGrid(params, spec, N, cols, rows);
+  }
 
   const layout   = resolveLayout(S, P, params.layout);
   const { cx, cy, R } = calcCellCenters(S, P, params);

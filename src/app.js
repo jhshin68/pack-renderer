@@ -506,6 +506,8 @@ function fixSVGSize() {
 //   [M5 완료] doRender() 삭제. HTML onclick 및 초기 호출 모두 rerender()로 통일.
 function rerender() {
   updateInfoBox();
+  // ★ populate를 앞으로 이동 → _enumResult가 render() 호출 전에 준비됨
+  populateCandidatePanel();
 
   const customRows = parseCustomRows();
   const p = {
@@ -520,6 +522,16 @@ function rerender() {
     face: 'all',
   };
 
+  // ★ 우측 패널 선택 후보를 렌더에 주입 (square/staggered only)
+  if (state.arrangement !== 'custom' && _enumResult && _enumResult.candidates && _enumResult.candidates.length > 0) {
+    const cand = _enumResult.candidates[state.selected_ordering];
+    if (cand && cand.groups) {
+      p.cell_groups = cand.groups.map(g => g.cells);
+      p.grid_cols = getHolderCols();
+      p.grid_rows = getHolderRows();
+    }
+  }
+
   try {
     lastSVG = render(p);
   } catch (err) {
@@ -532,7 +544,6 @@ function rerender() {
   fixSVGSize();
   addBmsMarkerToDOM();
   updateHolderUI();
-  populateCandidatePanel();
 
   document.getElementById('emptyState').style.display  = 'none';
   document.getElementById('svgContainer').style.display = 'block';
@@ -545,6 +556,7 @@ function toggleICC(key) {
   const ids = { icc1: 'togICC1', icc2: 'togICC2', icc3: 'togICC3' };
   const el  = document.getElementById(ids[key]);
   if (el) el.classList.toggle('on', state[key]);
+  populateCandidatePanel();
 }
 
 function adjNickelW(d) {
@@ -559,6 +571,7 @@ function selectCandidate(idx) {
     el.classList.toggle('selected', i === idx);
   });
   _showCandDetail(idx);
+  rerender();
 }
 
 // ── 배열 후보 패널 (H3/H4) ──────────────────────────

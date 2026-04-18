@@ -1,5 +1,5 @@
 ========================================
-마지막 업데이트: 2026-04-18 (세션 16 최종 — 브라우저 시각 확인 완료 + 문서 정리)
+마지막 업데이트: 2026-04-18 (세션 17 — 우측 패널 ↔ 렌더 연결 Phase 1 MVP 완료)
 버전: renderer.js v0.3.2-unified / validator.js v7-tier2c-p14 / generator.js v7-M7-s15d
 원칙 문서: v7.1 (원칙 4·17 B+/B-·홀더 Level 계층, 원칙 15 Step C')
 개발 규율: skills/tdd-first.md + skills/systematic-debug.md
@@ -31,6 +31,41 @@ git 상태: up-to-date (push 완료)
 - feature_list.json passes:false 없음 → 신규 기능 요구사항 수령 대기
 - 회귀 테스트: node tests/test_regression_all_sp.js --compare
 - 신규 S×P 조합 추가 시: --save 로 baseline 갱신 필요
+
+========================================
+
+## 세션 17 진행 (2026-04-18) — 우측 패널 ↔ 렌더 연결
+
+### 문제 정의
+우측 H3 후보 패널이 정보 표시만 가능 — 카드 클릭이나 ICC 토글이 SVG에 반영 안 됨.
+근본 원인: renderer.js가 `state.selected_ordering`을 전혀 사용하지 않고 내부 `buildSnakeLayout` 순서만 씀.
+
+### Phase 1 MVP 완료 (이 세션)
+- 계획서: `C:\Users\jhshi\.claude\plans\witty-conjuring-riddle.md` (Ultraplan 승인)
+- 수정 3곳:
+  · `src/renderer.js renderCustomGrid` — 외부 `cell_groups` override 로직 추가 (line 424~)
+  · `src/renderer.js render()` — canonical 분기에 cell_groups 라우팅 추가 (line 752)
+  · `src/renderer.js renderCustomGrid` — side_by_side 레이아웃 지원 (작은 팩 가로 표시 복원)
+  · `src/app.js rerender()` — `_enumResult`에서 선택 후보의 `cell_groups` 주입 + populate 순서 앞당김
+  · `src/app.js toggleICC` / `selectCandidate` — `populateCandidatePanel()` / `rerender()` 자동 호출 추가 (세션 17 초반)
+- 신규: `tests/test_cell_group_override.js` 10/10 PASS
+- 회귀: `test_regression_all_sp.js --compare` 144/144 baseline 일치
+
+### Ultraplan 핵심 발견 (초안 오류 정정)
+초안 `_cxFromGroups(groups, P)` 접근은 실패 — canonical 경로가 cy[p] 행 공유 구조라
+보스트로페돈 후보(5셀 동일 y)는 세로선 퇴화. 올바른 해결은 `renderCustomGrid` 재활용
+(per-cell {x,y,row,col} + isAdj 기반 니켈 병합 이미 구현).
+
+### 남은 Phase
+- Phase 2: G0 앵커 제약 (1번 셀 위치 4방위 프리셋 지정 → 후보 수 감소)
+- Phase 3: UX 피드백 (0개 배너 + 카드 이유 배지)
+
+### 브라우저 확인 완료
+- 3S3P: 카드 클릭 → 니켈 연결 시각 변화 ✓
+- 10S5P: ICC 토글 → 우측 카드 목록 갱신 ✓
+- 작은 S×P: side_by_side 레이아웃 복원 ✓
+- 회귀: 기존 조합 모두 정상 ✓
+========================================
 ========================================
 
 ## 🏠 세션 15 → 다음 세션 재개 지침
