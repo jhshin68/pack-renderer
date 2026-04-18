@@ -155,8 +155,8 @@
       "id": "F21",
       "category": "UI 컨트롤",
       "name": "커스텀 배열 BMS 거리 계산",
-      "description": "custom 모드에서는 현재 '—' 표시. rows[] 기반 좌표 추출 후 맨해튼 거리 계산 구현 필요.",
-      "passes": false
+      "description": "Generator.calcCustomCenters + snake 순서로 B+/B- 좌표 추출 후 맨해튼 거리 계산. 2026-04-18.",
+      "passes": true
     },
     {
       "id": "F22",
@@ -176,8 +176,8 @@
       "id": "F24",
       "category": "UI 컨트롤",
       "name": "PNG 내보내기",
-      "description": "SVG → Canvas → PNG 변환 다운로드. 현재 미구현. (png/ 폴더 파일은 playwright 스크린샷)",
-      "passes": false
+      "description": "SVG → Canvas(2×scale) → PNG 다운로드. downloadPNG() + Export PNG 버튼 추가. 2026-04-18.",
+      "passes": true
     },
 
     {

@@ -130,23 +130,50 @@ function adjBmsPos(d) {
 // B+/B− 단자에서 BMS 위치까지 맨해튼 거리 계산 (mm 단위)
 // B+ = 그룹 0 중간 셀, B− = 그룹 S-1 중간 셀
 function calcBmsDistances() {
-  const { S, P, bms_edge, bms_pos } = state;
+  const { S, P, bms_edge, bms_pos, arrangement } = state;
   const p = { ...state, layout: 'auto', scale: 1.5, nickel_w_mm: 4.0, margin_mm: 8.0 };
   try {
-    const { cx, cy, R } = calcCellCenters(S, P, p);
-    const nw     = p.nickel_w_mm * p.scale;
-    const margin = p.margin_mm * p.scale;
-    let maxCx = 0;
-    for (let q = 0; q < P; q++) if (cx[S - 1][q] > maxCx) maxCx = cx[S - 1][q];
-    const faceW  = maxCx + R + margin + nw * 2;
-    const faceH  = cy[P - 1] + R + margin + 40;
-    const midP   = Math.floor(P / 2);
-    // 각 그룹 중간 셀 좌표
-    const bpX    = cx[0][midP];
-    const bpY    = cy[midP];
-    const bmX    = cx[S - 1][midP];
-    const bmY    = cy[midP];
-    // BMS 위치 (팩 경계 위의 한 점)
+    let bpX, bpY, bmX, bmY, faceW, faceH;
+
+    if (arrangement === 'custom') {
+      // F21: 커스텀 배열 BMS 거리 계산
+      const rows = parseCustomRows();
+      if (!rows || rows.length === 0) return { distBp: null, distBm: null, ok: false };
+      const { pts, W, H } = Generator.calcCustomCenters(rows, p, CELL_SPEC);
+      const N = pts.length;
+      const cellsPerGroup = Math.ceil(N / S);
+      // snake boustrophedon (renderCustomRows와 동일 순서)
+      const byRow = rows.map(() => []);
+      pts.forEach(pt => byRow[pt.row].push(pt));
+      const snake = [];
+      for (let r = 0; r < byRow.length; r++) {
+        const row = [...byRow[r]];
+        if (r % 2 === 1) row.reverse();
+        snake.push(...row);
+      }
+      const groupCells = Array.from({ length: S }, () => []);
+      snake.forEach((pt, i) => {
+        const g = Math.min(S - 1, Math.floor(i / cellsPerGroup));
+        groupCells[g].push(pt);
+      });
+      const g0 = groupCells[0], gL = groupCells[S - 1];
+      if (!g0?.length || !gL?.length) return { distBp: null, distBm: null, ok: false };
+      bpX = g0[0].x;            bpY = g0[0].y;
+      bmX = gL[gL.length - 1].x; bmY = gL[gL.length - 1].y;
+      faceW = W; faceH = H;
+    } else {
+      const { cx, cy, R } = calcCellCenters(S, P, p);
+      const nw     = p.nickel_w_mm * p.scale;
+      const margin = p.margin_mm * p.scale;
+      let maxCx = 0;
+      for (let q = 0; q < P; q++) if (cx[S - 1][q] > maxCx) maxCx = cx[S - 1][q];
+      faceW  = maxCx + R + margin + nw * 2;
+      faceH  = cy[P - 1] + R + margin + 40;
+      const midP = Math.floor(P / 2);
+      bpX = cx[0][midP];      bpY = cy[midP];
+      bmX = cx[S - 1][midP];  bmY = cy[midP];
+    }
+
     let bmsX = 0, bmsY = 0;
     if (bms_edge === 'top')    { bmsX = bms_pos * faceW; bmsY = 0; }
     if (bms_edge === 'bottom') { bmsX = bms_pos * faceW; bmsY = faceH; }
@@ -380,7 +407,7 @@ function updateInfoBox() {
   document.getElementById('iBmsEdge').textContent =
     state.bms_edge.charAt(0).toUpperCase() + state.bms_edge.slice(1)
     + ' · ' + Math.round(state.bms_pos * 100) + '%';
-  if (state.arrangement !== 'custom') {
+  {
     const bms = calcBmsDistances();
     if (bms.ok) {
       document.getElementById('iDistBp').textContent  = bms.distBp + ' mm';
@@ -389,12 +416,12 @@ function updateInfoBox() {
       const totEl = document.getElementById('iDistTotal');
       totEl.textContent = tot + ' mm';
       totEl.className   = 'val ' + (tot < 60 ? 'green' : tot < 120 ? '' : 'amber');
+    } else {
+      ['iDistBp', 'iDistBm', 'iDistTotal'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.textContent = '—'; el.className = 'val'; }
+      });
     }
-  } else {
-    ['iDistBp', 'iDistBm', 'iDistTotal'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) { el.textContent = '—'; el.className = 'val'; }
-    });
   }
 }
 
@@ -687,6 +714,32 @@ function downloadSVG() {
   a.href     = URL.createObjectURL(blob);
   a.download = `${state.S}s${state.P}p_${state.cell_type}_${state.arrangement}.svg`;
   a.click();
+}
+
+// F24: PNG 내보내기 — SVG → Canvas(2×) → PNG
+function downloadPNG() {
+  if (!lastSVG) return;
+  const svgEl = document.querySelector('#svgOutput svg');
+  const vb    = svgEl ? svgEl.getAttribute('viewBox') : null;
+  let vbW = 800, vbH = 600;
+  if (vb) { const p = vb.split(' ').map(Number); vbW = p[2] || 800; vbH = p[3] || 600; }
+  const scale  = 2;
+  const canvas = document.createElement('canvas');
+  canvas.width  = Math.round(vbW * scale);
+  canvas.height = Math.round(vbH * scale);
+  const ctx    = canvas.getContext('2d');
+  const blob   = new Blob([lastSVG], { type: 'image/svg+xml;charset=utf-8' });
+  const url    = URL.createObjectURL(blob);
+  const img    = new Image();
+  img.onload = () => {
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    URL.revokeObjectURL(url);
+    const a    = document.createElement('a');
+    a.download = `${state.S}s${state.P}p_${state.cell_type}_${state.arrangement}.png`;
+    a.href     = canvas.toDataURL('image/png');
+    a.click();
+  };
+  img.src = url;
 }
 
 // ── 초기 렌더 ─────────────────────────────────────
