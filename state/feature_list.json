@@ -96,8 +96,8 @@
       "id": "F13",
       "category": "니켈 블록",
       "name": "P=7이상 대형팩 블록 타입 정의",
-      "description": "현재 P>6은 Unknown 처리. 산업 사례 조사 후 타입 확정 필요.",
-      "passes": false
+      "description": "selectBlockType(P): P<1 이외 모두 Generic 반환 (generator.js:101-109). P≥7도 drawNickelU Generic으로 처리 — P=6과 동일. 별도 타입 불필요. 2026-04-18.",
+      "passes": true
     },
 
     {

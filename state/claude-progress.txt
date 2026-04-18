@@ -1,10 +1,31 @@
 ========================================
-마지막 업데이트: 2026-04-18 (세션 15 종료 — P14 + S15D 실구현)
+마지막 업데이트: 2026-04-18 (세션 16 종료 — 원칙9 isAdj 수정 + F29/F13 완료)
 버전: renderer.js v0.3.2-unified / validator.js v7-tier2c-p14 / generator.js v7-M7-s15d
 원칙 문서: v7.1 (원칙 4·17 B+/B-·홀더 Level 계층, 원칙 15 Step C')
-개발 규율: skills/tdd-first.md + skills/systematic-debug.md (세션 15 재독 + 준수)
-테스트 상태: 442/442 PASS (+36, 신규 2 파일)
-git 상태: main 2 commits ahead of origin/main (4f8fb99, 0078e25) — 사용자 push 대기
+개발 규율: skills/tdd-first.md + skills/systematic-debug.md
+테스트 상태: 720/720 PASS (F29 회귀 테스트 144 조합 추가)
+feature_list.json: passes:false 항목 0개 — 전 항목 완료
+git 상태: up-to-date (push 완료)
+========================================
+
+## 세션 16 주요 성과
+
+| 커밋 | 내용 |
+|---|---|
+| 8fef79e | fix(renderer): 원칙 9 위반 커스텀 레이아웃 렌더 차단 (1차) |
+| ad02ddc | fix(renderer): isAdj 픽셀 거리 기반 교체 — 대각선 니켈선 제거 |
+| b0c8897 | feat(ui): 커스텀 모드 UI 개선 (직렬×병렬 표기·P 입력·S×P 경고) |
+| 176a21d | feat(test): F29 회귀 테스트 144 조합 SHA-256 baseline |
+| (F13)   | selectBlockType P≥7 → Generic 확인, passes:true 표시 |
+
+## 전체 feature_list.json 완료 현황
+- passes:false 항목: 0 (F13·F29 모두 완료)
+- 전체 35개 항목 모두 passes:true
+
+## 다음 세션 재개 시
+- feature_list.json passes:false 없음 → 신규 기능 요구사항 수령 대기
+- 회귀 테스트 추가 시: node tests/test_regression_all_sp.js --compare
+- 신규 S×P 조합 추가 시: --save 로 baseline 갱신 필요
 ========================================
 
 ## 🏠 세션 15 → 다음 세션 재개 지침
