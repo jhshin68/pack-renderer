@@ -299,30 +299,30 @@
   function groupQualityScore(cells, edges) {
     if (!cells || cells.length <= 1) return 0;
 
-    // T/Y형 판별: degree ≥ 3 분기 노드
-    const degree = new Array(cells.length).fill(0);
-    for (const { i, j } of edges) { degree[i]++; degree[j]++; }
-    if (degree.some(d => d >= 3)) return -10;
-
     // I형 판별: 모든 셀이 단일 x 또는 단일 y 라인
     const xs = cells.map(c => Math.round(_pt(c).x * 10) / 10);
     const ys = cells.map(c => Math.round(_pt(c).y * 10) / 10);
     if (new Set(xs).size === 1 || new Set(ys).size === 1) return 0;
 
-    // 2D 컴팩트 판별: 사이클 있음 (|E| ≥ |V|) && bounding-box 충진율 ≥ 0.75
-    // 사이클 없는 트리(L·S·U형)는 항상 0점, 사이클 있는 격자형이 +10 대상
+    // 사이클 판별 먼저: P-pentomino처럼 degree≥3 이지만 compact한 2D 그룹을 보호
     const hasCycle = edges.length >= cells.length;
-    if (!hasCycle) return 0;  // L·S·U형 등 단순 체인 → 0점
+    if (hasCycle) {
+      const minX = Math.min(...xs), maxX = Math.max(...xs);
+      const minY = Math.min(...ys), maxY = Math.max(...ys);
+      const p = estimatePitch(cells);
+      const bboxCols = Math.round((maxX - minX) / p) + 1;
+      const bboxRows = Math.round((maxY - minY) / p) + 1;
+      const fillRatio = cells.length / (bboxCols * bboxRows);
+      if (fillRatio >= 0.75) return +10;  // compact 2D (P-pent, 2×2 블록 등)
+      return 0;                           // 듬성 사이클
+    }
 
-    const minX = Math.min(...xs), maxX = Math.max(...xs);
-    const minY = Math.min(...ys), maxY = Math.max(...ys);
-    const p = estimatePitch(cells);
-    const bboxCols = Math.round((maxX - minX) / p) + 1;
-    const bboxRows = Math.round((maxY - minY) / p) + 1;
-    const fillRatio = cells.length / (bboxCols * bboxRows);
-    if (fillRatio >= 0.75) return +10;
+    // 트리: T/Y/X/F형 분기 노드 판별
+    const degree = new Array(cells.length).fill(0);
+    for (const { i, j } of edges) { degree[i]++; degree[j]++; }
+    if (degree.some(d => d >= 3)) return -10;
 
-    return 0;
+    return 0;  // L·S·U·Z·W·V·N 단순 체인
   }
 
   /**
