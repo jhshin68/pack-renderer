@@ -396,6 +396,78 @@
   }
 
   /**
+   * 원칙 28 — P/2P/P 셀 수 + 연결성 불변 검증
+   * S: 직렬 수, P: 병렬 수
+   * groupCells: 길이 S인 배열, 각 원소는 셀 좌표 배열 [{x,y}|{cx,cy}]
+   * arrangement: 'square'|'staggered'|'custom'
+   * pitch: 기준 거리 (optional)
+   *
+   * 반환: { valid:boolean, violations:[{group, reason}] }
+   *   - 각 그룹은 정확히 P개 셀이어야 함
+   *   - 각 그룹은 BFS 연결이어야 함 (원칙 28 ③)
+   *   - 인접 그룹 간 ≥1 인접 쌍 필수 (원칙 21B = 원칙 28의 연결성 근거)
+   */
+  function validateP28(S, P, groupCells, arrangement, pitch) {
+    if (!Array.isArray(groupCells) || groupCells.length !== S) {
+      return { valid: false, violations: [{ group: -1, reason: `그룹 수 불일치: expected ${S}, got ${groupCells ? groupCells.length : 0}` }] };
+    }
+
+    const violations = [];
+
+    for (let g = 0; g < S; g++) {
+      const cells = groupCells[g] || [];
+
+      // 셀 수 검증
+      if (cells.length !== P) {
+        violations.push({ group: g, reason: `원칙 28 ② 위반: G${g} 셀 수=${cells.length}, 기대=${P}` });
+        continue;
+      }
+
+      // BFS 연결성 검증
+      if (cells.length > 1) {
+        const p = pitch || estimatePitch(cells);
+        const edges = buildAdjacency(cells, arrangement || 'custom', p);
+        const adj = cells.map(() => []);
+        for (const { i, j } of edges) { adj[i].push(j); adj[j].push(i); }
+        const visited = new Set([0]);
+        const queue = [0];
+        while (queue.length) {
+          const cur = queue.shift();
+          for (const nb of adj[cur]) {
+            if (!visited.has(nb)) { visited.add(nb); queue.push(nb); }
+          }
+        }
+        if (visited.size < cells.length) {
+          violations.push({ group: g, reason: `원칙 28 ③ 위반: G${g} 셀 비연결 (연결=${visited.size}/${cells.length})` });
+        }
+      }
+    }
+
+    // 인접 그룹 간 ≥1 인접 쌍 (원칙 21B)
+    for (let g = 0; g + 1 < S; g++) {
+      const cellsA = groupCells[g] || [];
+      const cellsB = groupCells[g + 1] || [];
+      if (!cellsA.length || !cellsB.length) continue;
+      const allAB = [...cellsA, ...cellsB];
+      const p = pitch || estimatePitch(allAB);
+      const thr = (arrangement === 'custom') ? p * 1.1 : p * 1.05;
+      let found = false;
+      outer28: for (const ca of cellsA) {
+        const a = _pt(ca);
+        for (const cb of cellsB) {
+          const b = _pt(cb);
+          if (Math.hypot(a.x - b.x, a.y - b.y) <= thr) { found = true; break outer28; }
+        }
+      }
+      if (!found) {
+        violations.push({ group: g, reason: `원칙 28 ③ (P21B) 위반: G${g}↔G${g + 1} 인접 쌍 없음` });
+      }
+    }
+
+    return { valid: violations.length === 0, violations };
+  }
+
+  /**
    * 보스트로페돈 정렬 (원칙 24 ①)
    * cells: [{x,y}|{cx,cy}]
    * P: 병렬 셀 수 (행 높이, 행 분류 기준 — null이면 y 좌표 기반 자동)
@@ -1519,6 +1591,7 @@
     buildAdjacency,
     groupQualityScore,
     checkGroupValidity,
+    validateP28,            // 원칙 28 — P/2P/P 셀 수 + BFS 연결성 불변
     // design_spec entry_fns (M7 실구현 3종 + 잔여 스텁)
     assignGroupNumbers,       // S24 ✅ 실구현
     detectSymmetryGroup,      // S15A 실구현 (M7 세션 11)
