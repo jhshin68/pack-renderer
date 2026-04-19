@@ -50,11 +50,36 @@ const state = {
   allow_I:       false,       // 1자(I-pentomino) 허용 여부
   allow_U:       false,       // ㄷ자(U-pentomino) 허용 여부
   // Phase 5 — 니켈 플레이트 수 제한
-  max_plates:    0,           // 0 = 제한 없음, N = total_plates ≤ N인 후보만 표시
+  max_plates:    0,           // 0 = 제한 없음, N = 고유 형상(금형) 종류 수 ≤ N인 후보만 표시
   // UI
   zoom:          0.7,         // 중앙 SVG 표시 배율 (0.3 ~ 3.0)
 };
 let lastSVG = '';
+
+// ── 후보의 고유 형상(금형) 종류 수 계산 ──────────────
+// generator.js의 canonicalSig(_shapeSigOf) 로직을 복제 (square 4회전 기준)
+function _countDistinctShapes(cand) {
+  const sigs = new Set();
+  for (const g of (cand.groups || [])) {
+    const cells = g.cells || [];
+    if (cells.length === 0) continue;
+    const pts = cells.map(c => [c.x != null ? c.x : c.cx, c.y != null ? c.y : c.cy]);
+    const cx  = pts.reduce((s, p) => s + p[0], 0) / pts.length;
+    const cy  = pts.reduce((s, p) => s + p[1], 0) / pts.length;
+    const shifted = pts.map(([x, y]) => [x - cx, y - cy]);
+    const variants = [0, 1, 2, 3].map(k => {
+      const a = Math.PI / 2 * k, ca = Math.cos(a), sa = Math.sin(a);
+      const rot = shifted.map(([x, y]) => [
+        Math.round((x * ca - y * sa) * 10) / 10,
+        Math.round((x * sa + y * ca) * 10) / 10,
+      ]);
+      rot.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+      return JSON.stringify(rot);
+    });
+    sigs.add(variants.reduce((a, b) => a < b ? a : b));
+  }
+  return sigs.size;
+}
 
 // ── 비용 모델 (원칙 20) ──────────────────────────
 const MOLD_COST_KRW  = 20_000_000;
@@ -527,11 +552,11 @@ function rerender() {
   updateInfoBox();
   populateCandidatePanel();
 
-  // max_plates 필터 적용한 유효 후보 목록
+  // max_plates 필터: 고유 형상(금형) 종류 수 ≤ state.max_plates
   let effectiveCandidates = _enumResult ? (_enumResult.candidates || []) : [];
   if (state.max_plates > 0 && state.arrangement !== 'custom') {
     effectiveCandidates = effectiveCandidates.filter(
-      c => (c.total_plates != null ? c.total_plates : state.S + 1) <= state.max_plates
+      c => _countDistinctShapes(c) <= state.max_plates
     );
   }
 
@@ -756,9 +781,9 @@ function populateCandidatePanel() {
   _updateEnumStatus(result);
 
   let candidates = result.candidates || [];
-  // ★ max_plates 필터: total_plates ≤ state.max_plates인 후보만 표시
+  // ★ max_plates 필터: 고유 형상(금형) 종류 수 ≤ state.max_plates
   if (state.max_plates && state.max_plates > 0) {
-    candidates = candidates.filter(c => (c.total_plates || S + 1) <= state.max_plates);
+    candidates = candidates.filter(c => _countDistinctShapes(c) <= state.max_plates);
   }
   if (countEl) countEl.textContent = candidates.length + '개';
 
