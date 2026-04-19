@@ -871,7 +871,7 @@ function populateCandidatePanel() {
     // ★ Phase 4: pentomino 도형 배지
     let shapeTag = '';
     if (cand.is_pentomino) {
-      shapeTag = ` <span style="background:#166534;color:#86efac;font-size:8px;padding:1px 4px;border-radius:3px;font-weight:600">${cand.name}</span>`;
+      shapeTag = ` <span style="background:#2A3E66;color:rgba(255,255,255,.65);font-size:8px;padding:1px 4px;border-radius:3px">${cand.name}</span>`;
     } else if (cand.is_standard) {
       shapeTag = ` <span style="background:var(--bg2);color:var(--dt3);font-size:8px;padding:1px 4px;border-radius:3px">snake</span>`;
     }
@@ -885,14 +885,14 @@ function populateCandidatePanel() {
     const maxRS   = rowSpans.length ? Math.max(...rowSpans) : 1;
     const tyN     = groups.filter(g => g.has_TY).length;
     const totalQS = groups.reduce((s, g) => s + (g.quality_score || 0), 0);
-    const sigmaColor = cand.is_pentomino ? '#86efac' : (totalQS > 0 ? 'var(--green)' : 'var(--dt3)');
+    const sigmaColor = cand.is_pentomino ? '#86efac' : (totalQS > 0 ? '#4ADE80' : 'var(--dt3)');
     const sigmaStyle = cand.is_pentomino
       ? `font-weight:700;color:#86efac;font-size:11px`
       : `color:${sigmaColor}`;
-    const platesVal = cand.total_plates != null ? cand.total_plates : (S + 1);
+    const platesVal = _countDistinctShapes(cand);
     const statBits = [
       `<span style="${sigmaStyle}">Σ ${totalQS >= 0 ? '+' : ''}${totalQS}</span>`,
-      `<span style="color:var(--dt3)">플레이트 ${platesVal}개</span>`,
+      `<span style="color:#ffffff">플레이트 ${platesVal}개</span>`,
       `행스팬 평균 ${avgRS.toFixed(1)}/최대 ${maxRS}`,
       ...(tyN > 0 ? [`<span style="color:var(--amber)">T/Y ${tyN}</span>`] : []),
     ];
@@ -906,7 +906,6 @@ function populateCandidatePanel() {
         `<span class="score-chip ${badgeClass}">${badgeText}</span>` +
       `</div>` +
       `<div class="cand-scores">${scoreStr}</div>` +
-      `<div class="cand-desc">${cand.desc || ''}</div>` +
       `<div class="cand-stat" style="font-size:9px;color:var(--dt3);margin-top:3px;display:flex;gap:6px;flex-wrap:wrap">${statBits.join(' · ')}</div>`;
     listEl.appendChild(card);
   });

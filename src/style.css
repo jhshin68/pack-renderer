@@ -80,29 +80,30 @@ body {
   background: var(--accent);
   border-radius: 6px;
   display: flex; align-items: center; justify-content: center;
-  font-size: 13px;
+  font-size: 10px;
   flex-shrink: 0;
   box-shadow: 0 0 10px rgba(30,79,216,.4);
 }
 .logo-text {}
 .logo-brand {
-  font-size: 14px; font-weight: 700; letter-spacing: -.2px;
+  font-size: 11px; font-weight: 700; letter-spacing: -.2px;
   color: var(--dt);
 }
 .logo-sub {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 9.5px; letter-spacing: 1.5px; text-transform: uppercase;
+  font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase;
   color: var(--dt2); margin-top: 1px;
 }
 .logo-ver {
   margin-left: auto;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 9.5px; color: var(--dt3); letter-spacing: .5px;
+  font-size: 9px; color: var(--dt3); letter-spacing: .5px;
   flex-shrink: 0;
 }
 
 /* Sidebar body */
-.sidebar-body { padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+.sidebar-body { padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; flex: 1; }
+.sidebar-body > div { margin-top: 0 !important; }
 
 /* Section label */
 .ctrl-label {
@@ -115,12 +116,24 @@ body {
   content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
   width: 2px; height: 10px; background: var(--accent); border-radius: 1px;
 }
-
-/* Section separator */
-.ctrl-sep {
-  height: 1px; background: var(--sb-bdr);
-  flex-shrink: 0; margin: 4px 0; opacity: .8;
+.ctrl-label span {
+  font-size: 7px !important;
+  letter-spacing: 0;
+  text-transform: none;
+  font-weight: 400;
 }
+
+/* Menu group boxes */
+.sidebar-body > div:not(.ctrl-sep):not(.info-box):not(.theory-tag) {
+  background: var(--sb2);
+  border: 1px solid var(--sb-bdr);
+  border-radius: var(--r);
+  padding: 8px 10px;
+  color: #ffffff;
+}
+
+/* Section separator — hidden (boxes provide visual separation) */
+.ctrl-sep { display: none; }
 
 /* Segmented control */
 .seg {
@@ -129,9 +142,9 @@ body {
   border-radius: var(--r); padding: 2px;
 }
 .seg-btn {
-  flex: 1; padding: 5px 4px; border: none;
+  flex: 1; padding: 2px 4px; border: none;
   background: transparent; color: var(--dt2);
-  font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  font-family: 'JetBrains Mono', monospace; font-size: 10px;
   border-radius: 4px; cursor: pointer; transition: all .14s;
   white-space: nowrap;
 }
@@ -145,11 +158,11 @@ body {
 .num-row { display: flex; align-items: center; gap: 4px; flex-wrap: nowrap; }
 .num-pair { display: flex; align-items: center; gap: 2px; }
 .num-tag {
-  font-family: 'JetBrains Mono', monospace; font-size: 9px;
+  font-family: 'JetBrains Mono', monospace; font-size: 8px;
   color: var(--dt2); min-width: 12px; white-space: nowrap;
 }
 .num-val {
-  font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 500;
+  font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 500;
   color: var(--dt); min-width: 22px; text-align: center;
   font-variant-numeric: tabular-nums;
 }
@@ -164,7 +177,7 @@ input.num-val::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; 
 input.num-val[type=number] { -moz-appearance: textfield; }
 .num-btn {
   width: 17px; height: 17px; border: 1px solid var(--sb-bdr);
-  background: var(--sb2); color: var(--dt2); font-size: 11px;
+  background: var(--sb2); color: var(--dt2); font-size: 10px;
   border-radius: 4px; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   transition: all .14s; user-select: none;
@@ -175,7 +188,7 @@ input.num-val[type=number] { -moz-appearance: textfield; }
 
 /* Toggle */
 .toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 1px 0; }
-.toggle-label { font-size: 12px; color: var(--dt); }
+.toggle-label { font-size: 10px; color: var(--dt); }
 .toggle {
   width: 34px; height: 18px; background: var(--sb-bdr);
   border-radius: 9px; cursor: pointer; position: relative;
@@ -193,16 +206,16 @@ input.num-val[type=number] { -moz-appearance: textfield; }
 #customRows {
   width: 100%; background: var(--sb2); color: var(--dt);
   border: 1px solid var(--sb-bdr); border-radius: 5px;
-  padding: 3px 6px; font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  padding: 3px 6px; font-family: 'JetBrains Mono', monospace; font-size: 10px;
   resize: vertical; transition: border-color .14s;
 }
 #customRows:focus { outline: none; border-color: var(--accent); }
-.hint { font-size: 11px; color: var(--dt3); font-family: 'JetBrains Mono', monospace; line-height: 1.5; }
+.hint { font-size: 8px; color: var(--dt3); font-family: 'JetBrains Mono', monospace; line-height: 1.5; }
 
 /* ± buttons beside max_plates input */
 .adj-btn {
-  width: 22px; height: 22px; border: 1px solid var(--sb-bdr);
-  background: var(--sb2); color: var(--dt2); font-size: 15px; line-height: 1;
+  width: 18px; height: 18px; border: 1px solid var(--sb-bdr);
+  background: var(--sb2); color: var(--dt2); font-size: 10px; line-height: 1;
   border-radius: 4px; cursor: pointer; flex-shrink: 0;
   display: inline-flex; align-items: center; justify-content: center;
   transition: all .14s; user-select: none;
@@ -212,10 +225,10 @@ input.num-val[type=number] { -moz-appearance: textfield; }
 
 /* max_plates input */
 #valMaxPlates {
-  width: 52px; text-align: center;
+  width: 42px; text-align: center;
   background: var(--sb3); color: var(--dt);
   border: 1px solid var(--sb-bdr); border-radius: 4px;
-  padding: 3px 6px; font-size: 13px; font-weight: 600;
+  padding: 2px 4px; font-size: 8px; font-weight: 600;
   font-family: 'JetBrains Mono', monospace; outline: none;
   font-variant-numeric: tabular-nums;
 }
@@ -226,10 +239,10 @@ input.num-val[type=number] { -moz-appearance: textfield; }
 
 /* G0 anchor select */
 #g0AnchorMode {
-  width: 100%; padding: 5px 8px;
+  width: 100%; padding: 3px 8px;
   background: var(--sb3); color: var(--dt);
   border: 1px solid var(--sb-bdr); border-radius: 4px;
-  font-size: 11px; font-family: 'JetBrains Mono', monospace;
+  font-size: 9px; font-family: 'JetBrains Mono', monospace;
   cursor: pointer; outline: none;
 }
 #g0AnchorMode:focus { border-color: var(--accent); }
@@ -238,7 +251,7 @@ input.num-val[type=number] { -moz-appearance: textfield; }
 /* Render button */
 .render-btn {
   padding: 10px 14px; border: none; border-radius: var(--r); cursor: pointer;
-  font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600;
+  font-family: 'Inter', sans-serif; font-size: 10px; font-weight: 600;
   letter-spacing: .2px; color: #fff;
   background: var(--accent);
   box-shadow: 0 2px 12px rgba(30,79,216,.35);
@@ -256,7 +269,7 @@ input.num-val[type=number] { -moz-appearance: textfield; }
 .info-box {
   background: var(--sb2); border: 1px solid var(--sb-bdr);
   border-radius: var(--r); padding: 8px 11px;
-  font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--dt2);
+  font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--dt2);
   line-height: 1.7;
 }
 .info-box .row { display: flex; justify-content: space-between; align-items: baseline; gap: 4px; }
@@ -266,7 +279,7 @@ input.num-val[type=number] { -moz-appearance: textfield; }
 .info-box .val.amber { color: #FBBF24; }
 .info-box .divider { border-top: 1px solid var(--sb-bdr); margin: 5px 0; }
 .info-title {
-  font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase;
+  font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase;
   color: var(--dt3); margin-bottom: 5px;
 }
 
@@ -274,14 +287,14 @@ input.num-val[type=number] { -moz-appearance: textfield; }
 .dl-btn {
   padding: 10px 14px; background: transparent;
   border: 1px solid var(--sb-bdr); color: var(--dt2);
-  border-radius: var(--r); font-family: 'Inter', sans-serif; font-size: 13px;
+  border-radius: var(--r); font-family: 'Inter', sans-serif; font-size: 10px;
   cursor: pointer; transition: all .14s; text-align: center;
 }
 .dl-btn:hover { border-color: var(--green); color: #4ADE80; }
 
 /* Footer tag */
 .theory-tag {
-  font-family: 'JetBrains Mono', monospace; font-size: 9.5px;
+  font-family: 'JetBrains Mono', monospace; font-size: 9px;
   color: var(--dt3); text-align: center;
   padding: 8px 0 10px; border-top: 1px solid var(--sb-bdr);
   letter-spacing: .8px;
@@ -405,8 +418,8 @@ input.num-val[type=number] { -moz-appearance: textfield; }
   border-radius: 10px; padding: 2px 8px;
 }
 .rp-body {
-  padding: 10px 12px;
-  display: flex; flex-direction: column; gap: 10px;
+  padding: 6px 10px;
+  display: flex; flex-direction: column; gap: 4px;
   flex: 1; overflow-y: auto;
   scrollbar-width: thin; scrollbar-color: var(--sb-bdr) transparent;
 }
@@ -415,21 +428,21 @@ input.num-val[type=number] { -moz-appearance: textfield; }
 /* Candidate cards */
 .cand-card {
   background: var(--sb2); border: 1px solid var(--sb-bdr);
-  border-radius: 5px; padding: 8px 10px;
-  cursor: pointer; transition: all .14s; margin-bottom: 3px;
+  border-radius: 4px; padding: 4px 8px;
+  cursor: pointer; transition: all .14s; margin-bottom: 1px;
 }
 .cand-card:hover { border-color: var(--accent); }
-.cand-card.selected { border-color: var(--accent); background: var(--accent-g); }
+.cand-card.selected { border-color: #E11D48; background: rgba(225,29,72,.07); }
 
 .cand-hdr {
   display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 3px;
+  margin-bottom: 1px;
 }
-.cand-name { font-size: 12px; font-weight: 500; color: var(--dt); }
+.cand-name { font-size: 9px; font-weight: 500; color: var(--dt); }
 
 .score-chip {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 10px; padding: 2px 6px; border-radius: 3px; font-weight: 700;
+  font-size: 8px; padding: 1px 4px; border-radius: 3px; font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 .score-chip.pos  { background: rgba(4,120,87,.2);   color: #4ADE80; }
@@ -438,7 +451,7 @@ input.num-val[type=number] { -moz-appearance: textfield; }
 
 .cand-scores {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 11px; color: var(--dt2); line-height: 1.5;
+  font-size: 8px; color: var(--dt2); line-height: 1.3;
 }
 .cand-desc {
   font-family: 'JetBrains Mono', monospace;
