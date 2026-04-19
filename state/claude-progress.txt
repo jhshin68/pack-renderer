@@ -1,9 +1,33 @@
 ========================================
-마지막 업데이트: 2026-04-19 (세션 24 — 원칙 1/29 버그픽스 + 커스텀 배열 완성 + 원칙 29 추가)
+마지막 업데이트: 2026-04-19 (세션 25 — 커스텀 배열 열거 완성 + principle-guard 훅)
 버전: battery_pack_renderer.html, src/app.js, src/generator.js, src/renderer.js
-테스트 상태: 브라우저 확인 완료 (13S4P 커스텀 4개 후보, 렌더링 정상)
-feature_list.json: F36 passes:true (브라우저 확인 완료)
-git 상태: 세션 24 커밋 예정
+테스트 상태: 13S4P 커스텀 40개 후보 265ms, 회귀 720/720 통과
+feature_list.json: 모든 항목 passes:true
+git 상태: 세션 25 커밋 완료
+
+## 세션 25 진행 (2026-04-19) — 커스텀 배열 열거 완성 + principle-guard 훅
+
+### 완료 사항
+
+#### 커스텀 배열 열거 완성 (generator.js)
+- 문제: flatToCandidate가 scan 순서 기반 그룹 생성 → 물리적으로 연결되지 않은 그룹 다수
+- 수정 1: isGroupConnected() 추가 + flatToCandidate에서 비연결 그룹 null 반환
+- 수정 2: passICC_bt() icc3 버그 수정 — `if (icc.hasT)` → `if (icc3 && icc.hasT)` (icc3 파라미터 무시 버그)
+- 수정 3: dfsCustom() 신규 — 부스트로피돈 스캔 순서 기반 결정론적 그룹 시작점, 체이닝 제약 없음
+- 수정 4: ICC2 임계값 완화 — custom 배열 ratio ≤ 3.0 (기존 2.0; 정배열/엇배열 2.0 유지)
+- 결과: 13S4P custom rows=[10,12,13,12,5] → 40개 후보, 265ms, 회귀 720/720 통과
+
+#### principle-guard PreToolUse 훅 시스템
+- .claude/hooks/principle-guard.py: Edit/Write/MultiEdit 전 자동 원칙 위반 검사
+- Stage 1 정적 규칙: P29-VIOLATION(renderer.js), P9-LOW-THRESHOLD(generator.js)
+- Stage 2 AI 판정: 트리거 키워드 포함 시 claude -p 호출
+- .claude/principles.md: 원칙 감시 기준 문서
+
+### 다음 할 일
+- [ ] 브라우저에서 13S4P 커스텀 후보 렌더링 확인 (연결된 그룹 극성 표시 정상인지)
+- [ ] custom 배열 ICC1 적합성 검토: row_span ≤ 2 제약이 엇배열 custom stagger에서 적절한지
+- [ ] 회귀 baseline 업데이트 (tests/test_regression_all_sp.js --save 재실행 여부 확인)
+- [ ] F37 후보: custom 배열 quality_score 표시 방식 개선
 
 ## 세션 24 진행 (2026-04-19) — 원칙 1/29 버그픽스 + 커스텀 배열 완성 + 원칙 29 신설
 

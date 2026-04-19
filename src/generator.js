@@ -1342,6 +1342,24 @@
       };
     }
 
+    // 그룹 내 셀 연결성 검사 (원칙 1: P개 셀이 인접 그래프 상 연결되어야 함)
+    function isGroupConnected(gc) {
+      if (gc.length <= 1) return true;
+      const adj = Array.from({ length: gc.length }, () => []);
+      for (let i = 0; i < gc.length; i++)
+        for (let j = i + 1; j < gc.length; j++)
+          if (Math.hypot(gc[i].x - gc[j].x, gc[i].y - gc[j].y) <= thr + 0.5) {
+            adj[i].push(j); adj[j].push(i);
+          }
+      const vis = new Set([0]);
+      const q = [0];
+      while (q.length) {
+        const n = q.shift();
+        for (const nb of adj[n]) if (!vis.has(nb)) { vis.add(nb); q.push(nb); }
+      }
+      return vis.size === gc.length;
+    }
+
     // ── Phase 1: 표준 배열 4종 생성 ─────────────────────────────────
     function makeBoustrophedon(startLTR) {
       const rowMap = new Map();
@@ -1388,6 +1406,7 @@
       let iccViolations = 0;
       for (let g = 0; g < S; g++) {
         const gc = flat.slice(g * P, (g + 1) * P);
+        if (!isGroupConnected(gc)) return null;
         const icc = groupICC(gc);
         if (icc.hasT) iccViolations++;
         if (icc1 && !icc.icc1_ok) iccViolations++;
@@ -1456,9 +1475,11 @@
       }
     }
 
-    // ── Phase 2: 백트래킹 (N ≤ 18 소형만, 비표준 해 탐색) ──────────
-    if (N <= 18 && results.length < max_candidates) {
+    // ── Phase 2: 백트래킹 (N ≤ 18 소형 또는 custom 배열, 비표준 해 탐색) ──────────
+    if ((arrangement === 'custom' || N <= 18) && results.length < max_candidates) {
       strategy = 'standard+backtracking';
+      const btBudgetMs = arrangement === 'custom' ? 3000 : Infinity;
+      const btStart    = Date.now();
 
       const adjL = Array.from({ length: N }, () => []);
       for (let i = 0; i < N; i++) {
@@ -1473,9 +1494,12 @@
         if (idxArr.length < 2) return true;
         const gc = idxArr.map(i => cells[i]);
         const icc = groupICC(gc);
-        if (icc.hasT) return false;
+        if (icc3 && icc.hasT) return false;
         if (icc1 && !icc.icc1_ok) return false;
-        if (icc2 && !icc.icc2_ok) return false;
+        if (icc2) {
+          const maxRatio = arrangement === 'custom' ? 3.0 : 2.0;
+          if (!icc.is1D && icc.ratio > maxRatio) return false;
+        }
         return true;
       }
 
@@ -1485,73 +1509,137 @@
       ));
 
       const used = new Uint8Array(N);
-      const MAX_ITER_BT = 50000;
+      const MAX_ITER_BT = arrangement === 'custom' ? 2000000 : 50000;
 
-      function dfs(gIdx, snapGroups, curIdxs, frontier) {
-        if (results.length >= max_candidates || ++btIterations > MAX_ITER_BT) return;
+      // ── 공통 후보 기록 헬퍼 ────────────────────────────────────────
+      function commitCandidate(allSnaps) {
+        const groups = allSnaps.map((g, gi) => {
+          const gc = g.map(i => cells[i]);
+          const icc = groupICC(gc);
+          return {
+            index: gi, cells: gc,
+            quality_score: icc.qs,
+            is_b_plus: gi === 0, is_b_minus: gi === S - 1,
+            icc1_ok: icc.icc1_ok, icc2_ok: icc.icc2_ok, has_TY: icc.hasT,
+          };
+        });
+        const sig = groups.map(g => g.cells.map(c => xyKey(c)).sort().join(';')).join('|');
+        if (!seenSigs.has(sig)) {
+          seenSigs.add(sig);
+          const totalScore = groups.reduce((s, g) => s + g.quality_score, 0);
+          results.push({
+            groups, total_score: totalScore,
+            name: `비표준 ${results.length + 1}`, desc: 'backtracking',
+            is_standard: false, b_plus_ok: true, b_minus_ok: true,
+            icc_violations: 0, total_plates: S + 1,
+          });
+        }
+      }
 
-        if (curIdxs.length === P) {
-          if (!passICC_bt(curIdxs)) return;
-          const snap = [...curIdxs];
-          const allSnaps = snapGroups.concat([snap]);
+      if (arrangement === 'custom') {
+        // Custom 배열: G1+ 시작 셀을 스캔 순서상 첫 미사용 셀로 고정 (체이닝 없음)
+        // → 연결성은 within-group adjacency growth로 보장, 그룹 간 위치는 자유
+        const scanOrder = makeBoustrophedon(true)
+          .map(c => cellIdxMap.get(xyKey(c)))
+          .filter(i => i !== undefined);
 
-          if (gIdx === S - 1) {
-            if (!snap.some(i => bMinus.has(i))) return;
-            const groups = allSnaps.map((g, gi) => {
-              const gc = g.map(i => cells[i]);
-              const icc = groupICC(gc);
-              return {
-                index: gi, cells: gc,
-                quality_score: icc.qs,
-                is_b_plus: gi === 0, is_b_minus: gi === S - 1,
-                icc1_ok: icc.icc1_ok, icc2_ok: icc.icc2_ok, has_TY: icc.hasT,
-              };
-            });
-            const sig = groups.map(g => g.cells.map(c => xyKey(c)).sort().join(';')).join('|');
-            if (!seenSigs.has(sig)) {
-              seenSigs.add(sig);
-              const totalScore = groups.reduce((s, g) => s + g.quality_score, 0);
-              results.push({
-                groups, total_score: totalScore,
-                name: `비표준 ${results.length + 1}`, desc: 'backtracking',
-                is_standard: false, b_plus_ok: true, b_minus_ok: true,
-                icc_violations: 0,
-                total_plates: S + 1,
-              });
+        function dfsCustom(gIdx, snapGroups, curIdxs, frontier) {
+          if (results.length >= max_candidates || ++btIterations > MAX_ITER_BT) return;
+          if (Date.now() - btStart > btBudgetMs) return;
+
+          if (curIdxs.length === P) {
+            if (!passICC_bt(curIdxs)) return;
+            const snap = [...curIdxs];
+            const allSnaps = snapGroups.concat([snap]);
+
+            if (gIdx === S - 1) {
+              if (!snap.some(i => bMinus.has(i))) return;
+              commitCandidate(allSnaps);
+              return;
+            }
+
+            let nextStart = -1;
+            for (const ci of scanOrder) { if (!used[ci]) { nextStart = ci; break; } }
+            if (nextStart < 0) return;
+
+            used[nextStart] = 1;
+            dfsCustom(gIdx + 1, allSnaps, [nextStart],
+              new Set(adjL[nextStart].filter(nb => !used[nb])));
+            used[nextStart] = 0;
+            return;
+          }
+
+          for (const cand of frontier) {
+            used[cand] = 1;
+            curIdxs.push(cand);
+            const nf = new Set(frontier);
+            nf.delete(cand);
+            for (const nb of adjL[cand]) { if (!used[nb]) nf.add(nb); }
+            dfsCustom(gIdx, snapGroups, curIdxs, nf);
+            curIdxs.pop();
+            used[cand] = 0;
+          }
+        }
+
+        const bPlusInOrder = scanOrder.filter(i => bPlus.has(i));
+        const bPlusFiltered = anchorCells
+          ? bPlusInOrder.filter(i => anchorMatches(cells[i]))
+          : bPlusInOrder;
+        for (const startCell of bPlusFiltered) {
+          if (results.length >= max_candidates) break;
+          if (Date.now() - btStart > btBudgetMs) break;
+          used[startCell] = 1;
+          dfsCustom(0, [], [startCell], new Set(adjL[startCell].filter(nb => !used[nb])));
+          used[startCell] = 0;
+        }
+
+      } else {
+        // N ≤ 18: 기존 그룹 체이닝 DFS
+        function dfs(gIdx, snapGroups, curIdxs, frontier) {
+          if (results.length >= max_candidates || ++btIterations > MAX_ITER_BT) return;
+
+          if (curIdxs.length === P) {
+            if (!passICC_bt(curIdxs)) return;
+            const snap = [...curIdxs];
+            const allSnaps = snapGroups.concat([snap]);
+
+            if (gIdx === S - 1) {
+              if (!snap.some(i => bMinus.has(i))) return;
+              commitCandidate(allSnaps);
+              return;
+            }
+
+            for (const nextStart of frontier) {
+              used[nextStart] = 1;
+              const nextFront = new Set(adjL[nextStart].filter(nb => !used[nb]));
+              dfs(gIdx + 1, allSnaps, [nextStart], nextFront);
+              used[nextStart] = 0;
             }
             return;
           }
 
-          for (const nextStart of frontier) {
-            used[nextStart] = 1;
-            const nextFront = new Set(adjL[nextStart].filter(nb => !used[nb]));
-            dfs(gIdx + 1, allSnaps, [nextStart], nextFront);
-            used[nextStart] = 0;
+          for (const cand of frontier) {
+            used[cand] = 1;
+            curIdxs.push(cand);
+            const nf = new Set(frontier);
+            nf.delete(cand);
+            for (const nb of adjL[cand]) { if (!used[nb]) nf.add(nb); }
+            dfs(gIdx, snapGroups, curIdxs, nf);
+            curIdxs.pop();
+            used[cand] = 0;
           }
-          return;
         }
 
-        for (const cand of frontier) {
-          used[cand] = 1;
-          curIdxs.push(cand);
-          const nf = new Set(frontier);
-          nf.delete(cand);
-          for (const nb of adjL[cand]) { if (!used[nb]) nf.add(nb); }
-          dfs(gIdx, snapGroups, curIdxs, nf);
-          curIdxs.pop();
-          used[cand] = 0;
+        // ★ G0 앵커: 시작 셀을 앵커 일치 셀로 제한
+        const bPlusFiltered = anchorCells
+          ? [...bPlus].filter(i => anchorMatches(cells[i]))
+          : [...bPlus];
+        for (const startCell of bPlusFiltered) {
+          if (results.length >= max_candidates || btIterations > MAX_ITER_BT) break;
+          used[startCell] = 1;
+          dfs(0, [], [startCell], new Set(adjL[startCell].filter(nb => !used[nb])));
+          used[startCell] = 0;
         }
-      }
-
-      // ★ G0 앵커: 시작 셀을 앵커 일치 셀로 제한
-      const bPlusFiltered = anchorCells
-        ? [...bPlus].filter(i => anchorMatches(cells[i]))
-        : [...bPlus];
-      for (const startCell of bPlusFiltered) {
-        if (results.length >= max_candidates || btIterations > MAX_ITER_BT) break;
-        used[startCell] = 1;
-        dfs(0, [], [startCell], new Set(adjL[startCell].filter(nb => !used[nb])));
-        used[startCell] = 0;
       }
     }
 
