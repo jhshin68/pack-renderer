@@ -1186,6 +1186,44 @@
   }
 
   /**
+   * 커스텀 배열 전용 경계 셀 집합 (Bug2 — 행별 오프셋 보정)
+   * 'left'/'right': 각 행에서 x가 최소/최대인 셀 (전역 min/max 아님)
+   * 'top'/'bottom': 기존 y 기반 로직 동일
+   */
+  function calcCustomBoundarySet(cells, side) {
+    if (!cells || cells.length === 0) return new Set();
+    const rowMap = new Map();
+    for (let i = 0; i < cells.length; i++) {
+      const r = cells[i].row;
+      if (!rowMap.has(r)) rowMap.set(r, []);
+      rowMap.get(r).push(i);
+    }
+    const set = new Set();
+    if (side === 'left') {
+      for (const idxs of rowMap.values()) {
+        let minX = Infinity, minI = -1;
+        for (const i of idxs) { if (cells[i].x < minX) { minX = cells[i].x; minI = i; } }
+        if (minI >= 0) set.add(minI);
+      }
+    } else if (side === 'right') {
+      for (const idxs of rowMap.values()) {
+        let maxX = -Infinity, maxI = -1;
+        for (const i of idxs) { if (cells[i].x > maxX) { maxX = cells[i].x; maxI = i; } }
+        if (maxI >= 0) set.add(maxI);
+      }
+    } else {
+      const ys = cells.map(c => c.y);
+      const minY = Math.min(...ys), maxY = Math.max(...ys);
+      const tol = estimatePitch(cells) * 0.5;
+      for (let i = 0; i < cells.length; i++) {
+        if (side === 'top'    && cells[i].y <= minY + tol) set.add(i);
+        if (side === 'bottom' && cells[i].y >= maxY - tol) set.add(i);
+      }
+    }
+    return set;
+  }
+
+  /**
    * 홀더 그리드 셀 좌표 생성 (H1 — Level 1 물리 홀더)
    * hRows: 홀더 행 수  hCols: 홀더 열 수
    * pattern: 'square'|'staggered'
@@ -1249,6 +1287,7 @@
       g0_anchor = null,  // ★ Phase 2: 1번 셀 위치 제약 (null | 'TL' | 'TR' | 'BL' | 'BR' | {row, col})
       allow_I = false,   // ★ Phase 4: I-pentomino 허용 여부
       allow_U = false,   // ★ Phase 4: U-pentomino 허용 여부
+      pitch: pitchArg = null, // ★ Bug1: 커스텀 배열에서 calcCustomCenters가 반환한 실제 pitch 명시 전달
     } = ctx || {};
 
     if (!cells || cells.length === 0 || S < 1 || P < 1) {
@@ -1259,10 +1298,10 @@
       return { candidates: [], count: 0, strategy: 'none', error: `셀 부족: ${N} < ${S}×${P}` };
     }
 
-    const pitch = estimatePitch(cells);
+    const pitch = (pitchArg != null) ? pitchArg : estimatePitch(cells);
     const thr   = arrangement === 'custom' ? pitch * 1.5 : pitch * 1.05;
-    const bPlus  = calcBoundarySet(cells, b_plus_side);
-    const bMinus = calcBoundarySet(cells, b_minus_side);
+    const bPlus  = arrangement === 'custom' ? calcCustomBoundarySet(cells, b_plus_side)  : calcBoundarySet(cells, b_plus_side);
+    const bMinus = arrangement === 'custom' ? calcCustomBoundarySet(cells, b_minus_side) : calcBoundarySet(cells, b_minus_side);
 
     // ★ Phase 2: G0 앵커 매칭 헬퍼
     //   TL/TR/BL/BR: row 최소/최대 × col 최소/최대 교차
@@ -1381,6 +1420,29 @@
       return vis.size === gc.length;
     }
 
+    // 후보 유효성 검사: 원칙 8(셀수), 21A(그룹 내 연결), 21B+28③(인접 그룹 쌍 연결)
+    function validateCandidate(groups) {
+      for (let g = 0; g < groups.length; g++) {
+        if (groups[g].cells.length !== P) return false;
+      }
+      for (let g = 0; g < groups.length; g++) {
+        if (!isGroupConnected(groups[g].cells)) return false;
+      }
+      for (let g = 0; g + 1 < groups.length; g++) {
+        const ga = groups[g].cells, gb = groups[g + 1].cells;
+        const ok = ga.some(a => gb.some(b =>
+          Math.hypot(a.x - b.x, a.y - b.y) <= thr + 0.5));
+        if (!ok) return false;
+      }
+      for (let pStart = 0; pStart <= 1; pStart++) {
+        for (let g = pStart; g + 1 < groups.length; g += 2) {
+          const merged = [...groups[g].cells, ...groups[g + 1].cells];
+          if (!isGroupConnected(merged)) return false;
+        }
+      }
+      return true;
+    }
+
     // ── Phase 1: 표준 배열 4종 생성 ─────────────────────────────────
     function makeBoustrophedon(startLTR) {
       const rowMap = new Map();
@@ -1440,6 +1502,7 @@
           icc1_ok: icc.icc1_ok, icc2_ok: icc.icc2_ok, has_TY: icc.hasT,
         });
       }
+      if (!validateCandidate(groups)) return null;
       const bpOk = groups[0]?.cells.some(c => cellInBoundary(c, bPlus)) ?? false;
       const bmOk = groups[S - 1]?.cells.some(c => cellInBoundary(c, bMinus)) ?? false;
       const totalScore = groups.reduce((s, g) => s + g.quality_score, 0);
@@ -1545,6 +1608,7 @@
           };
         });
         if (!allow_I && groups.some(g => _isLinearGroup(g.cells))) return;
+        if (!validateCandidate(groups)) return;
         const sig = groups.map(g => g.cells.map(c => xyKey(c)).sort().join(';')).join('|');
         if (!seenSigs.has(sig)) {
           seenSigs.add(sig);
@@ -1580,15 +1644,29 @@
               return;
             }
 
-            // 스캔 순서에서 첫 번째 미사용 셀을 다음 그룹 시작점으로 사용 (세션25 방식)
-            // 인접 제약을 걸면 중앙정렬 불규칙 행(rows=[10,12,13,12,5])에서 탐색 불가
-            let nextStart = -1;
-            for (const ci of scanOrder) { if (!used[ci]) { nextStart = ci; break; } }
-            if (nextStart < 0) return;
-            used[nextStart] = 1;
-            dfsCustom(gIdx + 1, allSnaps, [nextStart],
-              new Set(adjL[nextStart].filter(nb => !used[nb])));
-            used[nextStart] = 0;
+            // 인접 우선: 현재 그룹에 인접한 미사용 셀 최대 5개 시도
+            // 비인접 fallback: 인접 셀 없으면 스캔 순서 첫 미사용 셀 1개 (세션26 방식)
+            // validateCandidate 게이트에서 비인접 후보 최종 폐기
+            const adjToSnap = new Set();
+            for (const ci of snap) {
+              for (const nb of adjL[ci]) { if (!used[nb]) adjToSnap.add(nb); }
+            }
+            const adjStarts = [];
+            for (const ci of scanOrder) {
+              if (adjStarts.length >= 5) break;
+              if (!used[ci] && adjToSnap.has(ci)) adjStarts.push(ci);
+            }
+            const starts = adjStarts.length > 0
+              ? adjStarts
+              : (() => { for (const ci of scanOrder) { if (!used[ci]) return [ci]; } return []; })();
+            for (const nextStart of starts) {
+              if (results.length >= max_candidates) break;
+              if (Date.now() - btStart > btBudgetMs) break;
+              used[nextStart] = 1;
+              dfsCustom(gIdx + 1, allSnaps, [nextStart],
+                new Set(adjL[nextStart].filter(nb => !used[nb])));
+              used[nextStart] = 0;
+            }
             return;
           }
 

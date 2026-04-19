@@ -155,6 +155,147 @@ for (const { S, P, arrangement } of combos) {
   }
 }
 
+// ══════════════════════════════════════════════════════
+// 커스텀 배열 테스트 (F29 확장)
+// ══════════════════════════════════════════════════════
+const CUSTOM_COMBOS = [
+  { S:3,  P:2, rows:[3,3],             offsets:[0,0],        label:'3S2P_2행' },
+  { S:4,  P:3, rows:[6,6],             offsets:[0,0],        label:'4S3P_2행' },
+  { S:4,  P:2, rows:[4,4],             offsets:[0,0],        label:'4S2P_2행' },
+  { S:7,  P:3, rows:[7,7,7],           offsets:[0,0,0],      label:'7S3P_3행' },
+  { S:10, P:3, rows:[10,10,10],        offsets:[0,0,0],      label:'10S3P_3행' },
+  { S:13, P:4, rows:[10,12,13,12,5],   offsets:[0,-2,-1,1,1],label:'13S4P_비균일' },
+  { S:13, P:4, rows:[5,12,13,12,10],   offsets:[1,1,-1,-2,0],label:'13S4P_비균일_역순' },
+  { S:2,  P:2, rows:[2,2],             offsets:[0,0],        label:'2S2P_최소' },
+  { S:5,  P:1, rows:[5],               offsets:[0],          label:'5S1P_1행' },
+  { S:6,  P:4, rows:[12,12],           offsets:[0,0],        label:'6S4P_2행' },
+];
+
+console.log('\n═══════════════════════════════════════════');
+console.log(`커스텀 배열 테스트 (${CUSTOM_COMBOS.length} × stagger OFF/ON = ${CUSTOM_COMBOS.length * 2})`);
+console.log('═══════════════════════════════════════════');
+
+for (const tc of CUSTOM_COMBOS) {
+  for (const stagger of [false, true]) {
+    const key = `custom_${tc.label}_stag${stagger ? 'ON' : 'OFF'}`;
+    const renderParams = {
+      S: tc.S, P: tc.P, arrangement: 'custom',
+      cell_type: '21700', scale: 1.5, face: 'all',
+      show_nickel: true, show_terminal: true,
+      gap: 0, nickel_w_mm: 4.0, margin_mm: 8.0, gap_section: 36,
+      rows: tc.rows, row_offsets: tc.offsets,
+      custom_align: 'center',
+      custom_stagger: stagger, custom_stagger_dir: 'R',
+    };
+
+    // ① 크래시 없이 SVG 반환
+    let svg;
+    try { svg = renderSvg(renderParams); }
+    catch(e) { check(`${key}: no crash`, false, e.message); continue; }
+    check(`${key}: returns SVG`, typeof svg === 'string' && svg.includes('<svg'));
+    check(`${key}: no NaN`, !hasNanCoord(svg));
+
+    // ② 셀 수
+    if (!svg.includes('원칙 9 위반')) {
+      const circles = countCircles(svg);
+      check(`${key}: circles >= S*P`, circles >= tc.S * tc.P,
+        `circles=${circles}, expected>=${tc.S * tc.P}`);
+    }
+
+    // ③ 후보 열거 (enumerateGroupAssignments 직접 호출)
+    let candCount = 0;
+    try {
+      const CELL_SPEC = {
+        '18650': { actual_d: 18.0, render_d: 19.0, pitch_default: 20.0, pitch_min: 19.5 },
+        '21700': { actual_d: 21.0, render_d: 22.0, pitch_default: 23.0, pitch_min: 22.5 },
+      };
+      const cc = vmCtx.Generator.calcCustomCenters(tc.rows,
+        { ...renderParams, custom_stagger: stagger }, CELL_SPEC);
+      const enumResult = vmCtx.Generator.enumerateGroupAssignments({
+        cells: cc.pts, S: tc.S, P: tc.P, arrangement: 'custom',
+        b_plus_side: 'left', b_minus_side: 'right',
+        icc1: false, icc2: false, icc3: false,
+        nickel_w: 4.0 * 1.5, max_candidates: 20,
+        allow_I: true, allow_U: false,
+        pitch: cc.pitch,
+      });
+      candCount = (enumResult.candidates || []).length;
+      check(`${key}: candidates >= 1`, candCount >= 1, `got ${candCount}`);
+
+      // ④ 원칙 28②: 모든 후보의 모든 그룹이 정확히 P개 셀
+      let p28ii_ok = true;
+      for (const cand of (enumResult.candidates || [])) {
+        for (const g of cand.groups) {
+          if (g.cells.length !== tc.P) {
+            check(`${key}: P28② G${g.index} cell count`, false,
+              `G${g.index}=${g.cells.length}셀, expected=${tc.P}`);
+            p28ii_ok = false; break;
+          }
+        }
+        if (!p28ii_ok) break;
+      }
+      if (p28ii_ok) check(`${key}: P28② all groups P=${tc.P}`, true);
+
+      // ⑤ 원칙 28③: 인접 그룹 쌍 연결
+      const thr = cc.pitch * 1.5;
+      let p28iii_ok = true;
+      for (const cand of (enumResult.candidates || [])) {
+        const gc = cand.groups;
+        for (let g = 0; g + 1 < gc.length; g++) {
+          const ga = gc[g].cells, gb = gc[g + 1].cells;
+          const ok = ga.some(a => gb.some(b =>
+            Math.hypot(a.x - b.x, a.y - b.y) <= thr + 0.5));
+          if (!ok) {
+            check(`${key}: P28③ G${g}↔G${g+1}`, false, '비인접 → 플레이트 단절');
+            p28iii_ok = false; break;
+          }
+        }
+        if (!p28iii_ok) break;
+      }
+      if (p28iii_ok && candCount > 0) check(`${key}: P28③ all adjacent`, true);
+
+      // ⑥ 원칙 28③ 강화: 병합 플레이트(2P) 전체 연결성 (상위 3개 후보만)
+      let plate_ok = true;
+      for (const cand of (enumResult.candidates || []).slice(0, 3)) {
+        const gc = cand.groups;
+        for (let pStart = 0; pStart <= 1; pStart++) {
+          for (let g = pStart; g + 1 < gc.length; g += 2) {
+            const merged = [...gc[g].cells, ...gc[g + 1].cells];
+            const madj = Array.from({length: merged.length}, () => []);
+            for (let i = 0; i < merged.length; i++)
+              for (let j = i + 1; j < merged.length; j++)
+                if (Math.hypot(merged[i].x - merged[j].x, merged[i].y - merged[j].y) <= thr + 0.5)
+                  { madj[i].push(j); madj[j].push(i); }
+            const vis = new Set([0]), q = [0];
+            while(q.length) { const n=q.shift(); for(const nb of madj[n]) if(!vis.has(nb)){vis.add(nb);q.push(nb);} }
+            if (vis.size !== merged.length) {
+              const face = pStart === 0 ? 'bot' : 'top';
+              check(`${key}: plate ${face} G${g}∪G${g+1} connected`, false,
+                `${vis.size}/${merged.length} 연결`);
+              plate_ok = false;
+            }
+          }
+        }
+        if (!plate_ok) break;
+      }
+      if (plate_ok && candCount > 0) check(`${key}: all 2P plates connected`, true);
+
+    } catch(e) {
+      check(`${key}: enum no crash`, false, e.message);
+    }
+
+    // ⑦ 해시
+    if (svg) {
+      const h = sha256(svg);
+      hashes[key] = h;
+      if (SAVE) {
+        fs.mkdirSync(SVG_DIR, { recursive: true });
+        fs.writeFileSync(path.join(SVG_DIR, `${key}.svg`), svg, 'utf8');
+      }
+    }
+  }
+}
+
 // ── baseline 저장 / 비교 ─────────────────────────
 if (SAVE) {
   fs.writeFileSync(BASELINE_FILE, JSON.stringify(hashes, null, 2), 'utf8');
