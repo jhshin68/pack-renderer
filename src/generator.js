@@ -1311,11 +1311,32 @@
       return anchorCells.some(ac => ac.row === cell.row && ac.col === cell.col);
     };
 
-    // I형(1자) 판별: 모든 셀이 단일 x 또는 단일 y 직선
+    // I형(1자) 판별: 4개 이상 셀이 직선 또는 지그재그 단순 경로 형성
     const _isLinearGroup = (gc) => {
-      const xs = gc.map(c => Math.round(_pt(c).x * 10));
-      const ys = gc.map(c => Math.round(_pt(c).y * 10));
-      return new Set(xs).size === 1 || new Set(ys).size === 1;
+      if (gc.length < 4) return false;
+      const pts = gc.map(c => _pt(c));
+
+      // 순수 직선: 모든 x 동일 또는 모든 y 동일
+      const xs = pts.map(p => Math.round(p.x * 10));
+      const ys = pts.map(p => Math.round(p.y * 10));
+      if (new Set(xs).size === 1 || new Set(ys).size === 1) return true;
+
+      // 지그재그 경로: 인접 그래프가 단순 경로(분기 없음, 끝점 2개)
+      let minDist = Infinity;
+      for (let i = 0; i < pts.length; i++)
+        for (let j = i + 1; j < pts.length; j++) {
+          const d = Math.hypot(pts[i].x - pts[j].x, pts[i].y - pts[j].y);
+          if (d < minDist) minDist = d;
+        }
+      const thr = minDist * 1.6;
+      const deg = new Array(pts.length).fill(0);
+      for (let i = 0; i < pts.length; i++)
+        for (let j = i + 1; j < pts.length; j++)
+          if (Math.hypot(pts[i].x - pts[j].x, pts[i].y - pts[j].y) <= thr) {
+            deg[i]++; deg[j]++;
+          }
+      // 단순 경로: 분기(degree > 2) 없고 끝점(degree === 1) 정확히 2개
+      return !deg.some(d => d > 2) && deg.filter(d => d === 1).length === 2;
     };
 
     // ── ICC 정보 계산 (per group cell array) ────────────────────────
@@ -1449,7 +1470,7 @@
           if (flat.length > 0 && !anchorMatches(flat[0])) {
             const reversed = [...flat].reverse();
             if (reversed.length > 0 && anchorMatches(reversed[0])) flat = reversed;
-            else continue;  // 이 전략은 앵커 불만족 → 스킵
+            else continue;
           }
         }
         const cand = flatToCandidate(flat, ord.name, ord.desc);
@@ -1523,6 +1544,7 @@
             icc1_ok: icc.icc1_ok, icc2_ok: icc.icc2_ok, has_TY: icc.hasT,
           };
         });
+        if (!allow_I && groups.some(g => _isLinearGroup(g.cells))) return;
         const sig = groups.map(g => g.cells.map(c => xyKey(c)).sort().join(';')).join('|');
         if (!seenSigs.has(sig)) {
           seenSigs.add(sig);
@@ -1537,8 +1559,8 @@
       }
 
       if (arrangement === 'custom') {
-        // Custom 배열: G1+ 시작 셀을 스캔 순서상 첫 미사용 셀로 고정 (체이닝 없음)
-        // → 연결성은 within-group adjacency growth로 보장, 그룹 간 위치는 자유
+        // Custom 배열: 다음 그룹 시작 셀은 현재 그룹에 인접한 미사용 셀로 제한
+        // → 그룹 간 물리적 인접 보장 → 니켈플레이트 연속 가능 (원칙 28③)
         const scanOrder = makeBoustrophedon(true)
           .map(c => cellIdxMap.get(xyKey(c)))
           .filter(i => i !== undefined);
@@ -1558,10 +1580,11 @@
               return;
             }
 
+            // 스캔 순서에서 첫 번째 미사용 셀을 다음 그룹 시작점으로 사용 (세션25 방식)
+            // 인접 제약을 걸면 중앙정렬 불규칙 행(rows=[10,12,13,12,5])에서 탐색 불가
             let nextStart = -1;
             for (const ci of scanOrder) { if (!used[ci]) { nextStart = ci; break; } }
             if (nextStart < 0) return;
-
             used[nextStart] = 1;
             dfsCustom(gIdx + 1, allSnaps, [nextStart],
               new Set(adjL[nextStart].filter(nb => !used[nb])));

@@ -41,20 +41,20 @@
         <div class="ctrl-label">홀더 크기 <span style="font-size:7.5px;color:var(--dt3)">(원칙 17 L1)</span></div>
         <div class="num-row">
           <div class="num-pair">
-            <button class="num-btn" onclick="adjHolder('rows',-1)">−</button>
-            <div class="num-val" id="valHolderRows" style="font-size:11px;min-width:32px">auto</div>
-            <button class="num-btn" onclick="adjHolder('rows',1)">+</button>
+            <button class="num-btn" onclick="adjHolder('cols',-1)">−</button>
+            <div class="num-val" id="valHolderCols" style="font-size:11px;min-width:32px">auto</div>
+            <button class="num-btn" onclick="adjHolder('cols',1)">+</button>
             <div class="num-tag">행</div>
           </div>
           <div class="sp-sep"></div>
           <div class="num-pair">
-            <button class="num-btn" onclick="adjHolder('cols',-1)">−</button>
-            <div class="num-val" id="valHolderCols" style="font-size:11px;min-width:32px">auto</div>
-            <button class="num-btn" onclick="adjHolder('cols',1)">+</button>
+            <button class="num-btn" onclick="adjHolder('rows',-1)">−</button>
+            <div class="num-val" id="valHolderRows" style="font-size:11px;min-width:32px">auto</div>
+            <button class="num-btn" onclick="adjHolder('rows',1)">+</button>
             <div class="num-tag">열</div>
           </div>
         </div>
-        <div class="hint" id="holderCapHint" style="margin-top:3px">auto = S×P (빈 슬롯 없음)</div>
+        <div class="hint" id="holderCapHint" style="margin-top:3px;display:none"></div>
       </div>
 
       <!-- 정배열·엇배열: 가로(S) × 세로(P) 직접 입력 / 커스텀: S만 표시 -->
@@ -87,6 +87,15 @@
           <button class="seg-btn active" id="btnSquare" onclick="setArrangement('square')">정배열</button>
           <button class="seg-btn" id="btnStag"   onclick="setArrangement('staggered')">엇배열</button>
           <button class="seg-btn" id="btnCustom" onclick="setArrangement('custom')">커스텀</button>
+        </div>
+      </div>
+
+      <!-- 엇배열 방향 (staggered 선택 시만 표시) -->
+      <div id="stagDirGroup" style="display:none">
+        <div class="ctrl-label" style="margin-top:2px">Row Arrangement</div>
+        <div class="seg">
+          <button class="seg-btn active" id="btnStagR" onclick="setStaggerDir('R')">오른쪽 →</button>
+          <button class="seg-btn"        id="btnStagL" onclick="setStaggerDir('L')">← 왼쪽</button>
         </div>
       </div>
 
@@ -209,10 +218,10 @@
           <button class="toggle on" id="togNickel" onclick="toggleOpt('nickel')"></button>
         </div>
         <div class="toggle-row">
-          <span class="toggle-label">Terminals B+ / B−</span>
+          <span class="toggle-label">B+ / B−</span>
           <button class="toggle on" id="togTerm" onclick="toggleOpt('term')"></button>
         </div>
-        <div class="toggle-row">
+        <div class="toggle-row" style="display:none">
           <span class="toggle-label">Emboss · no-mirror</span>
           <button class="toggle on" id="togEmboss" onclick="toggleOpt('emboss')"></button>
         </div>
@@ -234,6 +243,7 @@
         <div class="row"><span class="key">layout</span><span class="val" id="iLayout">—</span></div>
         <div class="row"><span class="key">B+</span><span class="val" id="iBplus">—</span></div>
         <div class="row"><span class="key">B−</span><span class="val" id="iBminus">—</span></div>
+        <div class="row"><span class="key">크기</span><span class="val" id="iSize">—</span></div>
         <div class="divider"></div>
         <div class="row"><span class="key">m_min <span style="font-size:8px;opacity:.6">(est.)</span></span><span class="val amber" id="iMmin">—</span></div>
         <div class="row"><span class="key">mold cost</span><span class="val green" id="iMold">—</span></div>

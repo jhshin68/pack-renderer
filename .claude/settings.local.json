@@ -2,7 +2,39 @@
   "permissions": {
     "allow": [
       "Bash(npx --yes serve --version)",
-      "mcp__Claude_Preview__preview_start"
+      "mcp__Claude_Preview__preview_start",
+      "Bash(node tests/test_regression_all_sp.js --compare)",
+      "Bash(node tests/test_cell_group_override.js)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(node tests/test_holder_constraints.js)",
+      "Bash(node tests/test_g0_anchor.js)",
+      "Bash(node tests/test_p09_pixel_adj.js)",
+      "Bash(node tests/test_f14_custom_rows.js)",
+      "Bash(curl -sI \"https://jhshin68.github.io/pack-renderer/battery_pack_renderer.html\")",
+      "Bash(curl -sI \"https://jhshin68.github.io/pack-renderer/\")",
+      "Bash(curl -sI \"https://github.com/jhshin68/pack-renderer\")",
+      "Bash(gh repo *)",
+      "Bash(node -e \"new Function\\(require\\('fs'\\).readFileSync\\('src/app.js','utf8'\\)\\)\")",
+      "Bash(node tests/test_custom_render.js)",
+      "Bash(node -e ' *)",
+      "Bash(cmd *)",
+      "Bash(powershell *)",
+      "Read(//c/Users/jhshi/.claude/plugins//**)",
+      "Read(//c/Users/jhshi/.claude/plugins/**)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node scripts/check-principles.js"
+          }
+        ]
+      }
     ]
   }
 }

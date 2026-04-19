@@ -21,6 +21,7 @@ const state = {
   P:               4,
   gap:             0.0,   // ★ 원칙: gap=0 (셀 맞닿음) — renderer.js 기본값과 동일
   arrangement:     'square',
+  stag_dir:        'R',        // 엇배열 방향: 'R' = 홀수 행 오른쪽, 'L' = 짝수 행 오른쪽
   show_nickel:     true,
   show_terminal:   true,
   face:            'all',
@@ -173,10 +174,20 @@ function setArrangement(a) {
   document.getElementById('btnStag').classList.toggle('active', a === 'staggered');
   document.getElementById('btnCustom').classList.toggle('active', a === 'custom');
   const isCustom = (a === 'custom');
+  const isStag   = (a === 'staggered');
   document.getElementById('rectConfig').style.display      = 'block';
   document.getElementById('customGroup').style.display     = isCustom ? 'block' : 'none';
   document.getElementById('holderSizeGroup').style.display = isCustom ? 'none'  : 'block';
+  document.getElementById('stagDirGroup').style.display    = isStag   ? 'block' : 'none';
   if (isCustom) checkCustomConsistency();
+  rerender();
+}
+
+function setStaggerDir(d) {
+  state.stag_dir = d;
+  document.getElementById('btnStagR').classList.toggle('active', d === 'R');
+  document.getElementById('btnStagL').classList.toggle('active', d === 'L');
+  if (lastSVG) _renderSVG();
 }
 
 function setCustomAlign(a) {
@@ -190,7 +201,7 @@ function setCustomAlign(a) {
 function toggleCustomStagger() {
   state.custom_stagger = !state.custom_stagger;
   document.getElementById('togCustomStagger').classList.toggle('on', state.custom_stagger);
-  if (lastSVG) _renderSVG();
+  rerender();
 }
 
 // ── BMS 위치 제어 (원칙 16 — 맨해튼 거리 최소화) ───────────
@@ -374,18 +385,23 @@ function getHolderCols() { return state.holder_cols != null ? state.holder_cols 
 
 function adjHolder(dim, d) {
   if (dim === 'rows') {
-    const cur = state.holder_rows != null ? state.holder_rows : state.P;
-    const nxt = Math.max(1, cur + d);
-    state.holder_rows = (nxt === state.P) ? null : nxt;
+    if (state.holder_rows === null) {
+      if (d > 0) state.holder_rows = 1;  // auto(0) + 1 = 1
+    } else {
+      const nxt = state.holder_rows + d;
+      state.holder_rows = (nxt <= 0) ? null : nxt;  // 1 - 1 = auto
+    }
   } else {
-    const cur = state.holder_cols != null ? state.holder_cols : state.S;
-    const nxt = Math.max(1, cur + d);
-    state.holder_cols = (nxt === state.S) ? null : nxt;
+    if (state.holder_cols === null) {
+      if (d > 0) state.holder_cols = 1;  // auto(0) + 1 = 1
+    } else {
+      const nxt = state.holder_cols + d;
+      state.holder_cols = (nxt <= 0) ? null : nxt;  // 1 - 1 = auto
+    }
   }
   updateHolderUI();
   state.selected_ordering = 0;
-  if (lastSVG) rerender();
-  else populateCandidatePanel();
+  rerender();
 }
 
 function updateHolderUI() {
@@ -450,6 +466,7 @@ function toggleOpt(k) {
     state.allow_mirror = !state.allow_mirror;
     document.getElementById('togEmboss').classList.toggle('on', !state.allow_mirror);
   }
+  if (lastSVG) rerender();
 }
 
 function setFace(f) {
@@ -463,6 +480,34 @@ function setFace(f) {
     fixSVGSize();
     addBmsMarkerToDOM();
   }
+}
+
+function calcPackDimensions() {
+  const spec = (typeof CELL_SPEC !== 'undefined') ? CELL_SPEC[state.cell_type] : null;
+  if (!spec) return null;
+  const pitch  = spec.render_d;   // gap=0
+  const margin = 8.0;
+  if (state.arrangement === 'custom') {
+    if (typeof Generator === 'undefined') return null;
+    const rows = parseCustomRows();
+    if (!rows.length) return null;
+    try {
+      const cp = { ...state, layout: 'auto', scale: 1.5, nickel_w_mm: 4.0, margin_mm: 8.0, rows };
+      const { W, H } = Generator.calcCustomCenters(rows, cp, CELL_SPEC);
+      const marginPx = 8.0 * 1.5;
+      return { w: (W - 2 * marginPx) / 1.5, h: (H - 2 * marginPx) / 1.5 };
+    } catch (_) { return null; }
+  }
+  const cols  = getHolderCols() || state.S;
+  const rowsN = getHolderRows() || state.P;
+  const isStag = state.arrangement === 'staggered';
+  const pitchY = isStag ? pitch * Math.sqrt(3) / 2 : pitch;
+  const R = pitch / 2;
+  // 렌더링 여백(margin) 제외 — 순수 셀 배열 물리 크기
+  return {
+    w: cols * pitch + (isStag ? pitch / 2 : 0),
+    h: (rowsN - 1) * pitchY + 2 * R,
+  };
 }
 
 // ── info-box 업데이트 ──────────────────────────────
@@ -482,6 +527,9 @@ function updateInfoBox() {
   document.getElementById('iLayout').textContent = layout === 'top_bottom' ? '상하 배치' : '좌우 배치';
   document.getElementById('iBplus').textContent  = bplus  ? `G${bplus.groups[0] + 1} ${bplus.type === 'I' ? 'I자' : 'ㄷ자'}` : '—';
   document.getElementById('iBminus').textContent = bminus ? `G${bminus.groups[bminus.groups.length - 1] + 1} ${bminus.type === 'I' ? 'I자' : 'ㄷ자'}` : '—';
+  const dim = calcPackDimensions();
+  const sizeEl = document.getElementById('iSize');
+  if (sizeEl) sizeEl.textContent = dim ? `${dim.w.toFixed(0)} × ${dim.h.toFixed(0)} mm` : '—';
 
   const Nplates = topI + topU + botI + botU;
   const mMin   = estimateMmin(S, P, arrangement, allow_mirror);
@@ -585,7 +633,16 @@ function _renderSVG() {
 
   const emptyEl = document.getElementById('emptyState');
 
-  if (_enumResult && effectiveCandidates.length === 0) {
+  if (!_enumResult) {
+    lastSVG = '';
+    document.getElementById('svgOutput').innerHTML = '';
+    document.getElementById('svgContainer').style.display = 'none';
+    emptyEl.innerHTML = '<div class="empty-icon">⬡</div><div class="empty-text">Configure &amp; Generate</div>';
+    emptyEl.style.display = 'flex';
+    return;
+  }
+
+  if (effectiveCandidates.length === 0) {
     lastSVG = '';
     document.getElementById('svgOutput').innerHTML = '';
     document.getElementById('svgContainer').style.display = 'none';
@@ -622,8 +679,14 @@ function _renderSVG() {
     if (cand && cand.groups) {
       p.cell_groups = cand.groups.map(g => g.cells);
       if (state.arrangement !== 'custom') {
-        p.grid_cols = getHolderCols();
-        p.grid_rows = getHolderRows();
+        if (state.holder_cols != null || state.holder_rows != null) {
+          const hC = getHolderCols(), hR = getHolderRows();
+          const N = state.S * state.P;
+          if (hC * hR >= N) {
+            p.grid_cols = hC;
+            p.grid_rows = hR;
+          }
+        }
       }
     }
   }
@@ -709,22 +772,28 @@ function selectCandidate(idx) {
 // ── 배열 후보 패널 (H3/H4) ──────────────────────────
 // enumerateGroupAssignments(Generator)를 사용하여 실제 후보 열거
 
-// 홀더 그리드 셀 반환 (holder_rows × holder_cols, 빈 슬롯 제외)
+// 홀더 그리드 셀 반환
+// 홀더가 설정된 경우: buildHolderGrid → N개로 trim (여분 슬롯은 빈 칸)
+// 홀더 auto: calcCellCenters(S,P) 기본 배열
 function _getHolderCells() {
-  const hR = getHolderRows(), hC = getHolderCols();
+  const N = state.S * state.P;
   const params = { ...state, layout: 'auto', scale: 1.5, nickel_w_mm: state.nickel_w_mm, margin_mm: 8.0 };
   try {
-    if (typeof Generator !== 'undefined' && typeof CELL_SPEC !== 'undefined') {
-      return Generator.buildHolderGrid(hR, hC, state.arrangement, state.holder_empty, params, CELL_SPEC);
-    }
-    // fallback: calcCellCenters (P×S 기본 배열)
-    const { cx, cy } = calcCellCenters(state.S, state.P, params);
+    const hR = getHolderRows(), hC = getHolderCols();
+    if (hR * hC < N) return null;
+    // 홀더가 설정된 경우 홀더 격자(hC×hR) 기준 좌표·row/col 사용
+    // → renderCustomGrid gridMap과 row/col이 일치하여 그룹 주입 성공
+    const gridCols = (state.holder_cols != null || state.holder_rows != null) ? hC : state.S;
+    const gridRows = (state.holder_cols != null || state.holder_rows != null) ? hR : state.P;
+    const { cx, cy } = calcCellCenters(gridCols, gridRows, params);
     const cells = [];
-    for (let p = 0; p < state.P; p++)
-      for (let s = 0; s < state.S; s++)
-        cells.push({ x: cx[s][p], y: cy[p] });
+    for (let i = 0; i < N; i++) {
+      const r = Math.floor(i / gridCols);
+      const c = i % gridCols;
+      cells.push({ x: cx[c][r], y: cy[r], row: r, col: c });
+    }
     return cells;
-  } catch (_) { return null; }
+  } catch (e) { return null; }
 }
 
 let _enumResult = null;   // 마지막 enumerateGroupAssignments 결과
@@ -774,6 +843,69 @@ function _probeRelief(cfg) {
   const maxPlatesEntry = out.find(x => x.count === -1);
   const rest = out.filter(x => x.count !== -1).sort((a, b) => b.count - a.count).slice(0, 3);
   return maxPlatesEntry ? [maxPlatesEntry, ...rest].slice(0, 3) : rest.slice(0, 3);
+}
+
+function _renderCandCards(candidates, listEl, S) {
+  listEl.innerHTML = '';
+  candidates.forEach((cand, idx) => {
+    const groups  = cand.groups || [];
+    const posN    = groups.filter(g => g.quality_score > 0).length;
+    const negN    = groups.filter(g => g.quality_score < 0).length;
+    const isSel   = idx === state.selected_ordering;
+
+    const scoreStr = groups.slice(0, 6)
+      .map(g => g.quality_score > 0 ? '+10' : g.quality_score < 0 ? '−10' : ' 0 ')
+      .join(' ') + (S > 6 ? ' …' : '');
+
+    const badgeClass = posN > 0 && negN === 0 ? 'pos' : negN > 0 ? 'neg' : 'zero';
+    const badgeText  = posN > 0 && negN === 0 ? `${posN}×+10`
+                     : negN > 0               ? `${negN}×−10`
+                     : 'neutral';
+
+    const bTag   = cand.b_plus_ok && cand.b_minus_ok ? '' :
+      ` <span style="color:var(--amber);font-size:8px">B±?</span>`;
+    const iccTag = (cand.icc_violations || 0) > 0 ?
+      ` <span style="color:var(--amber);font-size:8px">ICC✗${cand.icc_violations}</span>` : '';
+    const label  = cand.name || `후보 ${idx + 1}`;
+
+    let shapeTag = '';
+    if (cand.is_pentomino) {
+      shapeTag = ` <span style="background:#2A3E66;color:rgba(255,255,255,.65);font-size:8px;padding:1px 4px;border-radius:3px">${cand.name}</span>`;
+    } else if (cand.is_standard) {
+      shapeTag = ` <span style="background:var(--bg2);color:var(--dt3);font-size:8px;padding:1px 4px;border-radius:3px">snake</span>`;
+    }
+
+    const rowSpans = groups.map(g => {
+      const rs = (g.cells || []).map(c => c.row).filter(v => typeof v === 'number');
+      return rs.length ? (Math.max(...rs) - Math.min(...rs) + 1) : 1;
+    });
+    const avgRS    = rowSpans.length ? (rowSpans.reduce((a, b) => a + b, 0) / rowSpans.length) : 1;
+    const maxRS    = rowSpans.length ? Math.max(...rowSpans) : 1;
+    const tyN      = groups.filter(g => g.has_TY).length;
+    const totalQS  = groups.reduce((s, g) => s + (g.quality_score || 0), 0);
+    const sigmaStyle = cand.is_pentomino
+      ? 'font-weight:700;color:#86efac;font-size:11px'
+      : 'color:#4ADE80';
+    const platesVal = _countDistinctShapes(cand);
+    const statBits = [
+      `<span style="${sigmaStyle}">Σ ${totalQS >= 0 ? '+' : ''}${totalQS}</span>`,
+      `<span style="color:#ffffff">플레이트 ${platesVal}개</span>`,
+      `행스팬 평균 ${avgRS.toFixed(1)}/최대 ${maxRS}`,
+      ...(tyN > 0 ? [`<span style="color:var(--amber)">T/Y ${tyN}</span>`] : []),
+    ];
+
+    const card = document.createElement('div');
+    card.className = 'cand-card' + (isSel ? ' selected' : '');
+    card.onclick   = () => selectCandidate(idx);
+    card.innerHTML =
+      `<div class="cand-hdr">` +
+        `<span class="cand-name">${label}${shapeTag}${bTag}${iccTag}</span>` +
+        `<span class="score-chip ${badgeClass}">${badgeText}</span>` +
+      `</div>` +
+      `<div class="cand-scores">${scoreStr}</div>` +
+      `<div class="cand-stat" style="font-size:9px;color:var(--dt3);margin-top:3px;display:flex;gap:6px;flex-wrap:wrap">${statBits.join(' · ')}</div>`;
+    listEl.appendChild(card);
+  });
 }
 
 function populateCandidatePanel() {
@@ -846,30 +978,8 @@ function populateCandidatePanel() {
       _showCandDetail(-1);
       return;
     }
-    candidates.forEach((cand, idx) => {
-      const groups  = cand.groups || [];
-      const posN    = groups.filter(g => g.quality_score > 0).length;
-      const negN    = groups.filter(g => g.quality_score < 0).length;
-      const isSel   = idx === state.selected_ordering;
-      const scoreStr = groups.slice(0, 6)
-        .map(g => g.quality_score > 0 ? '+10' : g.quality_score < 0 ? '−10' : ' 0 ')
-        .join(' ') + (S > 6 ? ' …' : '');
-      const badgeClass = posN > 0 && negN === 0 ? 'pos' : negN > 0 ? 'neg' : 'zero';
-      const badgeText  = posN > 0 && negN === 0 ? `${posN}×+10`
-                       : negN > 0               ? `${negN}×−10`
-                       :                          '0점';
-      const mCount = _countDistinctShapes(cand);
-      listEl.innerHTML += `
-        <div class="cand-card${isSel ? ' selected' : ''}" onclick="selectCandidate(${idx})" data-idx="${idx}">
-          <div class="cand-card-top">
-            <span class="cand-idx">#${idx + 1}</span>
-            <span class="cand-badge ${badgeClass}">${badgeText}</span>
-            <span class="cand-molds" style="margin-left:auto;font-size:9px;color:var(--dt3)">${mCount}종</span>
-          </div>
-          <div class="cand-score-row">${scoreStr}</div>
-        </div>`;
-    });
     if (state.selected_ordering >= candidates.length) state.selected_ordering = 0;
+    _renderCandCards(candidates, listEl, S);
     _showCandDetail(state.selected_ordering);
     return;
   }
@@ -882,8 +992,16 @@ function populateCandidatePanel() {
 
   const cells = _getHolderCells();
   if (!cells || cells.length === 0) {
-    listEl.innerHTML = '<div class="hint">셀 데이터 없음</div>';
+    const hR = getHolderRows(), hC = getHolderCols();
+    const N = state.S * state.P;
+    const slots = hR * hC;
+    listEl.innerHTML = slots < N
+      ? `<div class="hint" style="color:var(--red)">⚠ 홀더 슬롯 부족: ${hR}×${hC}=${slots} < ${N}셀<br>행×열이 ${N} 이상이어야 합니다</div>`
+      : '<div class="hint">셀 데이터 없음</div>';
     if (countEl) countEl.textContent = '—';
+    _enumResult = null;
+    _updateEnumStatus(null);
+    _showCandDetail(-1);
     return;
   }
 
@@ -936,75 +1054,8 @@ function populateCandidatePanel() {
     return;
   }
 
-  candidates.forEach((cand, idx) => {
-    const groups  = cand.groups || [];
-    const posN    = groups.filter(g => g.quality_score > 0).length;
-    const negN    = groups.filter(g => g.quality_score < 0).length;
-    const isSel   = idx === state.selected_ordering;
-
-    const scoreStr = groups.slice(0, 6)
-      .map(g => g.quality_score > 0 ? '+10' : g.quality_score < 0 ? '−10' : ' 0 ')
-      .join(' ') + (S > 6 ? ' …' : '');
-
-    const badgeClass = posN > 0 && negN === 0 ? 'pos' : negN > 0 ? 'neg' : 'zero';
-    const badgeText  = posN > 0 && negN === 0 ? `${posN}×+10`
-                     : negN > 0               ? `${negN}×−10`
-                     : 'neutral';
-
-    const bTag = cand.b_plus_ok && cand.b_minus_ok ? '' :
-      ` <span style="color:var(--amber);font-size:8px">B±?</span>`;
-    const iccTag = (cand.icc_violations || 0) > 0 ?
-      ` <span style="color:var(--amber);font-size:8px">ICC✗${cand.icc_violations}</span>` : '';
-    const label  = cand.name || `후보 ${idx + 1}`;
-
-    // ★ Phase 4: pentomino 도형 배지
-    let shapeTag = '';
-    if (cand.is_pentomino) {
-      shapeTag = ` <span style="background:#2A3E66;color:rgba(255,255,255,.65);font-size:8px;padding:1px 4px;border-radius:3px">${cand.name}</span>`;
-    } else if (cand.is_standard) {
-      shapeTag = ` <span style="background:var(--bg2);color:var(--dt3);font-size:8px;padding:1px 4px;border-radius:3px">snake</span>`;
-    }
-
-    // ★ Phase 3b: 평균 rowSpan + T/Y 분기 하단 요약
-    const rowSpans = groups.map(g => {
-      const rows = (g.cells || []).map(c => c.row).filter(v => typeof v === 'number');
-      return rows.length ? (Math.max(...rows) - Math.min(...rows) + 1) : 1;
-    });
-    const avgRS   = rowSpans.length ? (rowSpans.reduce((a, b) => a + b, 0) / rowSpans.length) : 1;
-    const maxRS   = rowSpans.length ? Math.max(...rowSpans) : 1;
-    const tyN     = groups.filter(g => g.has_TY).length;
-    const totalQS = groups.reduce((s, g) => s + (g.quality_score || 0), 0);
-    const sigmaColor = cand.is_pentomino ? '#86efac' : (totalQS > 0 ? '#4ADE80' : 'var(--dt3)');
-    const sigmaStyle = cand.is_pentomino
-      ? `font-weight:700;color:#86efac;font-size:11px`
-      : `color:${sigmaColor}`;
-    const platesVal = _countDistinctShapes(cand);
-    const statBits = [
-      `<span style="${sigmaStyle}">Σ ${totalQS >= 0 ? '+' : ''}${totalQS}</span>`,
-      `<span style="color:#ffffff">플레이트 ${platesVal}개</span>`,
-      `행스팬 평균 ${avgRS.toFixed(1)}/최대 ${maxRS}`,
-      ...(tyN > 0 ? [`<span style="color:var(--amber)">T/Y ${tyN}</span>`] : []),
-    ];
-
-    const card = document.createElement('div');
-    card.className = 'cand-card' + (isSel ? ' selected' : '');
-    card.onclick   = () => selectCandidate(idx);
-    card.innerHTML =
-      `<div class="cand-hdr">` +
-        `<span class="cand-name">${label}${shapeTag}${bTag}${iccTag}</span>` +
-        `<span class="score-chip ${badgeClass}">${badgeText}</span>` +
-      `</div>` +
-      `<div class="cand-scores">${scoreStr}</div>` +
-      `<div class="cand-stat" style="font-size:9px;color:var(--dt3);margin-top:3px;display:flex;gap:6px;flex-wrap:wrap">${statBits.join(' · ')}</div>`;
-    listEl.appendChild(card);
-  });
-
-  // selected_ordering이 범위를 벗어나면 0번으로 리셋
   if (state.selected_ordering >= candidates.length) state.selected_ordering = 0;
-  // 카드 하이라이트 + 상세 패널
-  document.querySelectorAll('.cand-card').forEach((el, i) => {
-    el.classList.toggle('selected', i === state.selected_ordering);
-  });
+  _renderCandCards(candidates, listEl, S);
   _showCandDetail(state.selected_ordering);
 }
 

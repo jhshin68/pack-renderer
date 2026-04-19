@@ -199,16 +199,18 @@ function calcCellCenters(S, P, params) {
   const pitch  = (spec.render_d + params.gap) * params.scale;
   const R      = (spec.render_d / 2) * params.scale;
   const margin = params.margin_mm * params.scale;
-  const isStag = params.arrangement === 'staggered';
-  const pitchY = isStag ? pitch * Math.sqrt(3) / 2 : pitch;
-  const offOdd = isStag ? pitch / 2 : 0;
+  const isStag  = params.arrangement === 'staggered';
+  const pitchY  = isStag ? pitch * Math.sqrt(3) / 2 : pitch;
+  const offOdd  = isStag ? pitch / 2 : 0;
+  const stagDirL = isStag && params.stag_dir === 'L';
 
   const cx = [], cy = [];
   for (let p = 0; p < P; p++) cy.push(margin + p * pitchY + R);
   for (let g = 0; g < S; g++) {
     const col = [];
     for (let p = 0; p < P; p++) {
-      const off = (p % 2 === 1) ? offOdd : 0;
+      const isOddRow = stagDirL ? (p % 2 === 0) : (p % 2 === 1);
+      const off = isOddRow ? offOdd : 0;
       col.push(margin + g * pitch + R + off);
     }
     cx.push(col);
@@ -317,19 +319,12 @@ function drawNickelU(cx_colL, cx_colR, cy_arr, R, nw, barH, arrangement, fill) {
 const buildSnakeLayout = __Generator.buildSnakeLayout;
 
 function drawTerminal(cx, cy_center, R, nw, side, label) {
-  const tabW  = nw * 1.8, tabH = nw * 0.85, dotR = nw * 0.28, boxW = 38, boxH = 22;
   const isPlus = label === 'B+';
   const fill   = isPlus ? '#C0392B' : '#0C447C';
   const stroke = isPlus ? '#7B241C' : '#042C53';
-  let tabX, boxX, dotX;
-  if (side === 'left') { dotX = cx - nw / 2; tabX = dotX - tabW; boxX = tabX - boxW; }
-  else                 { dotX = cx + nw / 2; tabX = dotX;        boxX = tabX + tabW; }
-  const tabY = cy_center - tabH / 2, boxY = cy_center - boxH / 2;
   return [
-    `<rect x="${tabX.toFixed(1)}" y="${tabY.toFixed(1)}" width="${tabW.toFixed(1)}" height="${tabH.toFixed(1)}" rx="3" fill="${fill}" stroke="${stroke}" stroke-width="0.8"/>`,
-    `<circle cx="${dotX.toFixed(1)}" cy="${cy_center.toFixed(1)}" r="${dotR.toFixed(1)}" fill="#1a1a18"/>`,
-    `<rect x="${boxX.toFixed(1)}" y="${boxY.toFixed(1)}" width="${boxW}" height="${boxH}" rx="5" fill="${fill}" stroke="${stroke}" stroke-width="0.8"/>`,
-    `<text font-family="Arial" font-size="13" font-weight="bold" fill="#ffffff" text-anchor="middle" x="${(boxX+boxW/2).toFixed(1)}" y="${(cy_center+5).toFixed(1)}">${label}</text>`,
+    `<circle cx="${cx.toFixed(1)}" cy="${cy_center.toFixed(1)}" r="${(R*0.45).toFixed(1)}" fill="${fill}" stroke="${stroke}" stroke-width="1"/>`,
+    `<text font-family="Arial" font-size="11" font-weight="bold" fill="#ffffff" text-anchor="middle" x="${cx.toFixed(1)}" y="${(cy_center+4).toFixed(1)}">${label}</text>`,
   ].join('\n');
 }
 
@@ -401,9 +396,10 @@ function renderCustomGrid(params, spec, N, cols, rows) {
   const pitch  = (spec.render_d + params.gap) * params.scale;
   const R      = (spec.render_d / 2) * params.scale;
   const margin = params.margin_mm * params.scale;
-  const isStag = params.arrangement === 'staggered';
-  const pitchY = isStag ? pitch * Math.sqrt(3) / 2 : pitch;
-  const nw     = params.nickel_w_mm * params.scale;
+  const isStag   = params.arrangement === 'staggered';
+  const pitchY   = isStag ? pitch * Math.sqrt(3) / 2 : pitch;
+  const stagDirL = isStag && params.stag_dir === 'L';
+  const nw       = params.nickel_w_mm * params.scale;
 
   // v0.2.11: 셀 좌표 생성
   const cells = [];
@@ -411,7 +407,8 @@ function renderCustomGrid(params, spec, N, cols, rows) {
   for (let i = 0; i < N; i++) {
     const r = Math.floor(i / cols);
     const c = i % cols;
-    const off = (isStag && r % 2 === 1) ? pitch / 2 : 0;
+    const isOddRow = stagDirL ? (r % 2 === 0) : (r % 2 === 1);
+    const off = (isStag && isOddRow) ? pitch / 2 : 0;
     const cell = {
       i, r, c, g: -1,
       cx: margin + c * pitch + R + off,
@@ -459,15 +456,19 @@ function renderCustomGrid(params, spec, N, cols, rows) {
     }
   }
 
-  // 인접 판정 (격자 좌표 기준)
-  const isAdj = (a, b) => (Math.abs(a.r - b.r) + Math.abs(a.c - b.c)) === 1;
+  // 인접 판정: staggered는 물리 거리 기준(hex 이웃=pitch), square는 격자 Manhattan=1
+  // staggered에서 Manhattan=2인 대각 hex 이웃(거리=pitch)을 포함해야 폐쇄 형상 완성
+  const isAdj = isStag
+    ? (a, b) => Math.hypot(a.cx - b.cx, a.cy - b.cy) <= pitch * 1.1
+    : (a, b) => (Math.abs(a.r - b.r) + Math.abs(a.c - b.c)) === 1;
 
   // 공란 슬롯 좌표
   const empties = [];
   for (let i = N; i < cols * rows; i++) {
     const r = Math.floor(i / cols);
     const c = i % cols;
-    const off = (isStag && r % 2 === 1) ? pitch / 2 : 0;
+    const isOddRow2 = stagDirL ? (r % 2 === 0) : (r % 2 === 1);
+    const off = (isStag && isOddRow2) ? pitch / 2 : 0;
     empties.push({
       cx: margin + c * pitch + R + off,
       cy: margin + r * pitchY + R
@@ -498,8 +499,6 @@ function renderCustomGrid(params, spec, N, cols, rows) {
         if (!paired.has(g)) plates.splice(g === 0 ? 0 : plates.length, 0, [...groups[g]]);
       }
       plates.forEach(plate => {
-        if (!plate.length) return;
-        // ① 인접 셀 쌍 연결선 (얇은 니켈 스트립)
         for (let a = 0; a < plate.length; a++) {
           for (let b = a + 1; b < plate.length; b++) {
             if (isAdj(plate[a], plate[b])) {
@@ -523,21 +522,17 @@ function renderCustomGrid(params, spec, N, cols, rows) {
       parts.push(`<circle cx="${e.cx.toFixed(1)}" cy="${e.cy.toFixed(1)}" r="${R.toFixed(1)}" fill="none" stroke="#bbbbbb" stroke-width="1" stroke-dasharray="4 3"/>`);
     }
 
-    // v0.2.12 단자 탭 (최상단, 원칙 27)
-    //   B+ 항상 top face G0 시작셀 (G0는 top에서 solo)
-    //   B- S 짝수 → top face G_{S-1} 끝셀 / S 홀수 → bottom face G_{S-1} 끝셀
+    // 단자 탭
     if (params.show_terminal) {
       if (face === 'top') {
-        const c0 = groups[0][0];
-        parts.push(`<circle cx="${c0.cx.toFixed(1)}" cy="${c0.cy.toFixed(1)}" r="${(nw*0.7).toFixed(1)}" fill="#C0392B" stroke="#7B241C" stroke-width="1"/>`);
-        parts.push(`<text font-family="Arial" font-size="11" font-weight="bold" fill="#ffffff" text-anchor="middle" x="${c0.cx.toFixed(1)}" y="${(c0.cy+4).toFixed(1)}">B+</text>`);
+        const c0 = groups[0]?.[0];
+        if (c0) parts.push(drawTerminal(c0.cx, c0.cy, R, nw, 'left', 'B+'));
       }
       const bMinusOnTop = (S % 2 === 0);
       if ((face === 'top' && bMinusOnTop) || (face === 'bottom' && !bMinusOnTop)) {
         const lastG = groups[groups.length - 1];
-        const cL = lastG[lastG.length - 1];
-        parts.push(`<circle cx="${cL.cx.toFixed(1)}" cy="${cL.cy.toFixed(1)}" r="${(nw*0.7).toFixed(1)}" fill="#0C447C" stroke="#042C53" stroke-width="1"/>`);
-        parts.push(`<text font-family="Arial" font-size="11" font-weight="bold" fill="#ffffff" text-anchor="middle" x="${cL.cx.toFixed(1)}" y="${(cL.cy+4).toFixed(1)}">B-</text>`);
+        const cL = lastG?.[lastG.length - 1];
+        if (cL) parts.push(drawTerminal(cL.cx, cL.cy, R, nw, 'right', 'B-'));
       }
     }
     return parts.join('\n');
@@ -561,9 +556,9 @@ function renderCustomGrid(params, spec, N, cols, rows) {
     ln.push(`<svg width="100%" viewBox="0 0 ${Math.ceil(svgW)} ${Math.ceil(svgH)}" xmlns="http://www.w3.org/2000/svg" role="img">`);
     ln.push(`<title>${S}S${P}P (${cols}×${rows}, ${params.arrangement})</title>`);
     ln.push(`<desc>전기: ${S}S${P}P=${N}셀, 격자: ${cols}×${rows}, 공란: ${cols*rows - N}개</desc>`);
-    ln.push(`<text font-family="Arial" font-size="13" fill="#5F5E5A" text-anchor="middle" x="${faceW/2}" y="18">top face</text>`);
-    ln.push(`<text font-family="Arial" font-size="13" fill="#5F5E5A" text-anchor="middle" x="${faceW + gapSec + faceW/2}" y="18">bottom face</text>`);
-    const divX = faceW + gapSec / 2;
+    ln.push(`<text font-family="Arial" font-size="13" fill="#5F5E5A" text-anchor="middle" x="${topDX + faceW/2}" y="18">top face</text>`);
+    ln.push(`<text font-family="Arial" font-size="13" fill="#5F5E5A" text-anchor="middle" x="${botDX + faceW/2}" y="18">bottom face</text>`);
+    const divX = topDX + faceW + gapSec / 2;
     ln.push(`<line x1="${divX}" y1="20" x2="${divX}" y2="${svgH-20}" stroke="#cccccc" stroke-width="1" stroke-dasharray="4 3"/>`);
     ln.push(`<g transform="translate(${topDX}, ${topDY})">`);
     ln.push(buildFace('top'));
@@ -593,6 +588,11 @@ function renderCustomGrid(params, spec, N, cols, rows) {
     ln.push(`</g>`);
   }
 
+  const scale    = params.scale || 1.5;
+  const mgPx     = (params.margin_mm || 8) * scale;
+  const packWmm  = ((faceW - 2 * mgPx) / scale).toFixed(0);
+  const packHmm  = ((faceH - 2 * mgPx) / scale).toFixed(0);
+  ln.push(`<text font-family="Arial" font-size="10" font-weight="600" fill="#4A90D9" text-anchor="middle" x="${svgW/2}" y="${svgH-18}">W: ${packWmm} mm  ×  H: ${packHmm} mm</text>`);
   ln.push(`<text font-family="Arial" font-size="9" fill="#27AE60" text-anchor="middle" x="${svgW/2}" y="${svgH-6}">이론 ${RENDERER_VERSION} · ${S}S${P}P · ${cols}×${rows} · ${N}셀 + ${cols*rows-N}공란 · ${params.arrangement}</text>`);
   ln.push('</svg>');
   return ln.join('\n');
@@ -690,8 +690,8 @@ function renderCustomRows(params) {
       if (!paired.has(g))
         plates.splice(g === 0 ? 0 : plates.length, 0, [...groupCells[g]]);
     }
+    // 인접 셀 쌍 연결 (all-pairs + isAdj) — 닫힌 형상 보장, 원칙 9 준수
     plates.forEach(plate => {
-      if (!plate.length) return;
       for (let a = 0; a < plate.length; a++) {
         for (let b = a + 1; b < plate.length; b++) {
           if (isAdj(plate[a], plate[b])) {
@@ -708,19 +708,13 @@ function renderCustomRows(params) {
     const parts = [];
     if (face === 'top') {
       const c0 = groupCells[0]?.[0];
-      if (c0) {
-        parts.push(`<circle cx="${c0.x.toFixed(1)}" cy="${c0.y.toFixed(1)}" r="${(nw*0.7).toFixed(1)}" fill="#C0392B" stroke="#7B241C" stroke-width="1"/>`);
-        parts.push(`<text font-family="Arial" font-size="11" font-weight="bold" fill="#ffffff" text-anchor="middle" x="${c0.x.toFixed(1)}" y="${(c0.y+4).toFixed(1)}">B+</text>`);
-      }
+      if (c0) parts.push(drawTerminal(c0.x, c0.y, R, nw, 'left', 'B+'));
     }
     const bMinusOnTop = (S % 2 === 0);
     if ((face === 'top' && bMinusOnTop) || (face === 'bottom' && !bMinusOnTop)) {
       const lastG = groupCells[S - 1];
       const cL    = lastG?.[lastG.length - 1];
-      if (cL) {
-        parts.push(`<circle cx="${cL.x.toFixed(1)}" cy="${cL.y.toFixed(1)}" r="${(nw*0.7).toFixed(1)}" fill="#0C447C" stroke="#042C53" stroke-width="1"/>`);
-        parts.push(`<text font-family="Arial" font-size="11" font-weight="bold" fill="#ffffff" text-anchor="middle" x="${cL.x.toFixed(1)}" y="${(cL.y+4).toFixed(1)}">B-</text>`);
-      }
+      if (cL) parts.push(drawTerminal(cL.x, cL.y, R, nw, 'right', 'B-'));
     }
     return parts.join('');
   }
@@ -741,28 +735,34 @@ function renderCustomRows(params) {
   const showTop    = faceFilter !== 'bottom';
   const showBot    = faceFilter !== 'top';
   const gap        = params.gap_section;
+  const svgW2      = Math.ceil(W);
   const svgH       = (showTop && showBot) ? H * 2 + gap + 50 : H + 44;
   const ln         = [];
-  ln.push(`<svg width="100%" viewBox="0 0 ${Math.ceil(W)} ${Math.ceil(svgH)}" xmlns="http://www.w3.org/2000/svg" role="img">`);
+  ln.push(`<svg width="100%" viewBox="0 0 ${svgW2} ${Math.ceil(svgH)}" xmlns="http://www.w3.org/2000/svg" role="img">`);
   ln.push(`<title>${S}S custom rows=[${rows.join(',')}] (${params.cell_type})</title>`);
   ln.push(`<desc>커스텀 행별 셀 수, N=${N}, ${S}S, 이론 ${RENDERER_VERSION}</desc>`);
 
   if (showTop && showBot) {
-    ln.push(`<text font-family="Arial" font-size="12" fill="#5F5E5A" text-anchor="middle" x="${W/2}" y="18">top face</text>`);
+    ln.push(`<text font-family="Arial" font-size="12" fill="#5F5E5A" text-anchor="middle" x="${svgW2/2}" y="18">top face</text>`);
     ln.push(`<g transform="translate(0,24)">${buildNickel('top')}${topCells.join('')}${buildTerminals('top')}</g>`);
     const divY = H + 24 + gap / 2;
-    ln.push(`<line x1="20" y1="${divY}" x2="${W-20}" y2="${divY}" stroke="#cccccc" stroke-width="1" stroke-dasharray="4 3"/>`);
-    ln.push(`<text font-family="Arial" font-size="12" fill="#5F5E5A" text-anchor="middle" x="${W/2}" y="${H + 24 + gap / 2 + 14}">bottom face</text>`);
+    ln.push(`<line x1="20" y1="${divY}" x2="${svgW2-20}" y2="${divY}" stroke="#cccccc" stroke-width="1" stroke-dasharray="4 3"/>`);
+    ln.push(`<text font-family="Arial" font-size="12" fill="#5F5E5A" text-anchor="middle" x="${svgW2/2}" y="${H + 24 + gap / 2 + 14}">bottom face</text>`);
     ln.push(`<g transform="translate(0,${H + 24 + gap})">${buildNickel('bottom')}${botCells.join('')}${buildTerminals('bottom')}</g>`);
   } else if (showTop) {
-    ln.push(`<text font-family="Arial" font-size="12" fill="#5F5E5A" text-anchor="middle" x="${W/2}" y="18">top face</text>`);
+    ln.push(`<text font-family="Arial" font-size="12" fill="#5F5E5A" text-anchor="middle" x="${svgW2/2}" y="18">top face</text>`);
     ln.push(`<g transform="translate(0,24)">${buildNickel('top')}${topCells.join('')}${buildTerminals('top')}</g>`);
   } else {
-    ln.push(`<text font-family="Arial" font-size="12" fill="#5F5E5A" text-anchor="middle" x="${W/2}" y="18">bottom face</text>`);
+    ln.push(`<text font-family="Arial" font-size="12" fill="#5F5E5A" text-anchor="middle" x="${svgW2/2}" y="18">bottom face</text>`);
     ln.push(`<g transform="translate(0,24)">${buildNickel('bottom')}${botCells.join('')}${buildTerminals('bottom')}</g>`);
   }
 
-  ln.push(`<text font-family="Arial" font-size="8" fill="#27AE60" text-anchor="middle" x="${W/2}" y="${svgH - 6}">`
+  const scale   = params.scale || 1.5;
+  const mgPx2   = (params.margin_mm || 8) * scale;
+  const packWmm = ((W - 2 * mgPx2) / scale).toFixed(0);
+  const packHmm = ((H - 2 * mgPx2) / scale).toFixed(0);
+  ln.push(`<text font-family="Arial" font-size="10" font-weight="600" fill="#4A90D9" text-anchor="middle" x="${svgW2/2}" y="${svgH - 18}">W: ${packWmm} mm  ×  H: ${packHmm} mm</text>`);
+  ln.push(`<text font-family="Arial" font-size="8" fill="#27AE60" text-anchor="middle" x="${svgW2/2}" y="${svgH - 6}">`
     + `${RENDERER_VERSION} · custom · rows=[${rows.join(',')}] · N=${N} · ${S}S`
     + `</text>`);
   ln.push('</svg>');

@@ -1,9 +1,9 @@
 ========================================
-마지막 업데이트: 2026-04-19 (세션 25 — 커스텀 배열 열거 완성 + principle-guard 훅)
+마지막 업데이트: 2026-04-20 (세션 26 — 커스텀 후보 0개 버그 수정 + 렌더러 stag_dir/isAdj 개선)
 버전: battery_pack_renderer.html, src/app.js, src/generator.js, src/renderer.js
-테스트 상태: 13S4P 커스텀 40개 후보 265ms, 회귀 720/720 통과
+테스트 상태: 13S4P 커스텀 40개 후보 1665ms, test_f14 22/22 PASS, test_m7_core 35/35 PASS
 feature_list.json: 모든 항목 passes:true
-git 상태: 세션 25 커밋 완료
+git 상태: 세션 26 커밋 완료
 
 ## 세션 25 진행 (2026-04-19) — 커스텀 배열 열거 완성 + principle-guard 훅
 
@@ -25,9 +25,32 @@ git 상태: 세션 25 커밋 완료
 
 ### 다음 할 일
 - [ ] 브라우저에서 13S4P 커스텀 후보 렌더링 확인 (연결된 그룹 극성 표시 정상인지)
+- [ ] staggered+holder 모드 니켈 플레이트 형상 브라우저 확인 (isAdj 물리거리 수정 효과)
 - [ ] custom 배열 ICC1 적합성 검토: row_span ≤ 2 제약이 엇배열 custom stagger에서 적절한지
-- [ ] 회귀 baseline 업데이트 (tests/test_regression_all_sp.js --save 재실행 여부 확인)
-- [ ] F37 후보: custom 배열 quality_score 표시 방식 개선
+- [ ] PostToolUse 자동 테스트 훅 추가 (test_f14_custom_rows.js + test_enumerate_integration.js)
+
+## 세션 26 진행 (2026-04-20) — 커스텀 후보 0개 버그 수정
+
+### 완료 사항
+
+#### 커스텀 배열 후보 0개 버그 수정 (generator.js)
+- 버그 1: `if (allow_I)` 래핑 → allow_I=false 시 STANDARD 전략 전혀 실행 안됨
+  → 수정: `if (allow_I)` 제거, 기존 `if (!allow_I && _isLinearGroup)` 필터를 루프 내부로 복귀
+- 버그 2: dfsCustom 다음 그룹 시작점을 "인접 셀 전체" 시도
+  → 분기 수 5^13 ≈ 12억 → 3초 타임아웃
+  → 근본 원인: rows=[10,12,13,12,5] 중앙정렬 시 row3 좌측(x≈40)과 row4(x=156) 물리 거리 120px > 인접 임계값 50px → 인접 제약 걸면 탐색 불가
+  → 수정: 세션25 방식(스캔 순서 첫 미사용 셀) 복구 + 인접 제약 제거
+- 버그 3: commitCandidate에 그룹 간 인접 체크 추가 → 불규칙 행 레이아웃에서 모든 후보 거부
+  → 수정: 인접 체크 제거
+- 결과: 13S4P custom rows=[10,12,13,12,5] → 40개 후보 1665ms ✓
+- _isLinearGroup: 지그재그 경로 감지 추가 (P<4는 무시, allow_I=true 시 미사용)
+
+#### 렌더러 개선 (renderer.js)
+- stagDirL 지원: stag_dir='L' 시 짝수 행이 오프셋 (renderCustomGrid, calcCellCenters)
+- isAdj 수정: 정배열=Manhattan=1, 엇배열=물리거리≤pitch×1.1 (hex 대각선 이웃 포함)
+- drawTerminal 단순화: 탭 박스 → 원형 마커
+- 치수 표시 추가: SVG 하단에 W×H mm 표기
+- top/bottom face 레이블 위치 수정 (topDX/botDX 기준)
 
 ## 세션 24 진행 (2026-04-19) — 원칙 1/29 버그픽스 + 커스텀 배열 완성 + 원칙 29 신설
 

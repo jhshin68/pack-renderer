@@ -1,6 +1,7 @@
 # graphify 제외 목록
 # tests/ — SVG baseline 파일 (~149개), 코드베이스 이해와 무관
 tests/
+.archive/
 
 # tmp/ — 임시 탐색 스크립트, 분석 대상 아님
 tmp/
