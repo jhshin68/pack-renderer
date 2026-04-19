@@ -107,6 +107,7 @@ function setCellType(t) {
   state.cell_type = t;
   document.getElementById('btn18650').classList.toggle('active', t === '18650');
   document.getElementById('btn21700').classList.toggle('active', t === '21700');
+  if (lastSVG) rerender(); else populateCandidatePanel();
 }
 
 function setArrangement(a) {
@@ -119,6 +120,8 @@ function setArrangement(a) {
   document.getElementById('customGroup').style.display     = isCustom ? 'block' : 'none';
   document.getElementById('holderSizeGroup').style.display = isCustom ? 'none'  : 'block';
   if (isCustom) checkCustomConsistency();
+  state.selected_ordering = 0;
+  if (lastSVG) rerender(); else populateCandidatePanel();
 }
 
 function setCustomAlign(a) {
@@ -127,14 +130,15 @@ function setCustomAlign(a) {
     const el = document.getElementById('btnAlign' + v.charAt(0).toUpperCase() + v.slice(1));
     if (el) el.classList.toggle('active', a === v);
   });
+  if (lastSVG) rerender();
 }
 
 function toggleCustomStagger() {
   state.custom_stagger = !state.custom_stagger;
   document.getElementById('togCustomStagger').classList.toggle('on', state.custom_stagger);
-  // 엇배열 ON일 때만 방향 선택 표시
   const dirGroup = document.getElementById('stagDirGroup');
   if (dirGroup) dirGroup.style.display = state.custom_stagger ? 'block' : 'none';
+  if (lastSVG) rerender();
 }
 
 function setCustomStaggerDir(d) {
@@ -150,12 +154,14 @@ function setBmsEdge(e) {
     const el = document.getElementById('bmsEdge' + v.charAt(0).toUpperCase() + v.slice(1));
     if (el) el.classList.toggle('active', e === v);
   });
+  if (lastSVG) rerender();
 }
 
 function adjBmsPos(d) {
   state.bms_pos = Math.max(0.0, Math.min(1.0, +(state.bms_pos + d).toFixed(1)));
   const el = document.getElementById('valBmsPos');
   if (el) el.textContent = Math.round(state.bms_pos * 100) + '%';
+  if (lastSVG) rerender();
 }
 
 // B+/B− 단자에서 BMS 위치까지 맨해튼 거리 계산 (mm 단위)
@@ -305,6 +311,8 @@ function adj(k, d) {
   const el = document.getElementById('val' + k);
   if (el) el.value = state[k];
   checkCustomConsistency();
+  state.selected_ordering = 0;
+  if (lastSVG) rerender(); else populateCandidatePanel();
 }
 
 // 직접 타이핑 입력 처리 (input[type=number] oninput 핸들러)
@@ -313,10 +321,11 @@ function setFromInput(k, v) {
   if (!Number.isFinite(n) || v === '') return;
   if (k === 'S') state.S = Math.max(2, Math.min(23, n));
   if (k === 'P') state.P = Math.max(1, Math.min(8,  n));
-  // 범위 벗어난 경우 입력칸 값도 정규화
   const el = document.getElementById('val' + k);
   if (el && parseInt(el.value, 10) !== state[k]) el.value = state[k];
   checkCustomConsistency();
+  state.selected_ordering = 0;
+  if (lastSVG) rerender(); else populateCandidatePanel();
 }
 
 // ── H1 홀더 크기 제어 ─────────────────────────────
