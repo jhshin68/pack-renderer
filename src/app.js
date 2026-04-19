@@ -47,12 +47,12 @@ const state = {
   // H3 보조 — G0 앵커 (1번 셀 위치 제약)
   g0_anchor:     null,        // null | 'TL' | 'TR' | 'BL' | 'BR' | {row, col}
   // Phase 4 — pentomino 도형 허용 토글
-  allow_I:       false,       // 1자(I-pentomino) 허용 여부
+  allow_I:       true,        // 1자(I-pentomino) 허용 여부
   allow_U:       false,       // ㄷ자(U-pentomino) 허용 여부
   // Phase 5 — 니켈 플레이트 수 제한
   max_plates:    0,           // 0 = 제한 없음, N = 고유 형상(금형) 종류 수 ≤ N인 후보만 표시
   // UI
-  zoom:          0.7,         // 중앙 SVG 표시 배율 (0.3 ~ 3.0)
+  zoom:          1.0,         // 중앙 SVG 표시 배율 (0.3 ~ 3.0)
 };
 let lastSVG = '';
 
@@ -564,15 +564,10 @@ function adjZoom(d) {
   fixSVGSize();
 }
 
-// ── 통합 진입점: rerender() (M5 — doRender 제거, 유일 진입점) ────
-//   모든 배열(square·staggered·custom)을 renderer.render() 한 곳에서 처리.
-//   F14 덕분에 custom 배열도 renderer가 직접 렌더.
-//   [M5 완료] doRender() 삭제. HTML onclick 및 초기 호출 모두 rerender()로 통일.
-function rerender() {
+// ── SVG만 갱신 (재열거 없이 현재 _enumResult 기준으로 그림) ────────
+function _renderSVG() {
   updateInfoBox();
-  populateCandidatePanel();
 
-  // max_plates 필터: 고유 형상(금형) 종류 수 ≤ state.max_plates
   let effectiveCandidates = _enumResult ? (_enumResult.candidates || []) : [];
   if (state.max_plates > 0 && state.arrangement !== 'custom') {
     effectiveCandidates = effectiveCandidates.filter(
@@ -582,7 +577,6 @@ function rerender() {
 
   const emptyEl = document.getElementById('emptyState');
 
-  // 후보 없음 → 이전 이미지 제거 + "생성 불가" 메시지
   if (state.arrangement !== 'custom' && _enumResult && effectiveCandidates.length === 0) {
     lastSVG = '';
     document.getElementById('svgOutput').innerHTML = '';
@@ -598,7 +592,6 @@ function rerender() {
     return;
   }
 
-  // 정상 렌더: emptyState 원복
   emptyEl.innerHTML = '<div class="empty-icon">⬡</div><div class="empty-text">Configure &amp; Generate</div>';
 
   const customRows = parseCustomRows();
@@ -613,7 +606,6 @@ function rerender() {
     face: 'all',
   };
 
-  // 유효 후보(max_plates 필터 적용)를 렌더에 주입
   if (state.arrangement !== 'custom' && effectiveCandidates.length > 0) {
     const idx  = Math.min(state.selected_ordering, effectiveCandidates.length - 1);
     const cand = effectiveCandidates[idx];
@@ -627,7 +619,7 @@ function rerender() {
   try {
     lastSVG = render(p);
   } catch (err) {
-    console.error('[rerender] render failed:', err);
+    console.error('[_renderSVG] render failed:', err);
     lastSVG = `<svg width="100%" viewBox="0 0 420 80"><rect width="100%" height="100%" fill="#181c27"/>` +
       `<text x="20" y="46" fill="#e74c3c" font-family="Arial" font-size="12">렌더 오류: ${err.message}</text></svg>`;
   }
@@ -639,6 +631,18 @@ function rerender() {
 
   emptyEl.style.display = 'none';
   document.getElementById('svgContainer').style.display = 'block';
+}
+
+// Generate Layout 버튼 전용: 현재 옵션 그대로 후보 재열거 + SVG 재렌더
+function generateLayout() {
+  populateCandidatePanel();
+  _renderSVG();
+}
+
+// ── 통합 진입점: rerender() — 후보 재열거 + SVG 재렌더 ──────────
+function rerender() {
+  populateCandidatePanel();
+  _renderSVG();
 }
 
 // ── 우측 패널 제어 ────────────────────────────────
@@ -687,7 +691,7 @@ function selectCandidate(idx) {
     el.classList.toggle('selected', i === idx);
   });
   _showCandDetail(idx);
-  rerender();
+  _renderSVG();
 }
 
 // ── 배열 후보 패널 (H3/H4) ──────────────────────────
@@ -806,7 +810,7 @@ function populateCandidatePanel() {
       b_plus_side, b_minus_side,
       icc1, icc2, icc3,
       nickel_w: nickel_w_mm * 1.5,  // scale 반영 근사
-      max_candidates: 20,
+      max_candidates: 40,
       g0_anchor: state.g0_anchor,   // ★ Phase 2: 1번 셀 위치 제약
       allow_I: state.allow_I,       // ★ Phase 4: I-pentomino 허용
       allow_U: state.allow_U,       // ★ Phase 4: U-pentomino 허용
@@ -1007,6 +1011,22 @@ function downloadPNG() {
   };
   img.src = url;
 }
+
+// ── 후보 카드 키보드 내비게이션 (↑↓) ────────────────
+document.addEventListener('keydown', function(e) {
+  if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+  const tag = document.activeElement && document.activeElement.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+  const cards = document.querySelectorAll('.cand-card');
+  if (!cards.length) return;
+  e.preventDefault();
+  const total = cards.length;
+  let next = state.selected_ordering + (e.key === 'ArrowDown' ? 1 : -1);
+  next = Math.max(0, Math.min(total - 1, next));
+  if (next === state.selected_ordering) return;
+  selectCandidate(next);
+  cards[next].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+});
 
 // ── 초기 렌더 ─────────────────────────────────────
 rerender();

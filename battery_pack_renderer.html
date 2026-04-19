@@ -206,7 +206,7 @@
         <div class="ctrl-label">도형 허용 <span style="font-size:8px;color:var(--dt3)">(기본: P만)</span></div>
         <div class="toggle-row">
           <span class="toggle-label">1자 (I)</span>
-          <button class="toggle" id="togAllowI" onclick="toggleAllowShape('allow_I')"></button>
+          <button class="toggle on" id="togAllowI" onclick="toggleAllowShape('allow_I')"></button>
         </div>
 
         <div class="hint" style="margin-top:4px">P=5일 때 pentomino 후보에 적용</div>
@@ -234,7 +234,7 @@
       <div class="ctrl-sep"></div>
 
       <!-- Render -->
-      <button class="render-btn" onclick="rerender()">
+      <button class="render-btn" onclick="generateLayout()">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
         Generate Layout
       </button>
@@ -276,7 +276,7 @@
       <button class="face-btn"        id="faceBottom" onclick="setFace('bottom')">Bottom Face</button>
       <div class="toolbar-sep"></div>
       <button class="zoom-btn" onclick="adjZoom(-0.1)">−</button>
-      <span class="zoom-val" id="valZoom">70%</span>
+      <span class="zoom-val" id="valZoom">100%</span>
       <button class="zoom-btn" onclick="adjZoom(0.1)">+</button>
       <div class="toolbar-sep"></div>
       <div class="toolbar-info" id="toolInfo">—</div>
