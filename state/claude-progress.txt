@@ -1,24 +1,9 @@
 ========================================
-마지막 업데이트: 2026-04-20 (세션 30 — 원칙 18 니켈 플레이트 형상 수정)
+마지막 업데이트: 2026-04-20 (세션 29 — settings.local.json 권한 정리 + app.js/renderer.js 미커밋 변경 기록)
 버전: battery_pack_renderer.html, src/app.js, src/generator.js, src/renderer.js
-테스트 상태: pass=846 fail=0 (정배열+엇배열 720/720, 커스텀 18/18) — 세션 30 기준
+테스트 상태: pass=846 fail=0 (정배열+엇배열 720/720, 커스텀 18/18) — 세션 27 기준
 feature_list.json: 모든 항목 passes:true
-git 상태: 세션 30 커밋 완료
-
-## 세션 30 진행 (2026-04-20) — 원칙 18 니켈 플레이트 형상 수정
-
-### 완료 사항
-
-#### buildNickel() 원칙 18 적용 (renderer.js)
-- 문제: spanning tree만 그려 열린 지그재그 형태 → 사다리꼴 닫힌 형상 아님
-- 수정 1: stroke-width = nw(6px) → 2R(33px for 21700@1.5x)
-- 수정 2: spanning tree → 모든 인접 쌍 연결선 (O(P²) per plate)
-- 수정 3: 노드 원 추가 — 각 셀 중심에 circle r=R (원칙 18②)
-- 결과: 846/846 회귀 pass, tmp/test_nickel_p18.svg 생성 확인
-
-### 다음 할 일
-- [ ] 브라우저에서 사다리꼴 닫힌 형상 직접 확인
-- [ ] staggered+holder 모드 니켈 플레이트 형상 확인
+git 상태: 세션 29 커밋 완료
 
 ## 세션 29 진행 (2026-04-20) — 권한 설정 + 미커밋 변경 기록
 
