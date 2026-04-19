@@ -51,6 +51,8 @@ const state = {
   allow_U:       false,       // ㄷ자(U-pentomino) 허용 여부
   // Phase 5 — 니켈 플레이트 수 제한
   max_plates:    0,           // 0 = 제한 없음, N = total_plates ≤ N인 후보만 표시
+  // UI
+  zoom:          0.7,         // 중앙 SVG 표시 배율 (0.3 ~ 3.0)
 };
 let lastSVG = '';
 
@@ -499,16 +501,24 @@ function applyFaceFilter() {
   document.getElementById('svgOutput').innerHTML = svg;
 }
 
-// ── SVG를 viewBox 자연 크기로 고정 ─────────────────
+// ── SVG를 viewBox 자연 크기 × zoom 배율로 고정 ─────
 function fixSVGSize() {
   const svgEl = document.querySelector('#svgOutput svg');
   if (!svgEl) return;
   const vb = svgEl.getAttribute('viewBox');
   if (!vb) return;
   const [, , w, h] = vb.split(' ').map(Number);
-  svgEl.setAttribute('width',  Math.ceil(w) + 'px');
-  svgEl.setAttribute('height', Math.ceil(h) + 'px');
+  const z = state.zoom || 1.0;
+  svgEl.setAttribute('width',  Math.ceil(w * z) + 'px');
+  svgEl.setAttribute('height', Math.ceil(h * z) + 'px');
   svgEl.style.cssText = 'max-width:100%;height:auto;display:block;';
+}
+
+function adjZoom(d) {
+  state.zoom = Math.round(Math.max(0.3, Math.min(3.0, state.zoom + d)) * 10) / 10;
+  const el = document.getElementById('valZoom');
+  if (el) el.textContent = Math.round(state.zoom * 100) + '%';
+  fixSVGSize();
 }
 
 // ── 통합 진입점: rerender() (M5 — doRender 제거, 유일 진입점) ────
