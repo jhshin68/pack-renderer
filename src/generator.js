@@ -1581,7 +1581,7 @@
         if (icc3 && icc.hasT) return false;
         if (icc1 && !icc.icc1_ok) return false;
         if (icc2) {
-          const maxRatio = arrangement === 'custom' ? 3.0 : 2.0;
+          const maxRatio = arrangement === 'custom' ? 4.0 : 2.0;
           if (!icc.is1D && icc.ratio > maxRatio) return false;
         }
         return true;
@@ -1623,75 +1623,151 @@
       }
 
       if (arrangement === 'custom') {
-        // Custom 배열: 다음 그룹 시작 셀은 현재 그룹에 인접한 미사용 셀로 제한
-        // → 그룹 간 물리적 인접 보장 → 니켈플레이트 연속 가능 (원칙 28③)
-        const scanOrder = makeBoustrophedon(true)
-          .map(c => cellIdxMap.get(xyKey(c)))
-          .filter(i => i !== undefined);
+        // ── BFS Greedy (MRV 휴리스틱) ─────────────────────────────────────
+        // DFS가 불규칙 행 배치에서 탐색 공간 폭발로 0개를 반환하는 문제 해결.
+        // x 오름차순 스캔, 각 그룹은 BFS 확장 + MRV(최소 남은 이웃) 선택.
+        // 결정론적(1후보)이므로 먼저 실행하고 DFS로 추가 후보를 시도한다.
+        {
+          const scanByX = [...Array(N).keys()]
+            .sort((a, b) => cells[a].x - cells[b].x || cells[a].y - cells[b].y);
 
-        function dfsCustom(gIdx, snapGroups, curIdxs, frontier) {
-          if (results.length >= max_candidates || ++btIterations > MAX_ITER_BT) return;
-          if (Date.now() - btStart > btBudgetMs) return;
-
-          if (curIdxs.length === P) {
-            if (!passICC_bt(curIdxs)) return;
-            const snap = [...curIdxs];
-            const allSnaps = snapGroups.concat([snap]);
-
-            if (gIdx === S - 1) {
-              if (!snap.some(i => bMinus.has(i))) return;
-              commitCandidate(allSnaps);
-              return;
+          function pickMRV(candidates) {
+            let best = -1, bestD = Infinity;
+            for (const c of candidates) {
+              const d = adjL[c].filter(j => !used[j]).length;
+              if (d < bestD) { bestD = d; best = c; }
             }
-
-            // 인접 우선: 현재 그룹에 인접한 미사용 셀 최대 5개 시도
-            // 비인접 fallback: 인접 셀 없으면 스캔 순서 첫 미사용 셀 1개 (세션26 방식)
-            // validateCandidate 게이트에서 비인접 후보 최종 폐기
-            const adjToSnap = new Set();
-            for (const ci of snap) {
-              for (const nb of adjL[ci]) { if (!used[nb]) adjToSnap.add(nb); }
-            }
-            const adjStarts = [];
-            for (const ci of scanOrder) {
-              if (adjStarts.length >= 5) break;
-              if (!used[ci] && adjToSnap.has(ci)) adjStarts.push(ci);
-            }
-            const starts = adjStarts.length > 0
-              ? adjStarts
-              : (() => { for (const ci of scanOrder) { if (!used[ci]) return [ci]; } return []; })();
-            for (const nextStart of starts) {
-              if (results.length >= max_candidates) break;
-              if (Date.now() - btStart > btBudgetMs) break;
-              used[nextStart] = 1;
-              dfsCustom(gIdx + 1, allSnaps, [nextStart],
-                new Set(adjL[nextStart].filter(nb => !used[nb])));
-              used[nextStart] = 0;
-            }
-            return;
+            return best;
           }
 
-          for (const cand of frontier) {
-            used[cand] = 1;
-            curIdxs.push(cand);
-            const nf = new Set(frontier);
-            nf.delete(cand);
-            for (const nb of adjL[cand]) { if (!used[nb]) nf.add(nb); }
-            dfsCustom(gIdx, snapGroups, curIdxs, nf);
-            curIdxs.pop();
-            used[cand] = 0;
+          const bPlusInOrderX = scanByX.filter(i => bPlus.has(i));
+          const bPlusStartCells = anchorCells
+            ? bPlusInOrderX.filter(i => anchorMatches(cells[i]))
+            : bPlusInOrderX;
+
+          for (const g0start of bPlusStartCells) {
+            if (results.length >= max_candidates) break;
+            used.fill(0);
+            const allSnaps = [];
+            let ok = true;
+            let prevGroup = null;
+
+            for (let g = 0; g < S; g++) {
+              let start = -1;
+              if (g === 0) {
+                start = g0start;
+              } else {
+                for (const i of scanByX) {
+                  if (!used[i] && prevGroup.some(pi => adjL[pi].includes(i))) { start = i; break; }
+                }
+                if (start < 0) for (const i of scanByX) if (!used[i]) { start = i; break; }
+              }
+              if (start < 0) { ok = false; break; }
+
+              const group = [start]; used[start] = 1;
+              const frontier = new Set(adjL[start].filter(j => !used[j]));
+              while (group.length < P && frontier.size > 0) {
+                const next = pickMRV([...frontier]);
+                if (next < 0) break;
+                group.push(next); used[next] = 1; frontier.delete(next);
+                for (const nb of adjL[next]) if (!used[nb]) frontier.add(nb);
+              }
+              if (group.length < P) { ok = false; break; }
+              if (g === S - 1 && !group.some(i => bMinus.has(i))) { ok = false; break; }
+
+              allSnaps.push(group);
+              prevGroup = group;
+            }
+
+            if (ok && allSnaps.length === S) {
+              used.fill(0); // commitCandidate reads cells[], not used
+              commitCandidate(allSnaps);
+            }
+            used.fill(0);
           }
         }
 
-        const bPlusInOrder = scanOrder.filter(i => bPlus.has(i));
-        const bPlusFiltered = anchorCells
-          ? bPlusInOrder.filter(i => anchorMatches(cells[i]))
-          : bPlusInOrder;
-        for (const startCell of bPlusFiltered) {
+        // 4종 scan order를 순서대로 시도: 열 우선 2종 → boustrophedon 2종
+        // 불규칙 행 너비에서 boustrophedon U턴 패턴의 P21B 비인접 문제 해결
+        const scanOrderGenerators = [
+          () => makeColumnFirst(false),
+          () => makeColumnFirst(true),
+          () => makeBoustrophedon(true),
+          () => makeBoustrophedon(false),
+        ];
+
+        for (const genScanOrder of scanOrderGenerators) {
           if (results.length >= max_candidates) break;
           if (Date.now() - btStart > btBudgetMs) break;
-          used[startCell] = 1;
-          dfsCustom(0, [], [startCell], new Set(adjL[startCell].filter(nb => !used[nb])));
-          used[startCell] = 0;
+          btIterations = 0;
+
+          const scanOrder = genScanOrder()
+            .map(c => cellIdxMap.get(xyKey(c)))
+            .filter(i => i !== undefined);
+
+          const dfsCustom = (gIdx, snapGroups, curIdxs, frontier) => {
+            if (results.length >= max_candidates || ++btIterations > MAX_ITER_BT) return;
+            if (Date.now() - btStart > btBudgetMs) return;
+
+            if (curIdxs.length === P) {
+              if (!passICC_bt(curIdxs)) return;
+              const snap = [...curIdxs];
+              const allSnaps = snapGroups.concat([snap]);
+
+              if (gIdx === S - 1) {
+                if (!snap.some(i => bMinus.has(i))) return;
+                commitCandidate(allSnaps);
+                return;
+              }
+
+              // 인접 우선: 현재 그룹에 인접한 미사용 셀 최대 5개 시도
+              // 인접 셀 없으면 scan order 첫 미사용 셀 1개 (비인접 fallback)
+              const adjToSnap = new Set();
+              for (const ci of snap) {
+                for (const nb of adjL[ci]) { if (!used[nb]) adjToSnap.add(nb); }
+              }
+              const adjStarts = [];
+              for (const ci of scanOrder) {
+                if (adjStarts.length >= 5) break;
+                if (!used[ci] && adjToSnap.has(ci)) adjStarts.push(ci);
+              }
+              const starts = adjStarts.length > 0
+                ? adjStarts
+                : (() => { for (const ci of scanOrder) { if (!used[ci]) return [ci]; } return []; })();
+              for (const nextStart of starts) {
+                if (results.length >= max_candidates) break;
+                if (Date.now() - btStart > btBudgetMs) break;
+                used[nextStart] = 1;
+                dfsCustom(gIdx + 1, allSnaps, [nextStart],
+                  new Set(adjL[nextStart].filter(nb => !used[nb])));
+                used[nextStart] = 0;
+              }
+              return;
+            }
+
+            for (const cand of frontier) {
+              used[cand] = 1;
+              curIdxs.push(cand);
+              const nf = new Set(frontier);
+              nf.delete(cand);
+              for (const nb of adjL[cand]) { if (!used[nb]) nf.add(nb); }
+              dfsCustom(gIdx, snapGroups, curIdxs, nf);
+              curIdxs.pop();
+              used[cand] = 0;
+            }
+          };
+
+          const bPlusInOrder = scanOrder.filter(i => bPlus.has(i));
+          const bPlusFiltered = anchorCells
+            ? bPlusInOrder.filter(i => anchorMatches(cells[i]))
+            : bPlusInOrder;
+          for (const startCell of bPlusFiltered) {
+            if (results.length >= max_candidates) break;
+            if (Date.now() - btStart > btBudgetMs) break;
+            used[startCell] = 1;
+            dfsCustom(0, [], [startCell], new Set(adjL[startCell].filter(nb => !used[nb])));
+            used[startCell] = 0;
+          }
         }
 
       } else {
