@@ -1,350 +1,273 @@
-# Design System Inspired by Shopify
-
-## 1. Visual Theme & Atmosphere
-
-Shopify.com is a dark-first digital theatre — a website that stages its commerce platform like a cinematic premiere. The entire experience unfolds against an abyss of near-black surfaces that carry the faintest whisper of deep forest green (`#02090A`, `#061A1C`, `#102620`), creating a nocturnal atmosphere that feels less like a SaaS marketing page and more like an exclusive product reveal at a tech keynote. This darkness isn't cold or corporate — it's the warm, enveloping dark of a luxury experience, like sitting in the front row of a darkened auditorium.
-
-The typography is the undeniable star. NeueHaasGrotesk — a refined Helvetica descendant — appears at monumental scale (96px) with impossibly light weight (330-400), creating headlines that feel etched in light rather than printed in ink. The `ss03` OpenType feature gives letterforms a distinctive character that separates Shopify's type from generic Helvetica usage. Below the display layer, Inter Variable handles body text with surgical precision, using equally unusual variable weights (420, 450, 550) that live in the spaces between traditional weight stops. This precision signals a company that sweats every detail.
-
-Color is used with extreme restraint. The primary accent is Shopify Neon Green (`#36F4A4`) — an electric mint that appears exclusively on focus rings and accent highlights, pulsing like a bioluminescent signal against the dark canvas. Softer green tints (Aloe `#C1FBD4`, Pistachio `#D4F9E0`) provide atmospheric washes. White is the only text color that matters on dark surfaces, while a zinc-based neutral scale (`#A1A1AA` through `#3F3F46`) handles the hierarchy of quiet information. The result is a design that makes commerce technology feel like it belongs in a science-fiction future.
-
-**Key Characteristics:**
-- Dark-first design with deep forest-teal undertones (not pure black)
-- Ultra-light display typography (weight 330) at monumental scale (96px) creating an ethereal presence
-- Neon Green (`#36F4A4`) as the singular high-energy accent against darkness
-- Full-pill buttons (9999px radius) as the primary interactive shape
-- Layered, multi-stage box shadows creating photographic depth
-- Product screenshots embedded in dark UI contexts, matching the surrounding darkness
-- Zinc-based neutral scale for text hierarchy — balanced between warm and cool
-
-## 2. Color Palette & Roles
+# SL Power — Pack Intelligence Design System
+
+> **목적**: 이 문서 하나만 읽어도 Pack-Renderer UI의 색·타입·여백·규칙을 그대로 재현/변경할 수 있는 단일 레퍼런스.
+
+---
+
+## 1. 디자인 철학 (5 Principles)
+
+1. **Engineering-grade precision** — 각진 디테일, 좁은 radius(3–10px), 견고한 테두리. 둥글고 투명한 소프트 UI 금지.
+2. **Signal vs chrome** — Electric Blue(`#1E4FD8`)는 CTA · 활성 상태 · 라이브 데이터에만. 대형 배경 사용 절대 금지.
+3. **Mono for data, Inter for prose** — 숫자·라벨 = JetBrains Mono, 본문/한국어 = Inter / IBM Plex Sans KR.
+4. **Authority = deep navy** — `ink-800 #101A2E`는 사이드바·헤더 권위 색. 캔버스는 `mist-100 #EDF2F8`.
+5. **Blueprint mindset** — 치수선, 코너 틱, ALLCAPS mono 레이블로 "이건 엔지니어링 제품" 선언.
+
+---
+
+## 2. 색상 토큰 (CSS Custom Properties)
+
+### 2.1 `:root` 전체 목록
+
+```css
+:root {
+  /* ── Ink (Authority — 사이드바·헤더) ── */
+  --ink-900: #070C18;
+  --ink-800: #101A2E;   /* 사이드바 base */
+  --ink-700: #18243E;   /* raised surface */
+  --ink-600: #203052;   /* hover surface */
+  --ink-500: #2A3E66;   /* active / selected */
+  --ink-400: #36487A;   /* visible border on dark */
+
+  /* ── Mist (Neutral — 캔버스·텍스트·보더) ── */
+  --mist-100: #EDF2F8;  /* 내부 툴 캔버스 bg */
+  --mist-200: #CBD6E5;  /* visible border */
+  --mist-400: #6B7E9A;  /* fg3 hint (12px+) */
+  --mist-500: #4A5A77;  /* fg2 secondary */
+  --mist-800: #10192E;  /* fg1 primary (light surface) */
+
+  /* ── Blue (Signal — CTA·활성·라이브 전용) ── */
+  --blue-400: #5E87F4;  /* dark chrome 위 primary */
+  --blue-600: #1E4FD8;  /* light 위 primary · 브랜드 기본 */
+  --blue-700: #1740B5;  /* hover */
+
+  /* ── Status ── */
+  --ok:      #047857;   --ok-fg:   #4ADE80;
+  --warn:    #B45309;   --warn-fg: #FBBF24;
+  --err:     #B91C1C;   --err-fg:  #FB7185;
+
+  /* ── Semantic Aliases (실제 사용 변수) ── */
+  --bg-canvas:  var(--mist-100);   /* 중앙 캔버스 배경 */
+  --bg-surface: #FFFFFF;           /* 카드 */
+  --bg-chrome:  var(--ink-800);    /* 사이드바/헤더 */
+  --bg-chrome-2: var(--ink-700);
+  --bg-chrome-3: var(--ink-600);
+
+  --fg1-dark: #F3F6FC;   /* 15:1 on ink-800 — 주 텍스트 */
+  --fg2-dark: #B8C5DB;   /* 7.1:1 — 보조 텍스트 */
+  --fg3-dark: #8094B4;   /* 4.7:1, 12px+ — 힌트 */
+
+  --fg1: var(--mist-800);  /* 16:1 on white */
+  --fg2: var(--mist-500);  /* 7.2:1 */
+  --fg3: var(--mist-400);  /* 4.6:1 */
+
+  --bd-dark: var(--ink-400);    /* dark chrome 위 보더 */
+  --bd-light: var(--mist-200);  /* light canvas 위 보더 */
 
-### Primary
-
-- **Shopify White** (`#FFFFFF`): Primary text on dark surfaces, button fills, high-contrast elements
-- **Shopify Black** (`#000000`): Body background, button text on white, maximum contrast base (--color-shade-100)
-
-### Secondary & Accent
-
-- **Neon Green** (`#36F4A4`): The signature accent — focus rings, interactive highlights, active state indicators. Electric and bioluminescent
-- **Aloe** (`#C1FBD4`): Soft green wash for decorative backgrounds, atmospheric cards (--color-aloe-10)
-- **Pistachio** (`#D4F9E0`): Lightest green tint for subtle surface differentiation (--color-pistachio-10)
-
-### Surface & Background
-
-- **Void** (`#000000`): Root page background — true black for maximum depth
-- **Deep Teal** (`#02090A`): Card surfaces, content containers — near-black with green undertone
-- **Dark Forest** (`#061A1C`): Section backgrounds with visible green character
-- **Forest** (`#102620`): Elevated dark surfaces, header backgrounds — the warmest dark shade
-- **Dark Card Border** (`#1E2C31`): Card borders on dark surfaces, subtle boundary definition
-
-### Neutrals & Text (Zinc Scale)
-
-- **Shade-30** (`#D4D4D8`): Lightest neutral, barely-there borders on dark (--color-shade-30)
-- **Muted Text** (`#A1A1AA`): Secondary text, metadata, descriptions — the quiet voice
-- **Shade-50** (`#71717A`): Tertiary text, timestamps, least important info (--color-shade-50)
-- **Shade-60** (`#52525B`): Disabled text, decorative neutrals (--color-shade-60)
-- **Shade-70** (`#3F3F46`): Subtle dividers, barely-visible UI boundaries (--color-shade-70)
-- **Light Border** (`#E4E4E7`): Borders on light surfaces (rare — only in light-mode modals)
-
-### Semantic & Accent
-
-- **Link Muted** (`#9797A2`): Muted link text with underline decoration
-- **Link Sage** (`#9DABAD`): Teal-tinted muted links
-- **Link Lavender** (`#BDBDCA`): Lighter link variant
-- **Link Mint** (`#99B3AD`): Green-tinted link variant for themed sections
-
-### Gradient System
-
-- **Dark Teal Wash**: Radial gradient from `#102620` center to `#02090A` edge — used behind product showcases
-- **Green Atmospheric**: Subtle green-tinted ambient gradients behind hero sections, creating depth without solid colors
-- **Spotlight**: Focused bright area fading to black — creates keynote-style presentation lighting
-
-## 3. Typography Rules
-
-### Font Family
-
-**Display:** NeueHaasGrotesk (refined Helvetica descendant, variable font)
-- Fallbacks: Helvetica, Arial, sans-serif
-- OpenType features: `ss03` (stylistic set 3 — distinctive letterform alternates)
-- Available weights: 330, 360, 400, 500, 750 (variable)
-- Used for all headings, hero text, and large display elements
-
-**Body:** Inter-Variable
-- Fallbacks: Helvetica, Arial, sans-serif
-- OpenType features: `ss03`
-- Available weights: 400, 420, 450, 500, 550 (variable)
-- Used for body text, links, buttons, UI elements
-
-**Mono:** ui-monospace
-- Fallbacks: SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New
-- Used for code snippets, data labels, technical content
-
-### Hierarchy
-
-| Role | Size | Weight | Line Height | Letter Spacing | Notes |
-|------|------|--------|-------------|----------------|-------|
-| Display XL | 96px | 400 | 1.00 | — | NeueHaasGrotesk, hero headlines, "ss03" |
-| Display XL Bold | 90.74px | 750 | 1.00 | 4.54px | NeueHaasGrotesk, emphasis display |
-| Display XL Tracked | 96px | 400 | 1.00 | 2.4px | NeueHaasGrotesk, spaced display |
-| Display Light | 96px | 330 | 0.96 | — | NeueHaasGrotesk, ethereal display |
-| Heading 1 | 70px | 330 | 1.00 | — | NeueHaasGrotesk, section titles |
-| Heading 2 | 55px | 330 | 1.16 | — | NeueHaasGrotesk, subsections |
-| Heading 3 | 48px | 330 | 1.14 | — | NeueHaasGrotesk, feature titles |
-| Heading 4 | 32px | 360 | 1.14 | 0.32px | NeueHaasGrotesk, card headings |
-| Heading 5 | 28px | 500 | 1.28 | 0.42px | NeueHaasGrotesk, small headings |
-| Heading 6 | 24px | 400 | 1.14 | 0.36px | NeueHaasGrotesk, minor headings |
-| Body Large | 20px | 500 | 1.40 | 0.3px | NeueHaasGrotesk / Inter, lead paragraphs |
-| Body | 18px | 400 | 1.56 | — | Inter-Variable, standard body |
-| Body Medium | 18px | 550 | 1.56 | — | Inter-Variable, emphasized body |
-| Body Small | 16px | 400 | 1.50 | — | Inter / NeueHaasGrotesk, compact body |
-| Body Small Medium | 16px | 420 | 1.50 | — | Inter-Variable, slightly emphasized |
-| Button | 16px | 400 | 1.50 | — | NeueHaasGrotesk, CTA text |
-| Nav Link | 18px | 500 | 1.25 | 0.72px | NeueHaasGrotesk, navigation items |
-| Caption | 14px | 500 | 1.49 | 0.28px | NeueHaasGrotesk / Inter, metadata |
-| Caption Medium | 14px | 550 | 1.49 | 0.28px | Inter-Variable, emphasized caption |
-| Overline | 15.36px | 400 | 1.50 | 1.54px | NeueHaasGrotesk, wide-tracked labels |
-| Micro | 13px | 500 | 1.50 | -0.13px | Inter, tight-tracked small text |
-| Label | 12px | 400 | 1.20 | 0.72px | Inter, uppercase labels |
-| Code | 16px | 400 | 1.50 | — | ui-monospace, uppercase, code blocks |
-| Code Small | 12px | 400 | 1.33 | — | ui-monospace, uppercase, inline code |
-
-### Principles
-
-Shopify's typography is a masterclass in variable font precision. The display layer lives almost exclusively at weights 330-400 — featherweight text that appears to hover above the dark background like projected light. This is the opposite of the bold, heavy approach most SaaS sites take: where others shout, Shopify whispers at scale. The 96px headlines at weight 330 create a paradox of enormous size and delicate stroke that feels both monumental and fragile. The `ss03` OpenType feature activates a stylistic set that gives specific characters (likely 'a', 'g', and certain numerals) a more refined appearance, distinguishing Shopify's typography from standard Helvetica Neue usage. Inter Variable handles the body layer with surgical precision, using weights like 420 and 550 that exist between the traditional stops — every piece of text has exactly the visual weight it needs.
-
-## 4. Component Stylings
-
-### Buttons
-
-**Primary (White Fill)**
-- Background: White (`#FFFFFF`)
-- Text: Black (`#000000`)
-- Border: 2px solid transparent
-- Border radius: full pill (9999px)
-- Padding: 12px 26px 12px 16px (asymmetric — more right padding for visual balance)
-- Hover: slight opacity reduction or background shift
-- Focus: 2px `#36F4A4` (Neon Green) outline ring
-- Transition: all 200ms ease
-
-**Secondary (Ghost/Outlined)**
-- Background: transparent
-- Text: White (`#FFFFFF`)
-- Border: 2px solid White (`#FFFFFF`)
-- Border radius: full pill (9999px)
-- Padding: 12px 26px 12px 16px
-- Hover: fills to white bg with black text
-- Focus: 2px `#36F4A4` outline
-
-**Badge/Tag (Neutral Filled)**
-- Background: `rgba(255, 255, 255, 0.2)` (frosted glass)
-- Text: White (`#FFFFFF`)
-- Border: none
-- Border radius: subtly rounded (4px)
-- Padding: 12px 16px
-- Font: 16px regular
-
-### Cards & Containers
-
-- Background: Deep Teal (`#02090A`) on dark pages
-- Border: 1px solid `#1E2C31` (Dark Card Border) — barely visible boundary
-- Border radius: 8px for standard cards, 12px for featured cards, 20px 20px 0 0 for top-rounded cards
-- Shadow: Multi-layered system:
-  - Resting: `rgba(0,0,0,0.1) 0px 0px 0px 1px, rgba(0,0,0,0.1) 0px 2px 2px, rgba(0,0,0,0.1) 0px 4px 4px, rgba(0,0,0,0.1) 0px 8px 8px` + `rgba(255,255,255,0.03) 0px 1px 0px inset`
-  - The inset white highlight creates a subtle top-edge glow
-- Hover: shadow expands, card may slightly brighten
-- Transition: box-shadow 300ms ease, transform 200ms ease
-
-### Inputs & Forms
-
-- Background: transparent or Dark Forest (`#061A1C`)
-- Text: White (`#FFFFFF`)
-- Border: 1px solid `#3F3F46` (Shade-70)
-- Border radius: 8px
-- Padding: 12px 16px
-- Focus: 2px solid `#36F4A4` (Neon Green focus ring)
-- Placeholder: Shade-50 (`#71717A`)
-- Transition: border-color 200ms ease
-
-### Navigation
-
-- Background: transparent (overlaid on dark hero), becomes Forest (`#102620`) on scroll
-- Height: ~64px
-- Left: Shopify wordmark logo (SVG, white on dark)
-- Center/Right: nav links in 18px/500 NeueHaasGrotesk, white, letter-spacing 0.72px
-- CTA: White pill button "Start for free" (right)
-- Secondary CTA: Ghost button with white border
-- Hover: links shift to Muted Text (`#A1A1AA`) or gain underline
-- Mobile: hamburger menu, full-screen dark overlay
-- Transition: background 300ms ease on scroll
-
-### Image Treatment
-
-- Product screenshots: embedded in dark UI contexts, matching the surrounding darkness
-- Admin interface previews: shown on dark backgrounds with subtle card borders
-- Aspect ratios: varied — hero images are wide (16:9-ish), feature shots are flexible
-- All images sit flush within dark containers — no bright borders or frames
-- Lazy loading with dark placeholder surfaces
-
-### Trust Indicators
-
-- Statistics displayed prominently: "15+" (years), "150M+" (buyers)
-- Numbers at display scale in NeueHaasGrotesk
-- Partner/developer ecosystem callout sections
-- Dark-themed testimonials integrated into the page flow
-
-## 5. Layout Principles
-
-### Spacing System
-
-Base unit: 8px
-
-| Token | Value | Use |
-|-------|-------|-----|
-| space-1 | 4px | Tight inline gaps |
-| space-2 | 8px | Base unit, icon gaps |
-| space-3 | 12px | Card padding, tight margins |
-| space-4 | 16px | Standard element padding |
-| space-5 | 24px | Card gaps, section padding |
-| space-6 | 28px | Medium section spacing |
-| space-7 | 32px | Section breaks |
-| space-8 | 36px | Large padding |
-| space-9 | 40px | Major section padding |
-| space-10 | 64px | Hero section padding, large gaps |
-
-### Grid & Container
-
-- Max container width: ~1280px (centered)
-- Hero: full-width, edge-to-edge dark background with centered text
-- Feature sections: 2-column layouts with text and product screenshots
-- Stats sections: horizontal layout with large numbers
-- Horizontal padding: 64px desktop, 32px tablet, 16px mobile
-- Grid gap: 24-32px between major content blocks
-
-### Whitespace Philosophy
-
-Shopify's whitespace strategy is theatrical. Sections are separated by vast expanses of dark space — 80px to 120px of pure black breathing room — that create the pacing of a presentation, not a webpage. Each content block is its own "slide" in a keynote-style scroll. Within sections, spacing is tighter and more deliberate, creating focal density against the expansive void. The contrast between macro-level emptiness and micro-level precision is what gives the site its cinematic cadence.
-
-### Border Radius Scale
-
-| Value | Context |
-|-------|---------|
-| 4px | Tags, badges, micro-elements |
-| 8px | Standard cards, inputs, video containers |
-| 12px | Featured cards, image containers, buttons (non-pill) |
-| 20px | Top-rounded cards (20px 20px 0 0), modal headers |
-| 340px | Large rounded decorative elements |
-| 9999px | Pill buttons, pill badges, nav elements |
-
-## 6. Depth & Elevation
-
-| Level | Treatment | Use |
-|-------|-----------|-----|
-| Base | No shadow, dark surface | Default page background |
-| Subtle | `rgba(0,0,0,0.1) 0px 0px 0px 1px` + inset white glow | Resting cards |
-| Medium | Multi-layer: 1px ring + 2px + 4px + 8px shadow stack | Elevated cards, featured sections |
-| High | `rgba(0,0,0,0.25) 0px 25px 50px -12px` | Modals, dropdowns, overlays |
-| Focus | `0px 0px 0px 2px #36F4A4` | Keyboard focus ring (Neon Green) |
-
-Shopify's shadow system is unusually sophisticated. Rather than single-value shadows, cards use a stacked, multi-layer approach: a 1px ring for boundary definition, 2px/4px/8px progressive blurs for natural light falloff, and a delicate inset white glow (`rgba(255,255,255,0.03)`) that simulates a top-lit glass surface. On dark backgrounds, shadows darken from already-dark surfaces, so the shadows function more as "ambient occlusion" than traditional elevation — the card appears to sink slightly into the surface rather than float above it.
-
-### Decorative Depth
-
-- **Dark teal gradients**: Ambient radial washes behind hero sections and product showcases
-- **Spotlight effects**: Bright centered areas fading to black, creating keynote-style theatrical lighting
-- **Edge glow**: Subtle light colored edges on dark cards via inset box-shadow
-- **Green atmospheric halos**: Faint green tints in background gradients, echoing the brand accent
-
-## 7. Do's and Don'ts
-
-### Do
-
-- Use the dark teal-black surface hierarchy (Void → Deep Teal → Dark Forest → Forest) for depth
-- Keep display typography at weight 330-400 — the ethereal lightness is the design's signature
-- Use Neon Green (`#36F4A4`) exclusively for focus states and critical accent highlights
-- Apply 9999px radius to all primary CTA buttons — the full pill is non-negotiable
-- Use the multi-layered shadow system for card elevation — single shadows look flat
-- Maintain the `ss03` OpenType feature across all text — it's part of the typographic identity
-- Use Inter Variable for body text and NeueHaasGrotesk for headings — never mix their roles
-- Create theatrical spacing between sections (80px+) for cinematic pacing
-
-### Don't
-
-- Don't use pure black (#000000) for text on dark backgrounds — use white (#FFFFFF) only
-- Don't introduce warm colors (orange, red, yellow) — the palette is strictly cool (greens, teals, neutrals)
-- Don't use font weights above 500 for NeueHaasGrotesk body text — heavy weights break the ethereal feel
-- Don't apply green accents to large surfaces — Neon Green is for small, precise highlights only
-- Don't use sharp corners (0px radius) on interactive elements — everything rounds
-- Don't add bright backgrounds — the dark theme is fundamental, not optional
-- Don't use single-layer box shadows — the stacked approach is the system
-- Don't set line-height above 1.56 for body text — Shopify's text is relatively compact
-- Don't mix NeueHaasGrotesk and Inter at the same size/role — their weight scales differ
-- Don't use letter-spacing below 0 for headings — Shopify headings track neutral or positive
-
-## 8. Responsive Behavior
-
-### Breakpoints
-
-| Name | Width | Key Changes |
-|------|-------|-------------|
-| Mobile | <640px | Single column, hamburger nav, display text scales to 48px, 16px padding |
-| Tablet | 640-1024px | 2-column grids begin, display text at 70px, 32px padding |
-| Desktop | 1024-1440px | Full layout, expanded nav, 96px display, 64px padding |
-| Large Desktop | >1440px | Max-width container centered, increased section spacing |
-
-### Touch Targets
-
-- Minimum touch target: 44x44px (WCAG AAA)
-- Pill buttons: 48px height minimum with generous horizontal padding
-- Nav links: 44px touch area
-- Card surfaces: full card is tappable where linked
-
-### Collapsing Strategy
-
-- **Navigation**: Full horizontal links → hamburger menu below 1024px; logo and CTA button remain visible
-- **Hero section**: 96px display → 70px at tablet → 48px on mobile; maintains single-column center alignment
-- **Feature sections**: 2-column text+image → stacked single column below 768px
-- **Stats**: Horizontal row → stacked vertical on mobile
-- **Section padding**: 64px → 40px → 24px → 16px as viewport narrows
-- **Cards**: Grid → stack, maintaining full-width on mobile
-
-### Image Behavior
-
-- Product screenshots: responsive within dark containers, maintain aspect ratio
-- Hero images: full-width on all breakpoints, lazy loaded with dark placeholders
-- Admin UI previews: scale proportionally, may crop on mobile
-- All images use CDN (`cdn.shopify.com`) with responsive srcset
-
-## 9. Agent Prompt Guide
-
-### Quick Color Reference
-
-- Primary CTA: Shopify White (`#FFFFFF`)
-- Page background: Void Black (`#000000`)
-- Card surface: Deep Teal (`#02090A`)
-- Section bg: Dark Forest (`#061A1C`)
-- Elevated bg: Forest (`#102620`)
-- Accent: Neon Green (`#36F4A4`)
-- Body text: White (`#FFFFFF`)
-- Muted text: Muted (`#A1A1AA`)
-- Border dark: Dark Card Border (`#1E2C31`)
-
-### Example Component Prompts
-
-- "Create a hero section on true black (#000000) background with a 96px/330 NeueHaasGrotesk headline in white, a 20px/500 subtitle in #A1A1AA, and two pill buttons: white filled (9999px radius) and ghost with 2px white border"
-- "Design a feature card on Deep Teal (#02090A) with 1px #1E2C31 border, 12px radius, multi-layer shadow (1px ring + 2px/4px/8px blur at 10% black), containing a 32px/360 white heading and 18px/400 #A1A1AA body text"
-- "Build a stats section on Dark Forest (#061A1C) with 96px/750 white numbers (NeueHaasGrotesk), 16px/400 #A1A1AA descriptive labels, and generous 64px spacing between stat blocks"
-- "Create a sticky nav with transparent background (becomes #102620 on scroll), white Shopify logo left, 18px/500 white nav links with 0.72px letter-spacing, and a white pill 'Start for free' button right"
-- "Design a tag/badge with rgba(255,255,255,0.2) frosted glass background, 4px radius, 12px 16px padding, white 16px text — floating over a dark card surface"
-
-### Iteration Guide
-
-When refining existing screens generated with this design system:
-1. Focus on ONE component at a time
-2. Reference specific color names and hex codes from this document
-3. Remember: this is a DARK-FIRST design — light surfaces are the exception, not the rule
-4. Display text should always feel feather-light (weight 330-400) — if it looks heavy, reduce the weight
-5. Neon Green (#36F4A4) is precious — use sparingly for focus and accent only
-6. The dark surface hierarchy (black → deep teal → dark forest → forest) creates subtle depth
-7. Shadows are multi-layered — a single `box-shadow` value won't capture the Shopify card feel
-8. `ss03` OpenType feature must be active on all text for typographic consistency
+  --accent:       var(--blue-600);
+  --accent-dark:  var(--blue-400);   /* dark chrome 위 accent */
+  --accent-hover: var(--blue-700);
+  --accent-tint:  rgba(30,79,216,.14);
+  --accent-ghost: rgba(30,79,216,.07);
+  --accent-glow:  0 0 0 3px rgba(30,79,216,.22);
+
+  /* ── Shadow ── */
+  --sh-1: 0 1px 2px rgba(15,23,42,.04);
+  --sh-2: 0 1px 6px rgba(0,0,0,.06), 0 4px 20px rgba(0,0,0,.04);
+  --sh-3: 0 4px 24px rgba(15,23,42,.08), 0 1px 2px rgba(15,23,42,.06);
+  --glow-blue-sm: 0 1px 8px  rgba(30,79,216,.30);
+  --glow-blue-md: 0 2px 12px rgba(30,79,216,.35);
+  --glow-blue-lg: 0 4px 20px rgba(30,79,216,.50);
+
+  /* ── Motion ── */
+  --dur-fast: 0.14s;
+  --ease: cubic-bezier(.4,0,.2,1);
+
+  /* ── Radius ── */
+  --r: 6px;   /* 기본 */
+}
+```
+
+### 2.2 화면별 색 조합
+
+| 영역 | Base bg | 주 텍스트 | Accent |
+|---|---|---|---|
+| 사이드바 (좌·우) | `ink-800 #101A2E` | `#F3F6FC` (fg1-dark) | `#5E87F4` (blue-400) |
+| 중앙 캔버스 | `mist-100 #EDF2F8` | `#10192E` (fg1) | `#1E4FD8` (blue-600) |
+| SVG 카드 | `#FFFFFF` | `#10192E` | — |
+
+### 2.3 전기화학 시각화 전용 색 (UI chrome 금지)
+
+| 역할 | HEX |
+|---|---|
+| B+ 단자 (양극) | `#E11D48` |
+| B− 단자 (음극) | `#0EA5E9` |
+| 그룹 A | `#8B5CF6` |
+| 그룹 B | `#10B981` |
+| 그룹 C | `#F59E0B` |
+
+---
+
+## 3. 타이포그래피
+
+### 3.1 Font Stack
+
+```css
+--font-sans: 'Inter', 'IBM Plex Sans KR', system-ui, sans-serif;
+--font-mono: 'JetBrains Mono', ui-monospace, monospace;
+```
+
+Google Fonts 로드:
+```html
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+```
+
+### 3.2 타입 스케일 (4px base)
+
+| 역할 | px | weight | 비고 |
+|---|---|---|---|
+| micro-label | 10 | 500 | ALLCAPS, mono, letter-spacing 1.5px |
+| hint | 11 | 400 | mono, fg3 |
+| body-sm | 12 | 400 | |
+| body | 13 | 400 | UI 기본 |
+| body-md | 14 | 500 | 강조 body |
+| ui-label | 16 | 600 | 버튼, 탭 |
+
+### 3.3 시그니처 규칙
+
+- **ALLCAPS mono micro-label**: 모든 섹션 헤더 → `10px / 500 / uppercase / 1.5px tracking / fg2-dark / JetBrains Mono`
+- **Accent strip**: 섹션 헤더 좌측 `2px × 10px` 파란 수직 바 (`.ctrl-label::before`)
+- **Numeric**: JetBrains Mono + `font-variant-numeric: tabular-nums`
+- **한국어 본문**: IBM Plex Sans KR, `line-height: 1.65`
+
+---
+
+## 4. 여백 · Radii · 그림자
+
+### 4.1 Spacing (4px grid)
+
+`4 · 8 · 10 · 12 · 16 · 20 · 24 · 28 · 32` px.
+
+### 4.2 Radii
+
+| 값 | 용도 |
+|---|---|
+| 3px | 칩, 뱃지 |
+| 4px | 버튼, 입력 |
+| 6px | 카드 기본 (`--r`) |
+| 8px | 모달, SVG 카드 |
+| 10px | 팝오버 |
+
+Pill(9999px) 금지 — CTA는 6px 사각.
+
+### 4.3 그림자 사용 규칙
+
+- 캔버스 카드: `--sh-2`
+- 사이드바 raised surface: 없음 (border만)
+- 파란 CTA 버튼: `--glow-blue-md`
+- 파란 버튼 hover: `--glow-blue-lg`
+
+---
+
+## 5. 컴포넌트 규칙
+
+### 5.1 사이드바 섹션 헤더 (`.ctrl-label`)
+
+```css
+.ctrl-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px; font-weight: 500;
+  letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--fg2-dark);
+  position: relative; padding-left: 9px;
+}
+.ctrl-label::before {
+  content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+  width: 2px; height: 10px; background: var(--accent-dark); border-radius: 1px;
+}
+```
+
+### 5.2 Segmented Control (`.seg`)
+
+- Base: `ink-700` bg + `ink-400` border
+- Active: `blue-600` bg, white text, `glow-blue-sm`
+- Hover: `ink-600` bg
+
+### 5.3 Number Stepper
+
+- 버튼: 17px × 17px, `ink-700` bg, `ink-400` border
+- 값 표시: JetBrains Mono, 12px/500, `fg1-dark`
+- 입력 포커스: `blue-600` border
+
+### 5.4 Toggle
+
+- Off: `ink-400` track
+- On: `blue-600` track
+- Knob: white, `0 1px 3px rgba(0,0,0,.3)` shadow
+
+### 5.5 Primary CTA Button (`.render-btn`)
+
+```css
+background: var(--accent);
+color: #fff;
+box-shadow: var(--glow-blue-md);
+border-radius: var(--r);   /* 6px, NOT pill */
+```
+Hover: `--accent-hover` + `--glow-blue-lg` + `translateY(-1px)`
+
+### 5.6 후보 카드 (`.cand-card`)
+
+- Base: `ink-700` bg + `ink-400` border
+- Hover: `blue-600` border
+- Selected: `blue-600` border + `accent-ghost` bg
+
+### 5.7 섹션 구분선 (`.ctrl-sep`)
+
+```css
+height: 1px; background: var(--bd-dark); opacity: .8; margin: 4px 0;
+```
+
+---
+
+## 6. Do / Don't
+
+### ✅ DO
+
+- CTA · 활성 상태 · 라이브 값에만 Electric Blue.
+- 섹션 헤더는 ALLCAPS mono + 좌측 2px 파란 accent strip.
+- 숫자는 JetBrains Mono + `tabular-nums`.
+- Radius 3–10px. CTA는 6px 사각.
+- 파란 버튼에만 `glow-blue-*` 사용.
+- Dark surface 위 fg: `#F3F6FC` → `#B8C5DB` → `#8094B4` 순서 사용.
+
+### ❌ DON'T
+
+- `blue-600` 대형 단색 배경.
+- Pill 버튼 (9999px radius).
+- Inter 300 weight.
+- 이모지 UI 장식.
+- 구 accent 색 `#2563EB` 재사용 (→ `#1E4FD8`).
+- 사이드바 위 `#EDF2F8` 밝은 요소 삽입.
+
+---
+
+## 7. 접근성 (AA 기준)
+
+| 역할 | 색 | 대비비 |
+|---|---|---|
+| fg1 on white | `#10192E` | 16:1 |
+| fg2 on white | `#4A5A77` | 7.2:1 |
+| fg3 on white | `#6B7E9A` | 4.6:1 (12px+) |
+| fg1-dark on ink-800 | `#F3F6FC` | 15:1 |
+| fg2-dark on ink-800 | `#B8C5DB` | 7.1:1 |
+| fg3-dark on ink-800 | `#8094B4` | 4.7:1 (12px+) |
+| accent on white | `#1E4FD8` | 6.1:1 |
+| accent-dark on ink-800 | `#5E87F4` | 6.3:1 |
+
+---
+
+## 8. 변경 시 체크리스트
+
+1. `:root` 토큰만 수정 — 컴포넌트 하드코딩 금지.
+2. 새 accent는 light(white) + dark(ink-800) 양쪽 AA 이상 확인.
+3. 신규 색은 `50~900` 풀 스케일로 정의.
+4. `docs/design.md` 해당 표 업데이트.
