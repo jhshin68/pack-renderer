@@ -5,6 +5,19 @@
 feature_list.json: 모든 항목 passes:true
 git 상태: 세션 29 커밋 완료
 
+## 세션 30 진행 (2026-04-20) — 원칙 위반 커밋 후 즉시 취소 (반면교사)
+
+### 위반 사항 (절대 반복 금지)
+- `buildNickel()` 수정 전 `skills/nickel_render_rules.md` 미열람 → CLAUDE.md 규칙 위반
+- 대화 요약의 "원칙 18: stroke=2R, circles" 해석을 원본 파일 확인 없이 사실로 취급
+- spanning tree → 모든 인접 쌍 + node circles로 변경 → 니켈 형상 완전 변경 → 사용자 취소 요청
+- git revert HEAD로 복원 완료 (41bfb35 → cb198b7)
+- 교훈: `skills/nickel_render_rules.md` 먼저 읽고, 요약의 원칙 설명은 원본 파일로 검증, 형상 변경은 커밋 전 브라우저 확인
+
+### 현재 상태
+- renderer.js: 세션 29 원상복구 상태 (spanning tree 방식 유지)
+- 니켈 형상 문제 미해결: 올바른 수정법은 nickel_render_rules.md 열람 후 결정 필요
+
 ## 세션 29 진행 (2026-04-20) — 권한 설정 + 미커밋 변경 기록
 
 ### 완료 사항
