@@ -698,53 +698,13 @@ function renderCustomRows(params) {
       }
     }
 
-    // BFS Spanning Tree: 셀 집합 내 최소 연결 선 집합
-    function spanningTree(cells) {
-      if (cells.length <= 1) return [];
-      const edges = [];
-      const visited = new Set([0]);
-      const queue = [0];
-      while (queue.length > 0) {
-        const ci = queue.shift();
-        for (let j = 0; j < cells.length; j++) {
-          if (visited.has(j)) continue;
-          if (isAdj(cells[ci], cells[j])) {
-            edges.push([ci, j]);
-            visited.add(j);
-            queue.push(j);
-          }
-        }
-      }
-      return edges;
-    }
-
+    // 정규 배열(staggered)과 동일: 플레이트 내 모든 인접 쌍 연결
     plates.forEach((plate, pIdx) => {
       const fc = NICKEL_PALETTE[pIdx % 2].fill;
-      const gIdxs = plateGroups[pIdx];
-
-      if (gIdxs.length === 1) {
-        // P셀 단독 플레이트: Spanning Tree
-        const edges = spanningTree(plate);
-        for (const [a, b] of edges) {
-          parts.push(`<line x1="${plate[a].x.toFixed(1)}" y1="${plate[a].y.toFixed(1)}" x2="${plate[b].x.toFixed(1)}" y2="${plate[b].y.toFixed(1)}" stroke="${fc}" stroke-width="${sw}" stroke-linecap="round"/>`);
-        }
-      } else {
-        // 2P 병합 플레이트: 각 그룹 Spanning Tree + 그룹간 브리지 (최대 P개)
-        const g0c = groupCells[gIdxs[0]];
-        const g1c = groupCells[gIdxs[1]];
-        for (const [a, b] of spanningTree(g0c)) {
-          parts.push(`<line x1="${g0c[a].x.toFixed(1)}" y1="${g0c[a].y.toFixed(1)}" x2="${g0c[b].x.toFixed(1)}" y2="${g0c[b].y.toFixed(1)}" stroke="${fc}" stroke-width="${sw}" stroke-linecap="round"/>`);
-        }
-        for (const [a, b] of spanningTree(g1c)) {
-          parts.push(`<line x1="${g1c[a].x.toFixed(1)}" y1="${g1c[a].y.toFixed(1)}" x2="${g1c[b].x.toFixed(1)}" y2="${g1c[b].y.toFixed(1)}" stroke="${fc}" stroke-width="${sw}" stroke-linecap="round"/>`);
-        }
-        let bridges = 0;
-        for (let a = 0; a < g0c.length && bridges < P; a++) {
-          for (let b = 0; b < g1c.length && bridges < P; b++) {
-            if (isAdj(g0c[a], g1c[b])) {
-              parts.push(`<line x1="${g0c[a].x.toFixed(1)}" y1="${g0c[a].y.toFixed(1)}" x2="${g1c[b].x.toFixed(1)}" y2="${g1c[b].y.toFixed(1)}" stroke="${fc}" stroke-width="${sw}" stroke-linecap="round"/>`);
-              bridges++;
-            }
+      for (let a = 0; a < plate.length; a++) {
+        for (let b = a + 1; b < plate.length; b++) {
+          if (isAdj(plate[a], plate[b])) {
+            parts.push(`<line x1="${plate[a].x.toFixed(1)}" y1="${plate[a].y.toFixed(1)}" x2="${plate[b].x.toFixed(1)}" y2="${plate[b].y.toFixed(1)}" stroke="${fc}" stroke-width="${sw}" stroke-linecap="round"/>`);
           }
         }
       }
