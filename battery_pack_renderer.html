@@ -533,27 +533,36 @@ input.num-val[type=number] { -moz-appearance: textfield; }
         <div class="hint" style="margin-top:4px">G0 시작 셀 고정 → 후보 수 감소</div>
       </div>
 
-      <!-- Gap -->
+      <!-- ICC 제약 조건 -->
       <div>
-        <div class="ctrl-label">Gap (mm)</div>
-        <div class="num-pair">
-          <button class="num-btn" onclick="adjGap(-0.5)">−</button>
-          <div class="num-val" id="valGap">0.0</div>
-          <button class="num-btn" onclick="adjGap(0.5)">+</button>
-          <div class="num-tag">mm</div>
+        <div class="ctrl-label">ICC 제약 조건 (원칙 16)</div>
+        <div class="toggle-row">
+          <span class="toggle-label">① 행 스팬 ≤ 2</span>
+          <button class="toggle on" id="togICC1" onclick="toggleICC('icc1')"></button>
         </div>
+        <div class="toggle-row">
+          <span class="toggle-label">② 종횡비 ≤ 2.0</span>
+          <button class="toggle on" id="togICC2" onclick="toggleICC('icc2')"></button>
+        </div>
+        <div class="toggle-row">
+          <span class="toggle-label">③ 볼록성 ≥ 0.75</span>
+          <button class="toggle" id="togICC3" onclick="toggleICC('icc3')"></button>
+        </div>
+        <div class="hint" style="margin-top:4px">OFF: 해당 제약 검사 생략</div>
       </div>
 
-      <!-- Max Plate Types K -->
+      <!-- 도형 허용 -->
       <div>
-        <div class="ctrl-label">Max Plate Types (K)</div>
-        <div class="num-pair">
-          <button class="num-btn" onclick="adjK(-1)">−</button>
-          <div class="num-val" id="valK" style="font-size:13px;min-width:40px">auto</div>
-          <button class="num-btn" onclick="adjK(1)">+</button>
-          <div class="num-tag">K</div>
+        <div class="ctrl-label">도형 허용 <span style="font-size:8px;color:var(--dt3)">(기본: P만)</span></div>
+        <div class="toggle-row">
+          <span class="toggle-label">1자 (I)</span>
+          <button class="toggle" id="togAllowI" onclick="toggleAllowShape('allow_I')"></button>
         </div>
-        <div class="hint" style="margin-top:4px">원칙 20·21 · ₩20M/종</div>
+        <div class="toggle-row">
+          <span class="toggle-label">ㄷ자 (U)</span>
+          <button class="toggle" id="togAllowU" onclick="toggleAllowShape('allow_U')"></button>
+        </div>
+        <div class="hint" style="margin-top:4px">P=5일 때 pentomino 후보에 적용</div>
       </div>
 
       <!-- Options -->
@@ -677,39 +686,6 @@ input.num-val[type=number] { -moz-appearance: textfield; }
 
       <div class="rp-divider" id="rpDetailDivider" style="display:none"></div>
 
-      <!-- 섹션 3: ICC 제약 조건 -->
-      <div>
-        <div class="ctrl-label">ICC 제약 조건 (원칙 16)</div>
-        <div class="toggle-row">
-          <span class="toggle-label">① 행 스팬 ≤ 2</span>
-          <button class="toggle on" id="togICC1" onclick="toggleICC('icc1')"></button>
-        </div>
-        <div class="toggle-row">
-          <span class="toggle-label">② 종횡비 ≤ 2.0</span>
-          <button class="toggle on" id="togICC2" onclick="toggleICC('icc2')"></button>
-        </div>
-        <div class="toggle-row">
-          <span class="toggle-label">③ 볼록성 ≥ 0.75</span>
-          <button class="toggle" id="togICC3" onclick="toggleICC('icc3')"></button>
-        </div>
-        <div class="hint" style="margin-top:4px">OFF: 해당 제약 검사 생략</div>
-      </div>
-
-      <div class="rp-divider"></div>
-
-      <!-- 섹션 3b: 도형 허용 (Phase 4) -->
-      <div class="rp-section">
-        <div class="ctrl-label">도형 허용 <span style="font-size:8px;color:var(--dt3)">(기본: P만)</span></div>
-        <div class="toggle-row">
-          <span class="toggle-label">1자 (I)</span>
-          <button class="toggle" id="togAllowI" onclick="toggleAllowShape('allow_I')"></button>
-        </div>
-        <div class="toggle-row">
-          <span class="toggle-label">ㄷ자 (U)</span>
-          <button class="toggle" id="togAllowU" onclick="toggleAllowShape('allow_U')"></button>
-        </div>
-        <div class="hint" style="margin-top:4px">P=5일 때 pentomino 후보에 적용</div>
-      </div>
 
       <!-- 섹션 3c: 플레이트 수 제한 (Phase 5) -->
       <div class="rp-section" style="margin-top:8px">
@@ -724,19 +700,6 @@ input.num-val[type=number] { -moz-appearance: textfield; }
         <div class="hint" style="margin-top:4px">S×P 기준 총 플레이트 = S+1개</div>
       </div>
 
-      <div class="rp-divider"></div>
-
-      <!-- 섹션 4: 니켈 폭 -->
-      <div>
-        <div class="ctrl-label">니켈 폭 nickel_w</div>
-        <div class="num-pair">
-          <button class="num-btn" onclick="adjNickelW(-0.5)">−</button>
-          <div class="num-val" id="valNickelW" style="font-size:13px;min-width:40px">4.0</div>
-          <button class="num-btn" onclick="adjNickelW(0.5)">+</button>
-          <div class="num-tag">mm</div>
-        </div>
-        <div class="hint" style="margin-top:4px">ICC ①②③ 계산 기준</div>
-      </div>
 
     </div>
   </div>
