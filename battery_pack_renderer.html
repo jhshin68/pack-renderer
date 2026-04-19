@@ -441,16 +441,6 @@ input.num-val[type=number] { -moz-appearance: textfield; }
         <div class="hint" id="holderCapHint" style="margin-top:3px">auto = S×P (빈 슬롯 없음)</div>
       </div>
 
-      <!-- Arrangement -->
-      <div>
-        <div class="ctrl-label">Arrangement</div>
-        <div class="seg">
-          <button class="seg-btn active" id="btnSquare" onclick="setArrangement('square')">정배열</button>
-          <button class="seg-btn" id="btnStag"   onclick="setArrangement('staggered')">엇배열</button>
-          <button class="seg-btn" id="btnCustom" onclick="setArrangement('custom')">커스텀</button>
-        </div>
-      </div>
-
       <!-- 정배열·엇배열: 가로(S) × 세로(P) 직접 입력 / 커스텀: S만 표시 -->
       <div id="rectConfig">
         <div class="ctrl-label" id="spLabel">직렬(S) × 병렬(P)</div>
@@ -472,6 +462,16 @@ input.num-val[type=number] { -moz-appearance: textfield; }
           </div>
         </div>
         <div id="spHint" style="display:none"></div>
+      </div>
+
+      <!-- Arrangement -->
+      <div>
+        <div class="ctrl-label">Arrangement</div>
+        <div class="seg">
+          <button class="seg-btn active" id="btnSquare" onclick="setArrangement('square')">정배열</button>
+          <button class="seg-btn" id="btnStag"   onclick="setArrangement('staggered')">엇배열</button>
+          <button class="seg-btn" id="btnCustom" onclick="setArrangement('custom')">커스텀</button>
+        </div>
       </div>
 
       <!-- 커스텀: 행별 셀 수 직접 입력 -->
@@ -499,6 +499,24 @@ input.num-val[type=number] { -moz-appearance: textfield; }
           </div>
           <div class="hint" style="margin-top:4px">2번째 행 시작점: 1번째(하단) 대비 좌·우</div>
         </div>
+      </div>
+
+      <!-- BMS Position (원칙 16) -->
+      <div>
+        <div class="ctrl-label">BMS Position (원칙 16)</div>
+        <div class="seg">
+          <button class="seg-btn" id="bmsEdgeTop"    onclick="setBmsEdge('top')">Top</button>
+          <button class="seg-btn active" id="bmsEdgeBottom" onclick="setBmsEdge('bottom')">Bot</button>
+          <button class="seg-btn" id="bmsEdgeLeft"   onclick="setBmsEdge('left')">Left</button>
+          <button class="seg-btn" id="bmsEdgeRight"  onclick="setBmsEdge('right')">Right</button>
+        </div>
+        <div class="num-pair" style="margin-top:8px">
+          <button class="num-btn" onclick="adjBmsPos(-0.1)">−</button>
+          <div class="num-val" id="valBmsPos" style="font-size:13px;min-width:40px">50%</div>
+          <button class="num-btn" onclick="adjBmsPos(0.1)">+</button>
+          <div class="num-tag">pos</div>
+        </div>
+        <div class="hint" style="margin-top:4px">BMS 모듈 위치 (엣지 · 비율 0–100%)</div>
       </div>
 
       <!-- H2: B+/B- 출력 방향 (원칙 4 L2) -->
@@ -580,24 +598,6 @@ input.num-val[type=number] { -moz-appearance: textfield; }
           <span class="toggle-label">Emboss · no-mirror</span>
           <button class="toggle on" id="togEmboss" onclick="toggleOpt('emboss')"></button>
         </div>
-      </div>
-
-      <!-- BMS Position (원칙 16) -->
-      <div>
-        <div class="ctrl-label">BMS Position (원칙 16)</div>
-        <div class="seg">
-          <button class="seg-btn" id="bmsEdgeTop"    onclick="setBmsEdge('top')">Top</button>
-          <button class="seg-btn active" id="bmsEdgeBottom" onclick="setBmsEdge('bottom')">Bot</button>
-          <button class="seg-btn" id="bmsEdgeLeft"   onclick="setBmsEdge('left')">Left</button>
-          <button class="seg-btn" id="bmsEdgeRight"  onclick="setBmsEdge('right')">Right</button>
-        </div>
-        <div class="num-pair" style="margin-top:8px">
-          <button class="num-btn" onclick="adjBmsPos(-0.1)">−</button>
-          <div class="num-val" id="valBmsPos" style="font-size:13px;min-width:40px">50%</div>
-          <button class="num-btn" onclick="adjBmsPos(0.1)">+</button>
-          <div class="num-tag">pos</div>
-        </div>
-        <div class="hint" style="margin-top:4px">BMS 모듈 위치 (엣지 · 비율 0–100%)</div>
       </div>
 
       <!-- Render -->
