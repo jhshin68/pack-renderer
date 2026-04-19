@@ -1229,6 +1229,13 @@
       return anchorCells.some(ac => ac.row === cell.row && ac.col === cell.col);
     };
 
+    // I형(1자) 판별: 모든 셀이 단일 x 또는 단일 y 직선
+    const _isLinearGroup = (gc) => {
+      const xs = gc.map(c => Math.round(_pt(c).x * 10));
+      const ys = gc.map(c => Math.round(_pt(c).y * 10));
+      return new Set(xs).size === 1 || new Set(ys).size === 1;
+    };
+
     // ── ICC 정보 계산 (per group cell array) ────────────────────────
     function groupICC(gc) {
       // T/Y 분기
@@ -1345,7 +1352,10 @@
           }
         }
         const cand = flatToCandidate(flat, ord.name, ord.desc);
-        if (cand) results.push(cand);
+        if (cand) {
+          if (!allow_I && cand.groups.some(g => _isLinearGroup(g.cells))) continue;
+          results.push(cand);
+        }
       }
     }
 

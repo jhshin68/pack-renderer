@@ -29,6 +29,8 @@ function makeGrid(rows, cols) {
 }
 
 // ── 1. 스네이크 후보: total_plates === S+1 ────────────────────────────
+// 10S5P 정배열에서 표준 순회(보스트로페돈/열우선)는 모두 1행=5셀 → I형
+// → allow_I=false 시 표준 후보 0개가 정상 (allow_I=true 케이스로 별도 검증)
 {
   const S = 10, P = 5;
   const cells = makeGrid(P, S);
@@ -38,7 +40,8 @@ function makeGrid(rows, cols) {
     allow_I: false, allow_U: false,
   });
   const snakeCands = result.candidates.filter(c => c.is_standard);
-  assert('10S5P: 스네이크 후보 존재', snakeCands.length > 0);
+  // allow_I=false → 10S5P 표준 후보는 모두 I형이므로 0개
+  assert('10S5P(allow_I=false): 표준 후보 I형 완전 차단 → 0개', snakeCands.length === 0);
   snakeCands.forEach((c, i) => {
     assert(`10S5P snake[${i}]: total_plates === ${S+1}`,
       c.total_plates === S + 1,
