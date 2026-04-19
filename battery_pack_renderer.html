@@ -404,6 +404,68 @@ input.num-val[type=number] { -moz-appearance: textfield; }
   font-family: 'JetBrains Mono', monospace;
   font-size: 10px; color: var(--dt3); margin-top: 2px;
 }
+
+/* ── sidebar v2 — polish & bug fixes ─────────────── */
+
+/* Section separator */
+.ctrl-sep {
+  height: 1px; background: var(--sb-bdr);
+  flex-shrink: 0; margin: 4px 0; opacity: .8;
+}
+
+/* Accent strip on every section label */
+.ctrl-label { position: relative; padding-left: 9px; }
+.ctrl-label::before {
+  content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+  width: 2px; height: 10px; background: var(--accent); border-radius: 1px;
+}
+
+/* Toggle labels — brighter for readability */
+.toggle-label { font-size: 12px; color: var(--dt); }
+
+/* ±  buttons beside max_plates input */
+.adj-btn {
+  width: 22px; height: 22px; border: 1px solid var(--sb-bdr);
+  background: var(--sb2); color: var(--dt2); font-size: 15px; line-height: 1;
+  border-radius: 4px; cursor: pointer; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: all .15s; user-select: none;
+}
+.adj-btn:hover { border-color: var(--accent); color: var(--accent); }
+.adj-btn:active { transform: scale(.9); }
+
+/* max_plates number input — fix broken CSS vars */
+#valMaxPlates {
+  width: 52px; text-align: center;
+  background: var(--sb3); color: var(--dt);
+  border: 1px solid var(--sb-bdr); border-radius: 4px;
+  padding: 3px 6px; font-size: 13px; font-weight: 600;
+  font-family: 'JetBrains Mono', monospace; outline: none;
+}
+#valMaxPlates:focus { border-color: var(--accent); }
+#valMaxPlates::-webkit-inner-spin-button,
+#valMaxPlates::-webkit-outer-spin-button { -webkit-appearance: none; }
+#valMaxPlates[type=number] { -moz-appearance: textfield; }
+
+/* G0 anchor select — fix broken CSS vars */
+#g0AnchorMode {
+  width: 100%; padding: 5px 8px;
+  background: var(--sb3); color: var(--dt);
+  border: 1px solid var(--sb-bdr); border-radius: 4px;
+  font-size: 11px; font-family: 'JetBrains Mono', monospace;
+  cursor: pointer; outline: none;
+}
+#g0AnchorMode:focus { border-color: var(--accent); }
+#g0AnchorMode option { background: var(--sb2); }
+
+/* Sidebar body — more breathing room */
+.sidebar-body { padding: 10px 12px; gap: 8px; }
+
+/* Candidate scores — slightly brighter */
+.cand-scores { color: var(--dt2); }
+
+/* Info box key labels — slightly brighter */
+.info-box .key { color: var(--dt2); }
 </style>
 </head>
 <body>
@@ -512,6 +574,8 @@ input.num-val[type=number] { -moz-appearance: textfield; }
         </div>
       </div>
 
+      <div class="ctrl-sep"></div>
+
       <!-- BMS Position (원칙 16) -->
       <div>
         <div class="ctrl-label">BMS Position (원칙 16)</div>
@@ -549,13 +613,14 @@ input.num-val[type=number] { -moz-appearance: textfield; }
         <div class="hint" style="margin-top:4px">경계 셀 집합 → 열거기 시작/종료 제약</div>
       </div>
 
+      <div class="ctrl-sep"></div>
+
       <!-- 최대 플레이트 수 -->
       <div>
         <div class="ctrl-label">최대 플레이트 수 <span style="font-size:8px;color:var(--dt3)">(0=제한없음)</span></div>
         <div class="num-pair">
           <button onclick="setMaxPlates(Math.max(0,(state.max_plates||0)-1))" class="adj-btn">−</button>
           <input id="valMaxPlates" type="number" min="0" max="99" step="1" value="0"
-            style="width:44px;text-align:center;background:var(--bg2);color:var(--dt1);border:1px solid var(--border);border-radius:3px;padding:2px 4px;font-size:11px"
             onchange="setMaxPlates(this.value)" oninput="setMaxPlates(this.value)">
           <button onclick="setMaxPlates((state.max_plates||0)+1)" class="adj-btn">+</button>
         </div>
@@ -565,7 +630,7 @@ input.num-val[type=number] { -moz-appearance: textfield; }
       <!-- H3 보조: G0 앵커 (1번 셀 위치) -->
       <div style="margin-top:8px">
         <div class="ctrl-label">1번 셀 위치 <span style="font-size:8px;color:var(--dt3)">(선택)</span></div>
-        <select id="g0AnchorMode" onchange="setG0Anchor(this.value)" style="width:100%;padding:4px;background:var(--bg2);color:var(--dt1);border:1px solid var(--bd);border-radius:3px;font-size:11px">
+        <select id="g0AnchorMode" onchange="setG0Anchor(this.value)">
           <option value="auto">자동 (기본)</option>
           <option value="TL">좌상단 (Top-Left)</option>
           <option value="TR">우상단 (Top-Right)</option>
@@ -607,6 +672,8 @@ input.num-val[type=number] { -moz-appearance: textfield; }
         <div class="hint" style="margin-top:4px">P=5일 때 pentomino 후보에 적용</div>
       </div>
 
+      <div class="ctrl-sep"></div>
+
       <!-- Options -->
       <div>
         <div class="ctrl-label">Display Options</div>
@@ -623,6 +690,8 @@ input.num-val[type=number] { -moz-appearance: textfield; }
           <button class="toggle on" id="togEmboss" onclick="toggleOpt('emboss')"></button>
         </div>
       </div>
+
+      <div class="ctrl-sep"></div>
 
       <!-- Render -->
       <button class="render-btn" onclick="rerender()">

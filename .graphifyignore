@@ -1,0 +1,15 @@
+# graphify 제외 목록
+# tests/ — SVG baseline 파일 (~149개), 코드베이스 이해와 무관
+tests/
+
+# tmp/ — 임시 탐색 스크립트, 분석 대상 아님
+tmp/
+
+# graphify 출력물 자체
+graphify-out/
+
+# 이미지·스크린샷 (루트)
+*.png
+*.jpg
+*.jpeg
+Snipaste_*.jpg

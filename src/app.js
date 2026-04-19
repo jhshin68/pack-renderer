@@ -57,15 +57,19 @@ const state = {
 let lastSVG = '';
 
 // ── 후보의 고유 형상(금형) 종류 수 계산 ──────────────
-// generator.js의 canonicalSig(_shapeSigOf) 로직을 복제 (square 4회전 기준)
+// 실제 니켈 플레이트 형상 기준: I형(단독 그룹) + U형(인접 두 그룹 합집합)
+// calcNickelPattern (원칙 12/14) 패턴에 따라 top/bottom 모든 플레이트의
+// canonical 4-회전 서명을 구해 고유 금형 종류를 카운트한다.
 function _countDistinctShapes(cand) {
-  const sigs = new Set();
-  for (const g of (cand.groups || [])) {
-    const cells = g.cells || [];
-    if (cells.length === 0) continue;
+  const groups = cand.groups || [];
+  const S = groups.length;
+  if (S === 0) return 0;
+
+  function _sig(cells) {
+    if (!cells || cells.length === 0) return null;
     const pts = cells.map(c => [c.x != null ? c.x : c.cx, c.y != null ? c.y : c.cy]);
-    const cx  = pts.reduce((s, p) => s + p[0], 0) / pts.length;
-    const cy  = pts.reduce((s, p) => s + p[1], 0) / pts.length;
+    const cx = pts.reduce((s, p) => s + p[0], 0) / pts.length;
+    const cy = pts.reduce((s, p) => s + p[1], 0) / pts.length;
     const shifted = pts.map(([x, y]) => [x - cx, y - cy]);
     const variants = [0, 1, 2, 3].map(k => {
       const a = Math.PI / 2 * k, ca = Math.cos(a), sa = Math.sin(a);
@@ -76,8 +80,24 @@ function _countDistinctShapes(cand) {
       rot.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
       return JSON.stringify(rot);
     });
-    sigs.add(variants.reduce((a, b) => a < b ? a : b));
+    return variants.reduce((a, b) => a < b ? a : b);
   }
+
+  const gc   = i => groups[i]?.cells || [];
+  const pair = (i, j) => [...gc(i), ...gc(j)];
+  const sigs = new Set();
+  const add  = cells => { const s = _sig(cells); if (s) sigs.add(s); };
+
+  // calcNickelPattern 동일 패턴 (원칙 12/14):
+  // Top: I(G0=B+), U(G1,G2), U(G3,G4), ..., I(G_{S-1}=B-) if S 짝수
+  add(gc(0));
+  for (let g = 1; g < S - 1; g += 2) add(pair(g, g + 1));
+  if (S % 2 === 0) add(gc(S - 1));
+
+  // Bottom: U(G0,G1), U(G2,G3), ..., I(G_{S-1}=B-) if S 홀수
+  for (let g = 0; g < S - 1; g += 2) add(pair(g, g + 1));
+  if (S % 2 !== 0) add(gc(S - 1));
+
   return sigs.size;
 }
 
@@ -650,8 +670,9 @@ function setMaxPlates(val) {
   const n = parseInt(val, 10);
   state.max_plates = (isNaN(n) || n <= 0) ? 0 : n;
   const el = document.getElementById('valMaxPlates');
-  if (el) el.textContent = state.max_plates === 0 ? '0' : state.max_plates;
+  if (el) el.value = state.max_plates === 0 ? 0 : state.max_plates;
   state.selected_ordering = 0;
+  rerender();
 }
 
 function adjNickelW(d) {
@@ -706,10 +727,10 @@ function _probeRelief(cfg) {
 
   // max_plates 제약이 원인인 경우 최우선 안내 (재열거 없이 즉시 확인 가능)
   if (state.max_plates > 0) {
-    const tPlates = S + 1;
-    if (tPlates > state.max_plates) {
+    const mMin = estimateMmin(S, P, arrangement, state.allow_mirror);
+    if (mMin > state.max_plates) {
       out.push({
-        label: `최대 플레이트 해제 (현재 ${tPlates}개 필요)`,
+        label: `최대 형상 종류 해제 (최소 ${mMin}종 필요)`,
         action: 'setMaxPlates(0)',
         count: -1,   // 특별값: 재열거 없이 삽입
       });

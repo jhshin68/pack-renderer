@@ -1,9 +1,33 @@
 ========================================
-마지막 업데이트: 2026-04-19 (세션 20 — 원칙 27·28 추가 + validateP28 + 10S5P 샘플 10종)
-버전: generator.js (validateP28 추가), nickel_plate_principles.md v7.3
-테스트 상태: 720/720 PASS (F29 회귀), 24/24 (P14), 22/22 (F14), 10/10 (cell_group_override)
-feature_list.json: 전 항목 passes:true (변경 없음)
+마지막 업데이트: 2026-04-19 (세션 21 — 사이드바 UI 리디자인 + max_plates 버그 3종 수정 + new_design.md 추가)
+버전: app.js (setMaxPlates·_countDistinctShapes·_probeRelief 수정), battery_pack_renderer.html (CSS 전면 개편)
+테스트 상태: 720/720 PASS (F29 회귀) — 변경 없음
+feature_list.json: F36 passes:false (브라우저 확인 필요)
 git 상태: 커밋 완료, push 완료
+
+## 세션 21 진행 (2026-04-19) — UI 리디자인 + max_plates 버그 수정
+
+### 완료 사항
+
+#### battery_pack_renderer.html — 사이드바 UI 개편
+- CSS 변수 버그 수정: `var(--bg2)`, `var(--dt1)`, `var(--border)`, `var(--bd)` → 정의된 변수로 교체
+- `#valMaxPlates` 인라인 스타일 제거 → CSS 클래스로 통일
+- `#g0AnchorMode` 인라인 스타일 제거 → CSS 클래스로 통일
+- `.adj-btn` 클래스 정의 추가 (± 버튼 스타일)
+- `.ctrl-sep` 구분선 4개 추가 (배열구성/BMS/제약/표시/Generate 사이)
+- `.ctrl-label::before` 파란 액센트 바 추가
+
+#### src/app.js — max_plates 버그 3종 수정
+| 버그 | 수정 내용 |
+|---|---|
+| `setMaxPlates()` 표시 버그 | `el.textContent` → `el.value` (input에는 .value 사용) |
+| `setMaxPlates()` 재렌더 누락 | 함수 끝에 `rerender()` 추가 |
+| `_countDistinctShapes()` 부정확 | 개별 그룹 형상만 카운트 → I형+U형 실제 플레이트 형상 기준으로 재작성 (calcNickelPattern 패턴 반영) |
+| `_probeRelief()` 진단 힌트 오류 | `S+1 > max_plates` 비교 → `estimateMmin > max_plates` 로 수정 |
+
+#### new_design.md 추가 (루트)
+- SL Power 디자인 시스템 컬러 토큰·타이포·여백·규칙 정의
+- docs/design.md 업데이트 예정 (다음 세션)
 
 ## 세션 20 진행 (2026-04-19) — 원칙 추가 + 10S5P 배열 분석
 
