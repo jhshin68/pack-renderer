@@ -107,7 +107,6 @@ function setCellType(t) {
   state.cell_type = t;
   document.getElementById('btn18650').classList.toggle('active', t === '18650');
   document.getElementById('btn21700').classList.toggle('active', t === '21700');
-  if (lastSVG) rerender(); else populateCandidatePanel();
 }
 
 function setArrangement(a) {
@@ -120,8 +119,6 @@ function setArrangement(a) {
   document.getElementById('customGroup').style.display     = isCustom ? 'block' : 'none';
   document.getElementById('holderSizeGroup').style.display = isCustom ? 'none'  : 'block';
   if (isCustom) checkCustomConsistency();
-  state.selected_ordering = 0;
-  if (lastSVG) rerender(); else populateCandidatePanel();
 }
 
 function setCustomAlign(a) {
@@ -130,7 +127,6 @@ function setCustomAlign(a) {
     const el = document.getElementById('btnAlign' + v.charAt(0).toUpperCase() + v.slice(1));
     if (el) el.classList.toggle('active', a === v);
   });
-  if (lastSVG) rerender();
 }
 
 function toggleCustomStagger() {
@@ -138,7 +134,6 @@ function toggleCustomStagger() {
   document.getElementById('togCustomStagger').classList.toggle('on', state.custom_stagger);
   const dirGroup = document.getElementById('stagDirGroup');
   if (dirGroup) dirGroup.style.display = state.custom_stagger ? 'block' : 'none';
-  if (lastSVG) rerender();
 }
 
 function setCustomStaggerDir(d) {
@@ -154,14 +149,12 @@ function setBmsEdge(e) {
     const el = document.getElementById('bmsEdge' + v.charAt(0).toUpperCase() + v.slice(1));
     if (el) el.classList.toggle('active', e === v);
   });
-  if (lastSVG) rerender();
 }
 
 function adjBmsPos(d) {
   state.bms_pos = Math.max(0.0, Math.min(1.0, +(state.bms_pos + d).toFixed(1)));
   const el = document.getElementById('valBmsPos');
   if (el) el.textContent = Math.round(state.bms_pos * 100) + '%';
-  if (lastSVG) rerender();
 }
 
 // B+/B− 단자에서 BMS 위치까지 맨해튼 거리 계산 (mm 단위)
@@ -311,8 +304,6 @@ function adj(k, d) {
   const el = document.getElementById('val' + k);
   if (el) el.value = state[k];
   checkCustomConsistency();
-  state.selected_ordering = 0;
-  if (lastSVG) rerender(); else populateCandidatePanel();
 }
 
 // 직접 타이핑 입력 처리 (input[type=number] oninput 핸들러)
@@ -324,8 +315,6 @@ function setFromInput(k, v) {
   const el = document.getElementById('val' + k);
   if (el && parseInt(el.value, 10) !== state[k]) el.value = state[k];
   checkCustomConsistency();
-  state.selected_ordering = 0;
-  if (lastSVG) rerender(); else populateCandidatePanel();
 }
 
 // ── H1 홀더 크기 제어 ─────────────────────────────
@@ -381,8 +370,6 @@ function setBTermDir(key, side) {
     if (el) el.classList.toggle('active', side === s.toLowerCase());
   });
   state.selected_ordering = 0;
-  if (lastSVG) rerender();
-  else populateCandidatePanel();
 }
 
 function adjGap(d) {
@@ -588,16 +575,13 @@ function toggleICC(key) {
   const ids = { icc1: 'togICC1', icc2: 'togICC2', icc3: 'togICC3' };
   const el  = document.getElementById(ids[key]);
   if (el) el.classList.toggle('on', state[key]);
-  state.selected_ordering = 0;   // 새 제약 → 1번 카드로 리셋
-  if (lastSVG) rerender();       // 이미 1회 이상 렌더했다면 메인 SVG 즉시 갱신
-  else populateCandidatePanel(); // 첫 Generate 전이면 패널만
+  state.selected_ordering = 0;
 }
 
 // ★ Phase 2: G0 앵커 (1번 셀 위치) 제약 핸들러
 function setG0Anchor(mode) {
   state.g0_anchor = (mode === 'auto') ? null : mode;
-  state.selected_ordering = 0;  // 새 제약으로 후보 재생성 → 첫 카드로 리셋
-  rerender();
+  state.selected_ordering = 0;
 }
 
 // ★ Phase 4: pentomino 도형 허용 토글
@@ -607,7 +591,6 @@ function toggleAllowShape(key) {
   const el = document.getElementById(elId);
   if (el) el.classList.toggle('on', state[key]);
   state.selected_ordering = 0;
-  if (lastSVG) rerender(); else populateCandidatePanel();
 }
 
 function setMaxPlates(val) {
@@ -616,7 +599,6 @@ function setMaxPlates(val) {
   const el = document.getElementById('valMaxPlates');
   if (el) el.value = state.max_plates;
   state.selected_ordering = 0;
-  if (lastSVG) rerender(); else populateCandidatePanel();
 }
 
 function adjNickelW(d) {
