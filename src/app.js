@@ -936,10 +936,11 @@ function populateCandidatePanel() {
       layout: 'auto', scale: 1.5, nickel_w_mm: 4.0, margin_mm: 8.0,
       rows: customRows, row_offsets: customOffsets,
     };
-    let customPts;
+    let customPts, customPitch;
     try {
       const cc = Generator.calcCustomCenters(customRows, customParams, CELL_SPEC);
       customPts = cc.pts;
+      customPitch = cc.pitch;
     } catch (e) {
       listEl.innerHTML = `<div class="hint" style="color:var(--red)">커스텀 좌표 오류: ${e.message}</div>`;
       if (countEl) countEl.textContent = '오류';
@@ -958,6 +959,7 @@ function populateCandidatePanel() {
         g0_anchor: state.g0_anchor,
         allow_I: state.allow_I,
         allow_U: state.allow_U,
+        pitch: customPitch,
       });
     } catch (e) {
       listEl.innerHTML = `<div class="hint" style="color:var(--red)">열거 오류: ${e.message}</div>`;

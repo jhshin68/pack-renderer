@@ -611,6 +611,7 @@ function renderCustomRows(params) {
   }
   const { pts, R, W, H, pitch: pitchPx } = __Generator.calcCustomCenters(rows, params, CELL_SPEC);
   const S  = params.S;
+  const P  = params.P || 1;
   const N  = pts.length;
   const nw = params.nickel_w_mm * params.scale;
   const cellsPerGroup = Math.ceil(N / S);
@@ -678,24 +679,72 @@ function renderCustomRows(params) {
     if (!params.show_nickel) return '';
     const parts = [];
     const sw = nw.toFixed(1);
-    const fc = NICKEL_FILL;
+
+    // plates[]와 plateGroups[]를 병렬로 구성 (원칙 14 P/2P/P 패턴)
     const plates = [];
+    const plateGroups = [];
     const paired = new Set();
     const pStart = (face === 'top') ? 1 : 0;
     for (let g = pStart; g + 1 < S; g += 2) {
       plates.push([...groupCells[g], ...groupCells[g + 1]]);
+      plateGroups.push([g, g + 1]);
       paired.add(g); paired.add(g + 1);
     }
     for (let g = 0; g < S; g++) {
-      if (!paired.has(g))
-        plates.splice(g === 0 ? 0 : plates.length, 0, [...groupCells[g]]);
+      if (!paired.has(g)) {
+        const ins = g === 0 ? 0 : plates.length;
+        plates.splice(ins, 0, [...groupCells[g]]);
+        plateGroups.splice(ins, 0, [g]);
+      }
     }
-    // 인접 셀 쌍 연결 (all-pairs + isAdj) — 닫힌 형상 보장, 원칙 9 준수
-    plates.forEach(plate => {
-      for (let a = 0; a < plate.length; a++) {
-        for (let b = a + 1; b < plate.length; b++) {
-          if (isAdj(plate[a], plate[b])) {
-            parts.push(`<line x1="${plate[a].x.toFixed(1)}" y1="${plate[a].y.toFixed(1)}" x2="${plate[b].x.toFixed(1)}" y2="${plate[b].y.toFixed(1)}" stroke="${fc}" stroke-width="${sw}" stroke-linecap="round"/>`);
+
+    // BFS Spanning Tree: 셀 집합 내 최소 연결 선 집합
+    function spanningTree(cells) {
+      if (cells.length <= 1) return [];
+      const edges = [];
+      const visited = new Set([0]);
+      const queue = [0];
+      while (queue.length > 0) {
+        const ci = queue.shift();
+        for (let j = 0; j < cells.length; j++) {
+          if (visited.has(j)) continue;
+          if (isAdj(cells[ci], cells[j])) {
+            edges.push([ci, j]);
+            visited.add(j);
+            queue.push(j);
+          }
+        }
+      }
+      return edges;
+    }
+
+    plates.forEach((plate, pIdx) => {
+      const fc = NICKEL_PALETTE[pIdx % 2].fill;
+      const gIdxs = plateGroups[pIdx];
+
+      if (gIdxs.length === 1) {
+        // P셀 단독 플레이트: Spanning Tree
+        const edges = spanningTree(plate);
+        for (const [a, b] of edges) {
+          parts.push(`<line x1="${plate[a].x.toFixed(1)}" y1="${plate[a].y.toFixed(1)}" x2="${plate[b].x.toFixed(1)}" y2="${plate[b].y.toFixed(1)}" stroke="${fc}" stroke-width="${sw}" stroke-linecap="round"/>`);
+        }
+      } else {
+        // 2P 병합 플레이트: 각 그룹 Spanning Tree + 그룹간 브리지 (최대 P개)
+        const g0c = groupCells[gIdxs[0]];
+        const g1c = groupCells[gIdxs[1]];
+        for (const [a, b] of spanningTree(g0c)) {
+          parts.push(`<line x1="${g0c[a].x.toFixed(1)}" y1="${g0c[a].y.toFixed(1)}" x2="${g0c[b].x.toFixed(1)}" y2="${g0c[b].y.toFixed(1)}" stroke="${fc}" stroke-width="${sw}" stroke-linecap="round"/>`);
+        }
+        for (const [a, b] of spanningTree(g1c)) {
+          parts.push(`<line x1="${g1c[a].x.toFixed(1)}" y1="${g1c[a].y.toFixed(1)}" x2="${g1c[b].x.toFixed(1)}" y2="${g1c[b].y.toFixed(1)}" stroke="${fc}" stroke-width="${sw}" stroke-linecap="round"/>`);
+        }
+        let bridges = 0;
+        for (let a = 0; a < g0c.length && bridges < P; a++) {
+          for (let b = 0; b < g1c.length && bridges < P; b++) {
+            if (isAdj(g0c[a], g1c[b])) {
+              parts.push(`<line x1="${g0c[a].x.toFixed(1)}" y1="${g0c[a].y.toFixed(1)}" x2="${g1c[b].x.toFixed(1)}" y2="${g1c[b].y.toFixed(1)}" stroke="${fc}" stroke-width="${sw}" stroke-linecap="round"/>`);
+              bridges++;
+            }
           }
         }
       }
