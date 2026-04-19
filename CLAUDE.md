@@ -21,7 +21,8 @@
 | 설계 검증, 원칙 체크, validator 구현 | `skills/nickel_plate_principles.md` (LAYER 0·1·2) |
 | 형상 생성, 알고리즘·generator 구현 | `skills/nickel-plate-design.md` (LAYER 3) |
 | SVG 렌더링, 색상·레이어·표시 | `skills/nickel_render_rules.md` (LAYER 4) |
-| 작업 종류 불명확 | 위 3개 모두 |
+| 플레이트 설계 평가, CHECK-1~4 검증 | `skills/nickel-plate-evaluation-rules.md` (제조 최적성) |
+| 작업 종류 불명확 | 위 4개 모두 |
 
 ## 개발 규율 (필수 준수)
 
