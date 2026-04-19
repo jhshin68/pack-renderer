@@ -509,9 +509,11 @@ function fixSVGSize() {
   if (!vb) return;
   const [, , w, h] = vb.split(' ').map(Number);
   const z = state.zoom || 1.0;
-  svgEl.setAttribute('width',  Math.ceil(w * z) + 'px');
-  svgEl.setAttribute('height', Math.ceil(h * z) + 'px');
-  svgEl.style.cssText = 'max-width:100%;height:auto;display:block;';
+  const pw = Math.ceil(w * z);
+  svgEl.removeAttribute('width');
+  svgEl.removeAttribute('height');
+  // inline style이 CSS 규칙(width:100%)을 덮어써야 zoom이 반영됨
+  svgEl.style.cssText = `width:${pw}px;max-width:100%;height:auto;display:block;`;
 }
 
 function adjZoom(d) {
