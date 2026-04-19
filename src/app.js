@@ -525,29 +525,57 @@ function adjZoom(d) {
 //   [M5 완료] doRender() 삭제. HTML onclick 및 초기 호출 모두 rerender()로 통일.
 function rerender() {
   updateInfoBox();
-  // ★ populate를 앞으로 이동 → _enumResult가 render() 호출 전에 준비됨
   populateCandidatePanel();
+
+  // max_plates 필터 적용한 유효 후보 목록
+  let effectiveCandidates = _enumResult ? (_enumResult.candidates || []) : [];
+  if (state.max_plates > 0 && state.arrangement !== 'custom') {
+    effectiveCandidates = effectiveCandidates.filter(
+      c => (c.total_plates != null ? c.total_plates : state.S + 1) <= state.max_plates
+    );
+  }
+
+  const emptyEl = document.getElementById('emptyState');
+
+  // 후보 없음 → 이전 이미지 제거 + "생성 불가" 메시지
+  if (state.arrangement !== 'custom' && _enumResult && effectiveCandidates.length === 0) {
+    lastSVG = '';
+    document.getElementById('svgOutput').innerHTML = '';
+    document.getElementById('svgContainer').style.display = 'none';
+    emptyEl.innerHTML =
+      `<div class="empty-icon" style="opacity:.6">⊘</div>` +
+      `<div class="empty-text" style="color:var(--amber)">` +
+      (state.max_plates > 0
+        ? `최대 플레이트 수 ${state.max_plates}개 제약으로<br>배열을 만들 수 없습니다`
+        : `현재 제약 조건으로<br>배열을 만들 수 없습니다`) +
+      `</div>`;
+    emptyEl.style.display = 'flex';
+    return;
+  }
+
+  // 정상 렌더: emptyState 원복
+  emptyEl.innerHTML = '<div class="empty-icon">⬡</div><div class="empty-text">Configure &amp; Generate</div>';
 
   const customRows = parseCustomRows();
   const p = {
     ...state,
-    layout:       'auto',
-    scale:        1.5,
-    nickel_w_mm:  4.0,
-    margin_mm:    8.0,
-    gap_section:  36,
-    // custom 배열일 때 rows 배열을 renderer.render()로 직접 전달 (F14)
+    layout:      'auto',
+    scale:       1.5,
+    nickel_w_mm: 4.0,
+    margin_mm:   8.0,
+    gap_section: 36,
     rows: (state.arrangement === 'custom') ? customRows : undefined,
     face: 'all',
   };
 
-  // ★ 우측 패널 선택 후보를 렌더에 주입 (square/staggered only)
-  if (state.arrangement !== 'custom' && _enumResult && _enumResult.candidates && _enumResult.candidates.length > 0) {
-    const cand = _enumResult.candidates[state.selected_ordering];
+  // 유효 후보(max_plates 필터 적용)를 렌더에 주입
+  if (state.arrangement !== 'custom' && effectiveCandidates.length > 0) {
+    const idx  = Math.min(state.selected_ordering, effectiveCandidates.length - 1);
+    const cand = effectiveCandidates[idx];
     if (cand && cand.groups) {
       p.cell_groups = cand.groups.map(g => g.cells);
-      p.grid_cols = getHolderCols();
-      p.grid_rows = getHolderRows();
+      p.grid_cols   = getHolderCols();
+      p.grid_rows   = getHolderRows();
     }
   }
 
@@ -555,8 +583,8 @@ function rerender() {
     lastSVG = render(p);
   } catch (err) {
     console.error('[rerender] render failed:', err);
-    lastSVG = `<svg width="100%" viewBox="0 0 420 80"><rect width="100%" height="100%" fill="#181c27"/>`
-      + `<text x="20" y="46" fill="#e74c3c" font-family="Arial" font-size="12">렌더 오류: ${err.message}</text></svg>`;
+    lastSVG = `<svg width="100%" viewBox="0 0 420 80"><rect width="100%" height="100%" fill="#181c27"/>` +
+      `<text x="20" y="46" fill="#e74c3c" font-family="Arial" font-size="12">렌더 오류: ${err.message}</text></svg>`;
   }
 
   applyFaceFilter();
@@ -564,7 +592,7 @@ function rerender() {
   addBmsMarkerToDOM();
   updateHolderUI();
 
-  document.getElementById('emptyState').style.display  = 'none';
+  emptyEl.style.display = 'none';
   document.getElementById('svgContainer').style.display = 'block';
 }
 
