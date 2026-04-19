@@ -209,13 +209,15 @@
     const pitch   = (spec.render_d + (p.gap || 0)) * p.scale;
     const R       = (spec.render_d / 2) * p.scale;
     const margin  = p.margin_mm * p.scale;
+    const rowOffsets = (Array.isArray(p.row_offsets) && p.row_offsets.length === rows.length)
+      ? p.row_offsets : null;
     const stagger = !!p.custom_stagger;
     const pitchY  = stagger ? pitch * Math.sqrt(3) / 2 : pitch;
     const maxN    = Math.max(...rows);
-    const align   = p.custom_align || 'center';
-
     const stagDir = (p.custom_stagger_dir === 'L') ? -1 : 1;
     const leftPad = (stagger && stagDir === -1) ? pitch / 2 : 0;
+    // row_offsets 있으면 left 정렬 기준 (1단 왼쪽 끝 = 기준점)
+    const align = rowOffsets ? 'left' : (p.custom_align || 'center');
 
     const pts = [];
     for (let r = 0; r < rows.length; r++) {
@@ -226,19 +228,27 @@
       if      (align === 'left')  alignOffX = 0;
       else if (align === 'right') alignOffX = (maxN - n) * pitch;
       else                        alignOffX = (maxN - n) * pitch / 2;
+      const extraOffX = rowOffsets ? rowOffsets[r] * pitch : 0;
       for (let i = 0; i < n; i++) {
         pts.push({
-          x: margin + leftPad + alignOffX + stagOffX + i * pitch + R,
+          x: margin + leftPad + alignOffX + stagOffX + extraOffX + i * pitch + R,
           y: margin + r * pitchY + R,
           row: r, col: i,
         });
       }
     }
 
-    const extraW = stagger ? pitch / 2 : 0;
+    // 음수 오프셋으로 왼쪽 경계 침범 시 전체 오른쪽으로 이동
+    if (pts.length > 0) {
+      const minX = Math.min(...pts.map(pt => pt.x));
+      const shift = (minX < margin + R) ? (margin + R - minX) : 0;
+      if (shift > 0) pts.forEach(pt => pt.x += shift);
+    }
+
+    const maxX = pts.length > 0 ? Math.max(...pts.map(pt => pt.x)) : margin + R;
     return {
       pts, R, pitch,
-      W: margin * 2 + maxN * pitch + extraW,
+      W: maxX + R + margin,
       H: margin * 2 + (rows.length - 1) * pitchY + 2 * R,
     };
   }
@@ -278,12 +288,12 @@
    *
    * 정배열 4-이웃: threshold = pitch × 1.05
    * 엇배열 6-이웃: hex 간격 = pitch → threshold = pitch × 1.05 동일
-   * 커스텀:        threshold = pitch × 1.1 (원칙 9 ③, 제조 공차 ±10%)
+   * 커스텀:        threshold = pitch × 1.5 (행 오프셋 시 대각 인접 √2·pitch ≈ 1.414 포함)
    */
   function buildAdjacency(cells, arrangement, pitch) {
     if (!cells || cells.length < 2) return [];
     const p = pitch || estimatePitch(cells);
-    const thr = arrangement === 'custom' ? p * 1.1 : p * 1.05;
+    const thr = arrangement === 'custom' ? p * 1.5 : p * 1.05;
     const edges = [];
     for (let i = 0; i < cells.length; i++) {
       const a = _pt(cells[i]);
@@ -1250,7 +1260,7 @@
     }
 
     const pitch = estimatePitch(cells);
-    const thr   = arrangement === 'custom' ? pitch * 1.1 : pitch * 1.05;
+    const thr   = arrangement === 'custom' ? pitch * 1.5 : pitch * 1.05;
     const bPlus  = calcBoundarySet(cells, b_plus_side);
     const bMinus = calcBoundarySet(cells, b_minus_side);
 
@@ -1406,7 +1416,7 @@
     let btIterations = 0;
     let strategy = 'standard';
 
-    if (arrangement !== 'custom') {
+    {
       const STANDARD = [
         { name: '보스트로페돈 L→R', desc: '행 우선 · 짝수행 L→R', fn: () => makeBoustrophedon(true)  },
         { name: '보스트로페돈 R→L', desc: '행 우선 · 짝수행 R→L', fn: () => makeBoustrophedon(false) },

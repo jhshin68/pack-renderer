@@ -17,8 +17,8 @@
 // gap: 0.0 — 원칙(셀-셀 맞닿음, pitch = render_d), renderer.js DEFAULT_PARAMS와 동일
 const state = {
   cell_type:       '21700',
-  S:               3,
-  P:               3,
+  S:               13,
+  P:               4,
   gap:             0.0,   // ★ 원칙: gap=0 (셀 맞닿음) — renderer.js 기본값과 동일
   arrangement:     'square',
   show_nickel:     true,
@@ -116,10 +116,23 @@ function estimateMmin(S, P, arr, mirror) {
 }
 
 // ── 커스텀 배열 rows[] 파싱 (UI 입력 → 숫자 배열) ──
-function parseCustomRows() {
+// 형식: "10,12:-2,13:-1,12:1,5:1" — 입력은 아래→위(1단부터), 내부는 위→아래로 역순 변환
+function _parseCustomRowsRaw() {
   const raw = document.getElementById('customRows').value.trim();
-  return raw.split(/[,\n\s]+/).map(s => parseInt(s, 10)).filter(n => Number.isFinite(n) && n > 0);
+  const counts = [], offsets = [];
+  for (const entry of raw.split(/[,\n]+/).map(s => s.trim()).filter(Boolean)) {
+    const m = entry.match(/^(\d+)(?::([+-]?\d+))?$/);
+    if (m && parseInt(m[1], 10) > 0) {
+      counts.push(parseInt(m[1], 10));
+      offsets.push(m[2] ? parseInt(m[2], 10) : 0);
+    }
+  }
+  counts.reverse();
+  offsets.reverse();
+  return { counts, offsets };
 }
+function parseCustomRows()    { return _parseCustomRowsRaw().counts; }
+function parseRowOffsets()    { return _parseCustomRowsRaw().offsets; }
 
 // ── 커스텀 모드: S×P vs 행 합계 일치 경고 ──────────
 function checkCustomConsistency() {
@@ -177,14 +190,7 @@ function setCustomAlign(a) {
 function toggleCustomStagger() {
   state.custom_stagger = !state.custom_stagger;
   document.getElementById('togCustomStagger').classList.toggle('on', state.custom_stagger);
-  const dirGroup = document.getElementById('stagDirGroup');
-  if (dirGroup) dirGroup.style.display = state.custom_stagger ? 'block' : 'none';
-}
-
-function setCustomStaggerDir(d) {
-  state.custom_stagger_dir = d;
-  document.getElementById('btnStagL')?.classList.toggle('active', d === 'L');
-  document.getElementById('btnStagR')?.classList.toggle('active', d === 'R');
+  if (lastSVG) _renderSVG();
 }
 
 // ── BMS 위치 제어 (원칙 16 — 맨해튼 거리 최소화) ───────────
@@ -526,10 +532,12 @@ function applyFaceFilter() {
     return;
   }
   const customRows = parseCustomRows();
+  const customOffsets = parseRowOffsets();
   const p = {
     ...state,
     layout: 'auto', scale: 1.5, nickel_w_mm: 4.0, margin_mm: 8.0, gap_section: 36,
-    rows: (state.arrangement === 'custom') ? customRows : undefined,
+    rows:        (state.arrangement === 'custom') ? customRows    : undefined,
+    row_offsets: (state.arrangement === 'custom') ? customOffsets : undefined,
     face: state.face,   // 'top' | 'bottom'
   };
   let svg;
@@ -569,7 +577,7 @@ function _renderSVG() {
   updateInfoBox();
 
   let effectiveCandidates = _enumResult ? (_enumResult.candidates || []) : [];
-  if (state.max_plates > 0 && state.arrangement !== 'custom') {
+  if (state.max_plates > 0) {
     effectiveCandidates = effectiveCandidates.filter(
       c => _countDistinctShapes(c) <= state.max_plates
     );
@@ -577,7 +585,7 @@ function _renderSVG() {
 
   const emptyEl = document.getElementById('emptyState');
 
-  if (state.arrangement !== 'custom' && _enumResult && effectiveCandidates.length === 0) {
+  if (_enumResult && effectiveCandidates.length === 0) {
     lastSVG = '';
     document.getElementById('svgOutput').innerHTML = '';
     document.getElementById('svgContainer').style.display = 'none';
@@ -595,6 +603,7 @@ function _renderSVG() {
   emptyEl.innerHTML = '<div class="empty-icon">⬡</div><div class="empty-text">Configure &amp; Generate</div>';
 
   const customRows = parseCustomRows();
+  const customOffsets = parseRowOffsets();
   const p = {
     ...state,
     layout:      'auto',
@@ -602,17 +611,20 @@ function _renderSVG() {
     nickel_w_mm: 4.0,
     margin_mm:   8.0,
     gap_section: 36,
-    rows: (state.arrangement === 'custom') ? customRows : undefined,
+    rows:        (state.arrangement === 'custom') ? customRows    : undefined,
+    row_offsets: (state.arrangement === 'custom') ? customOffsets : undefined,
     face: 'all',
   };
 
-  if (state.arrangement !== 'custom' && effectiveCandidates.length > 0) {
+  if (effectiveCandidates.length > 0) {
     const idx  = Math.min(state.selected_ordering, effectiveCandidates.length - 1);
     const cand = effectiveCandidates[idx];
     if (cand && cand.groups) {
       p.cell_groups = cand.groups.map(g => g.cells);
-      p.grid_cols   = getHolderCols();
-      p.grid_rows   = getHolderRows();
+      if (state.arrangement !== 'custom') {
+        p.grid_cols = getHolderCols();
+        p.grid_rows = getHolderRows();
+      }
     }
   }
 
@@ -776,16 +788,89 @@ function populateCandidatePanel() {
 
   const hasGen = typeof Generator !== 'undefined';
 
-  // 커스텀 배열: 단일 BFS 후보 (열거기 미지원)
+  // 커스텀 배열: Generator.calcCustomCenters → enumerateGroupAssignments
   if (arrangement === 'custom') {
-    listEl.innerHTML = '<div class="hint" style="color:var(--dt3);margin-top:4px">커스텀 배열<br>BFS 자동 순서 적용</div>';
-    if (countEl) countEl.textContent = '1개';
-    _enumResult = null;
-    const detailEl = document.getElementById('candDetail');
-    if (detailEl) detailEl.style.display = 'none';
-    const divEl = document.getElementById('rpDetailDivider');
-    if (divEl) divEl.style.display = 'none';
-    _updateEnumStatus(null);
+    const customRows    = parseCustomRows();
+    const customOffsets = parseRowOffsets();
+    if (!customRows.length || !hasGen || typeof CELL_SPEC === 'undefined') {
+      listEl.innerHTML = '<div class="hint" style="color:var(--dt3);margin-top:4px">커스텀 배열 — 행 구성을 입력하세요</div>';
+      if (countEl) countEl.textContent = '—';
+      _enumResult = null;
+      _updateEnumStatus(null);
+      return;
+    }
+    const customParams = {
+      ...state,
+      layout: 'auto', scale: 1.5, nickel_w_mm: 4.0, margin_mm: 8.0,
+      rows: customRows, row_offsets: customOffsets,
+    };
+    let customPts;
+    try {
+      const cc = Generator.calcCustomCenters(customRows, customParams, CELL_SPEC);
+      customPts = cc.pts;
+    } catch (e) {
+      listEl.innerHTML = `<div class="hint" style="color:var(--red)">커스텀 좌표 오류: ${e.message}</div>`;
+      if (countEl) countEl.textContent = '오류';
+      _enumResult = null;
+      _updateEnumStatus(null);
+      return;
+    }
+    let result;
+    try {
+      result = Generator.enumerateGroupAssignments({
+        cells: customPts, S, P, arrangement: 'custom',
+        b_plus_side, b_minus_side,
+        icc1, icc2, icc3,
+        nickel_w: nickel_w_mm * 1.5,
+        max_candidates: 40,
+        g0_anchor: state.g0_anchor,
+        allow_I: state.allow_I,
+        allow_U: state.allow_U,
+      });
+    } catch (e) {
+      listEl.innerHTML = `<div class="hint" style="color:var(--red)">열거 오류: ${e.message}</div>`;
+      if (countEl) countEl.textContent = '오류';
+      _enumResult = null;
+      _updateEnumStatus(null);
+      return;
+    }
+    _enumResult = result;
+    _updateEnumStatus(result);
+    let candidates = result.candidates || [];
+    if (state.max_plates && state.max_plates > 0)
+      candidates = candidates.filter(c => _countDistinctShapes(c) <= state.max_plates);
+    if (countEl) countEl.textContent = candidates.length + '개';
+    listEl.innerHTML = '';
+    if (candidates.length === 0) {
+      listEl.innerHTML = '<div class="hint" style="margin-top:4px;color:var(--amber)">현재 제약으로 유효 후보 없음<br>ICC/B± 조건을 완화해보세요</div>';
+      _showCandDetail(-1);
+      return;
+    }
+    candidates.forEach((cand, idx) => {
+      const groups  = cand.groups || [];
+      const posN    = groups.filter(g => g.quality_score > 0).length;
+      const negN    = groups.filter(g => g.quality_score < 0).length;
+      const isSel   = idx === state.selected_ordering;
+      const scoreStr = groups.slice(0, 6)
+        .map(g => g.quality_score > 0 ? '+10' : g.quality_score < 0 ? '−10' : ' 0 ')
+        .join(' ') + (S > 6 ? ' …' : '');
+      const badgeClass = posN > 0 && negN === 0 ? 'pos' : negN > 0 ? 'neg' : 'zero';
+      const badgeText  = posN > 0 && negN === 0 ? `${posN}×+10`
+                       : negN > 0               ? `${negN}×−10`
+                       :                          '0점';
+      const mCount = _countDistinctShapes(cand);
+      listEl.innerHTML += `
+        <div class="cand-card${isSel ? ' selected' : ''}" onclick="selectCandidate(${idx})" data-idx="${idx}">
+          <div class="cand-card-top">
+            <span class="cand-idx">#${idx + 1}</span>
+            <span class="cand-badge ${badgeClass}">${badgeText}</span>
+            <span class="cand-molds" style="margin-left:auto;font-size:9px;color:var(--dt3)">${mCount}종</span>
+          </div>
+          <div class="cand-score-row">${scoreStr}</div>
+        </div>`;
+    });
+    if (state.selected_ordering >= candidates.length) state.selected_ordering = 0;
+    _showCandDetail(state.selected_ordering);
     return;
   }
 

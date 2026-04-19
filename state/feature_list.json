@@ -264,8 +264,8 @@
       "category": "니켈 플레이트 제약",
       "name": "max_plates 고유 형상(금형) 종류 수 필터 UI",
       "description": "좌측 사이드바 B− 방향 아래에 max_plates 입력 UI. 0=제한없음, N 설정 시 _countDistinctShapes(cand) > N 후보 필터링. _countDistinctShapes()는 canonical 4회전 서명 기반 고유 형상 집합 크기. max_plates 초과 시 캔버스 클리어 + '배열을 만들 수 없습니다' 메시지. rerender()·populateCandidatePanel() 양쪽 모두 일관 적용. 브라우저 확인 미완. 2026-04-19.",
-      "passes": false,
-      "note": "브라우저 확인 미완 — _countDistinctShapes 필터 동작 여부 확인 필요"
+      "passes": true,
+      "note": "브라우저 확인 완료 2026-04-19 — max_plates=1 설정 시 '배열을 만들 수 없습니다' 메시지 정상 표시"
     }
   ]
 }

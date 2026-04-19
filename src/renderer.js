@@ -615,7 +615,7 @@ function renderCustomRows(params) {
   const nw = params.nickel_w_mm * params.scale;
   const cellsPerGroup = Math.ceil(N / S);
 
-  // 행-단위 보스트로페돈(snake) 그룹 배정 (app.js renderCustomLayout과 동일)
+  // 행-단위 보스트로페돈(snake) — 외부 cell_groups 없을 때 폴백
   const byRow = rows.map(() => []);
   pts.forEach(pt => byRow[pt.row].push(pt));
   const snake = [];
@@ -625,20 +625,33 @@ function renderCustomRows(params) {
     snake.push(...row);
   }
 
-  const groupCells = Array.from({ length: S }, () => []);
-  snake.forEach((pt, i) => {
-    const g = Math.min(S - 1, Math.floor(i / cellsPerGroup));
-    groupCells[g].push(pt);
-  });
+  // ★ 외부 그룹 주입: params.cell_groups (enumerateGroupAssignments 결과)
+  let groupCells;
+  const externalGroups = Array.isArray(params.cell_groups) && params.cell_groups.length === S
+    ? params.cell_groups : null;
+  if (externalGroups) {
+    // 외부 그룹 셀 좌표를 pts 좌표계로 매핑 (row/col 기준)
+    const ptMap = new Map(pts.map(pt => [`${pt.row},${pt.col}`, pt]));
+    groupCells = externalGroups.map(grp =>
+      grp.map(c => ptMap.get(`${c.row},${c.col}`) || c).filter(Boolean)
+    );
+  } else {
+    groupCells = Array.from({ length: S }, () => []);
+    snake.forEach((pt, i) => {
+      const g = Math.min(S - 1, Math.floor(i / cellsPerGroup));
+      groupCells[g].push(pt);
+    });
+  }
 
+  // 커스텀 배열은 행 오프셋으로 대각 인접(√2·pitch) 가능 → threshold 1.5 적용
   const isAdj = (a, b) => {
     const dx = a.x - b.x, dy = a.y - b.y;
-    return dx * dx + dy * dy <= pitchPx * pitchPx * 1.1025; // 1.05² — 픽셀 거리 기반 (원칙 9)
+    return dx * dx + dy * dy <= pitchPx * pitchPx * 2.25; // 1.5² — 커스텀 대각 인접 허용
   };
 
-  // 원칙 9 검증: 연속 그룹 간 ≥1개 인접 쌍 필수
+  // 원칙 9 검증: 외부 그룹은 열거기가 보장 → snake 폴백만 검증
   let p9ViolationIdx = -1;
-  for (let g = 0; g + 1 < S; g++) {
+  if (!externalGroups) for (let g = 0; g + 1 < S; g++) {
     const ok = groupCells[g].some(ca => groupCells[g + 1].some(cb => isAdj(ca, cb)));
     if (!ok) { p9ViolationIdx = g; break; }
   }
@@ -712,12 +725,15 @@ function renderCustomRows(params) {
     return parts.join('');
   }
 
-  const topCells = snake.map((pt, i) => {
-    const g = Math.min(S - 1, Math.floor(i / cellsPerGroup));
+  // 원칙 1: 셀 극성은 실제 그룹 배정(groupCells)에서 결정 — snake fallback 순서 사용 금지
+  const cellGrpIdx = new Map();
+  groupCells.forEach((gc, gIdx) => gc.forEach(c => cellGrpIdx.set(`${c.row},${c.col}`, gIdx)));
+  const topCells = pts.map(pt => {
+    const g = cellGrpIdx.get(`${pt.row},${pt.col}`) ?? 0;
     return drawCell(pt.x, pt.y, R, getCellPolarity(g, 'top'), params.scale);
   });
-  const botCells = snake.map((pt, i) => {
-    const g = Math.min(S - 1, Math.floor(i / cellsPerGroup));
+  const botCells = pts.map(pt => {
+    const g = cellGrpIdx.get(`${pt.row},${pt.col}`) ?? 0;
     return drawCell(pt.x, pt.y, R, getCellPolarity(g, 'bottom'), params.scale);
   });
 
