@@ -1,9 +1,34 @@
 ========================================
-마지막 업데이트: 2026-04-20 (세션 32 — pickCompactHoriz 수평 우선 + I형 회피 BFS 픽커)
+마지막 업데이트: 2026-04-20 (세션 33 — P9 폴백 극성 버그 수정 + P29 회귀 테스트)
 버전: battery_pack_renderer.html, src/app.js, src/generator.js, src/renderer.js
-테스트 상태: pass=846 fail=0 (정배열+엇배열 720/720, 커스텀 18/18) + test_bfs_compact 6/6
+테스트 상태: pass=846 fail=0 + test_bfs_compact 6/6 + test_p29_parallel_polarity 44/44
 feature_list.json: 모든 항목 passes:true
-git 상태: 세션 32 커밋+푸시 완료
+git 상태: 세션 33 커밋 완료 (2개 커밋)
+
+## 세션 33 진행 (2026-04-20) — P9 폴백 버그 수정 + P29 테스트
+
+### 완료 사항
+
+#### 세션 32 독립 커밋 (3622f99)
+- src/generator.js (pickCompactHoriz) + tests/test_bfs_compact.js 커밋
+
+#### P9 폴백 극성 버그 수정 (renderer.js:660-669)
+- 문제: P9 위반 표시 경로에서 `Math.floor(i / cellsPerGroup)` 사용 → 원칙 1 위반
+- 수정: `p9GrpMap` (groupCells 기반 Map)으로 교체
+- 원칙 1: 극성은 실제 그룹 배정 기준, snake 순서 사용 금지
+
+#### test_p29_parallel_polarity.js 신규 작성 (9486bc9)
+- 44개 assertion: getCellPolarity 일관성, square/staggered 5S4P 극성 분포, custom 13S4P 셀 배정 무결성
+- 44/44 PASS, 846/846 회귀 PASS
+
+### 다음 할 일
+- [ ] 브라우저에서 13S4P 커스텀 배열 후보 렌더링 확인 (G0=[#48,#49,#36,#37] 포함)
+- [ ] 브라우저에서 staggered+holder 모드 니켈 플레이트 형상 확인
+- [ ] 13S4P 비균일 staggerON 0후보: 물리적 불가능 여부 도메인 확인
+- [ ] test_enumerate_integration: 10S5P snake count=0 (C3/C4 실패) 원인 분석
+
+---
+
 
 ## 세션 32 진행 (2026-04-20) — pickCompactHoriz BFS 픽커 구현
 
