@@ -1704,9 +1704,26 @@
           const scanByX = [...Array(N).keys()]
             .sort((a, b) => cells[a].x - cells[b].x || cells[a].y - cells[b].y);
 
-          function pickMRV(candidates) {
+          // MRV + 2번째 픽 수평 우선(같은 행) + I형 회피
+          // • step 2 (group.length=1): 같은 행 후보 있으면 해당 후보로 제한
+          // • step 4 (group.length=P-1): I형 체인 되는 후보 제거
+          // • 나머지: MRV(최소 남은 이웃) 기본
+          function pickCompactHoriz(candidates, group) {
+            const groupCells = group.map(i => cells[i]);
+            let pool = candidates;
+
+            if (group.length === 1) {
+              const sameRow = pool.filter(c => cells[c].row === groupCells[0].row);
+              if (sameRow.length > 0) pool = sameRow;
+            }
+
+            if (group.length === P - 1) {
+              const notLinear = pool.filter(c => !_isLinearGroup([...groupCells, cells[c]]));
+              if (notLinear.length > 0) pool = notLinear;
+            }
+
             let best = -1, bestD = Infinity;
-            for (const c of candidates) {
+            for (const c of pool) {
               const d = adjL[c].filter(j => !used[j]).length;
               if (d < bestD) { bestD = d; best = c; }
             }
@@ -1740,7 +1757,7 @@
               const group = [start]; used[start] = 1;
               const frontier = new Set(adjL[start].filter(j => !used[j]));
               while (group.length < P && frontier.size > 0) {
-                const next = pickMRV([...frontier]);
+                const next = pickCompactHoriz([...frontier], group);
                 if (next < 0) break;
                 group.push(next); used[next] = 1; frontier.delete(next);
                 for (const nb of adjL[next]) if (!used[nb]) frontier.add(nb);
