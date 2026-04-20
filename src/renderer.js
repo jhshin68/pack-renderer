@@ -659,8 +659,11 @@ function renderCustomRows(params) {
 
   if (p9ViolationIdx >= 0) {
     const errMsg = `원칙 9 위반: G${p9ViolationIdx}↔G${p9ViolationIdx + 1} 비인접 — S·P·행 배열을 재조정하세요`;
-    const allCells = snake.map((pt, i) => {
-      const g = Math.min(S - 1, Math.floor(i / cellsPerGroup));
+    // 원칙 1: 극성은 실제 groupCells 배정 기준 (snake 순서 사용 금지)
+    const p9GrpMap = new Map();
+    groupCells.forEach((gc, gIdx) => gc.forEach(c => p9GrpMap.set(`${c.row},${c.col}`, gIdx)));
+    const allCells = snake.map(pt => {
+      const g = p9GrpMap.get(`${pt.row},${pt.col}`) ?? 0;
       return drawCell(pt.x, pt.y, R, getCellPolarity(g, 'top'), params.scale);
     });
     const errH = H + 80;
