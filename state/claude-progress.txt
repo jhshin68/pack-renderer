@@ -1,9 +1,29 @@
 ========================================
-마지막 업데이트: 2026-04-20 (세션 30 — 커스텀 니켈 플레이트 형상 수정 완료)
+마지막 업데이트: 2026-04-20 (세션 31 — 13S4P BFS-MRV 대화형 디버깅 준비)
 버전: battery_pack_renderer.html, src/app.js, src/generator.js, src/renderer.js
 테스트 상태: pass=846 fail=0 (정배열+엇배열 720/720, 커스텀 18/18) — 세션 30 기준
 feature_list.json: 모든 항목 passes:true
 git 상태: 세션 30 커밋+푸시 완료
+
+## 세션 31 진행 (2026-04-20) — 13S4P BFS-MRV 대화형 디버깅 준비
+
+### 완료 사항
+
+#### 진단 스크립트 작성 (tmp/diag_bfs_trace_13s4p.js)
+- generator.js require + BFS-MRV 52-step 전체 추적
+- CELL_SPEC: 18650 render_d=19.0
+- 입력: rows=[10,12,13,12,5], offsets=[0,-2,-2,-2,-1], stagDir='R'
+- 전체 52-step 성공 확인 (g0start=#23)
+
+#### 셀 배치 확인
+- ASCII 맵 방향: Row0(10셀)=물리적 하단, Row4(5셀)=상단 — 사용자 검증 완료
+- 전체 결과: state/session31_bfs_debug.md에 기록
+
+### 다음 할 일
+- [ ] Step 1~52 대화형 검증 재개 (Phase B)
+  - 의심 step: Step 3(G0 수직점프), Step 7(G1 B+ 중복), Step 13~16(G3 비연속), Step 47~48(G11 B- 중복)
+- [ ] 원칙 위반(P9/P21A/P21B/P28) 최종 판정
+- [ ] 위반 발견 시 tdd-first.md 기반 별도 세션 수정
 
 ## 세션 30 진행 (2026-04-20) — 커스텀 니켈 플레이트 형상 수정
 
