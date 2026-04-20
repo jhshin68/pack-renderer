@@ -262,6 +262,73 @@
     return { x: c.x != null ? c.x : c.cx, y: c.y != null ? c.y : c.cy };
   }
 
+  // ─────────────────────────────────────────────
+  // 원칙 30: 동일 면 이종 플레이트 비교차 절대 금지
+  // ─────────────────────────────────────────────
+
+  /** 두 선분의 proper intersection 판정 (endpoint 접촉 제외) */
+  function _segmentsProperIntersect(ax, ay, bx, by, cx, cy, dx, dy) {
+    function cross2(ox, oy, px, py, qx, qy) {
+      return (px - ox) * (qy - oy) - (py - oy) * (qx - ox);
+    }
+    const d1 = cross2(cx, cy, dx, dy, ax, ay);
+    const d2 = cross2(cx, cy, dx, dy, bx, by);
+    const d3 = cross2(ax, ay, bx, by, cx, cy);
+    const d4 = cross2(ax, ay, bx, by, dx, dy);
+    return ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
+           ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0));
+  }
+
+  /**
+   * 원칙 30: 동일 면 이종 플레이트 비교차 검사
+   * groups: [{cells:[{x,y,...}]}]  thr: isAdj 거리 임계값(px)
+   * 반환: true = 교차 없음(pass) / false = 교차 발견 → 설계 폐기
+   */
+  function checkPlanarNoCrossing(groups, thr) {
+    const S = groups.length;
+    if (S < 2) return true;
+    const thrSq = thr * thr;
+
+    for (const pStart of [0, 1]) {
+      // 원칙 14 면별 플레이트 구성
+      const plateCells = [];
+      const paired = new Set();
+      for (let g = pStart; g + 1 < S; g += 2) {
+        plateCells.push([...groups[g].cells, ...groups[g + 1].cells]);
+        paired.add(g); paired.add(g + 1);
+      }
+      for (let g = 0; g < S; g++) {
+        if (!paired.has(g))
+          plateCells.splice(g === 0 ? 0 : plateCells.length, 0, [...groups[g].cells]);
+      }
+
+      // 각 플레이트의 인접 쌍 엣지 수집
+      const plateEdges = plateCells.map(pc => {
+        const edges = [];
+        for (let a = 0; a < pc.length; a++) {
+          for (let b = a + 1; b < pc.length; b++) {
+            const dx = pc[a].x - pc[b].x, dy = pc[a].y - pc[b].y;
+            if (dx * dx + dy * dy <= thrSq) edges.push([pc[a], pc[b]]);
+          }
+        }
+        return edges;
+      });
+
+      // 플레이트 쌍 간 교차 검사 (원칙 30①②)
+      for (let p1 = 0; p1 < plateEdges.length; p1++) {
+        for (let p2 = p1 + 1; p2 < plateEdges.length; p2++) {
+          for (const [a, b] of plateEdges[p1]) {
+            for (const [c, d] of plateEdges[p2]) {
+              if (_segmentsProperIntersect(a.x, a.y, b.x, b.y, c.x, c.y, d.x, d.y))
+                return false;
+            }
+          }
+        }
+      }
+    }
+    return true;
+  }
+
   /**
    * pitch 자동 추정: 셀 쌍 중 양수 최소 거리
    * cells: [{x,y}|{cx,cy}]
@@ -1422,24 +1489,30 @@
 
     // 후보 유효성 검사: 원칙 8(셀수), 21A(그룹 내 연결), 21B+28③(인접 그룹 쌍 연결)
     function validateCandidate(groups) {
+      // P28②: 각 그룹 정확히 P셀
       for (let g = 0; g < groups.length; g++) {
         if (groups[g].cells.length !== P) return false;
       }
+      // P21A: 그룹 내 연결성
       for (let g = 0; g < groups.length; g++) {
         if (!isGroupConnected(groups[g].cells)) return false;
       }
+      // P21B: 인접 그룹 쌍 연결
       for (let g = 0; g + 1 < groups.length; g++) {
         const ga = groups[g].cells, gb = groups[g + 1].cells;
         const ok = ga.some(a => gb.some(b =>
           Math.hypot(a.x - b.x, a.y - b.y) <= thr + 0.5));
         if (!ok) return false;
       }
+      // P28③: 2P 병합 플레이트 연결성
       for (let pStart = 0; pStart <= 1; pStart++) {
         for (let g = pStart; g + 1 < groups.length; g += 2) {
           const merged = [...groups[g].cells, ...groups[g + 1].cells];
           if (!isGroupConnected(merged)) return false;
         }
       }
+      // ★ 원칙 30: 동일 면 이종 플레이트 비교차 (쇼트 절대 금지)
+      if (!checkPlanarNoCrossing(groups, thr)) return false;
       return true;
     }
 
@@ -1879,6 +1952,8 @@
     groupQualityScore,
     checkGroupValidity,
     validateP28,            // 원칙 28 — P/2P/P 셀 수 + BFS 연결성 불변
+    checkPlanarNoCrossing, // 원칙 30 — 동일 면 이종 플레이트 비교차 (쇼트 절대 금지)
+    _segmentsProperIntersect, // 원칙 30 보조 — 선분 proper intersection 판정
     // design_spec entry_fns (M7 실구현 3종 + 잔여 스텁)
     assignGroupNumbers,       // S24 ✅ 실구현
     detectSymmetryGroup,      // S15A 실구현 (M7 세션 11)
