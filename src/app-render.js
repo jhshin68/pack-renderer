@@ -333,12 +333,13 @@ async function _runCustomSearch() {
   if (genBtn) genBtn.disabled = false;
   _enumResult = result;
   _updateEnumStatus(result);
-  _renderCustomCandidates(result);  // 내부에서 ①후보확정 →②필터갱신 →③필터읽기 →④렌더 순서 보장
+  _renderCustomCandidates(result, true);  // 새 탐색: 최솟값·최댓값 자동 선택
 }
 
 // 커스텀 배열 후보 목록 렌더링 (캐시 결과 사용)
 // 순서 불변: ① 후보 확정 → ② 필터 갱신 → ③ 필터 읽기 → ④ 카드 렌더링
-function _renderCustomCandidates(result) {
+// autoSelect=true(새 탐색): 최솟값·최댓값 강제 / false(필터 변경): 사용자 선택 유지
+function _renderCustomCandidates(result, autoSelect) {
   const listEl  = document.getElementById('candList');
   const countEl = document.getElementById('rpCandCount');
   const { S } = state;
@@ -358,8 +359,8 @@ function _renderCustomCandidates(result) {
     candidates = candidates.filter(c => (c.m_distinct || 0) <= state.max_plates);
   candidates = candidates.slice().sort((a, b) => (a.m_distinct || 0) - (b.m_distinct || 0));
 
-  // ② 필터 갱신 — 카드를 그리기 전에 반드시 먼저 (항상 이 위치에서 호출)
-  _syncFilterOptions({ candidates });
+  // ② 필터 갱신
+  _syncFilterOptions({ candidates }, autoSelect);
 
   // ③ 필터 읽기 (갱신된 값 기준)
   const mdSel = document.getElementById('mdistinctSel');

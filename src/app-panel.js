@@ -219,7 +219,7 @@ function populateCandidatePanel() {
       _updateEnumStatus(null);
       return;
     }
-    _renderCustomCandidates(_enumResult);
+    _renderCustomCandidates(_enumResult, false);  // rerender: 사용자 선택 유지
     return;
   }
 
@@ -275,7 +275,7 @@ function populateCandidatePanel() {
 
   listEl.innerHTML = '';
   if (candidates.length === 0) {
-    _syncFilterOptions({ candidates });
+    _syncFilterOptions({ candidates }, true);
     // ★ Phase 3a: 각 제약을 1개씩 해제 재열거 → 가장 많이 복구되는 것을 CTA로 제시
     const reliefs = _probeRelief({ cells, S, P, arrangement, b_plus_side, b_minus_side, icc1, icc2, icc3, nickel_w_mm });
     const baseHint = '<div class="hint" style="margin-top:4px;color:var(--amber)">현재 제약으로 유효 후보 없음</div>';
@@ -294,8 +294,8 @@ function populateCandidatePanel() {
     return;
   }
 
-  // ② 필터 갱신
-  _syncFilterOptions({ candidates });
+  // ② 필터 갱신 (새 탐색: 최솟값·최댓값 자동 선택)
+  _syncFilterOptions({ candidates }, true);
 
   // ③ 필터 읽기
   const mdSelF = document.getElementById('mdistinctSel');
@@ -366,18 +366,15 @@ function _showCandDetail(idx) {
     `<div class="row"><span class="key">ICC③</span><span class="val">${state.icc3 ? '볼록≥0.75' : '비활성'}</span></div>`;
 }
 
-// 필터 콤보박스 동기화 — _renderCustomCandidates 내부에서 호출
-// 첫 표시(옵션 1개=전체만): 기본값 자동 선택 (m_distinct 최솟값 / Σ 최댓값)
-// 이후 재렌더: 사용자 선택 유지 (전체 선택 포함)
-function _syncFilterOptions(result) {
+// 필터 콤보박스 동기화
+// autoSelect=true (새 탐색): 형상종류 최솟값 · 품질 최댓값 강제 선택
+// autoSelect=false (필터 변경): 사용자 선택 유지
+function _syncFilterOptions(result, autoSelect) {
   const candidates = (result && result.candidates) || [];
-  console.log('[syncFilter] candidates:', candidates.length,
-    candidates.length > 0 ? `m_distinct[0]=${candidates[0].m_distinct} score[0]=${candidates[0].total_score}` : '(empty)');
 
   const mdSel = document.getElementById('mdistinctSel');
   if (mdSel) {
-    const isFirst = mdSel.options.length <= 1;  // null-reset 직후 또는 초기 상태
-    const prev    = mdSel.value;
+    const prev = mdSel.value;
     if (candidates.length === 0) {
       mdSel.innerHTML = '<option value="">전체</option>';
       mdSel.value = '';
@@ -385,21 +382,19 @@ function _syncFilterOptions(result) {
       const vals = [...new Set(candidates.map(c => c.m_distinct || 0))].sort((a, b) => a - b);
       mdSel.innerHTML = '<option value="">전체</option>' +
         vals.map(v => `<option value="${v}">${v}종</option>`).join('');
-      if (vals.includes(parseInt(prev, 10))) {
-        mdSel.value = prev;               // 사용자 선택 유지
-      } else if (isFirst) {
-        mdSel.value = String(vals[0]);    // 최솟값 자동 선택
+      if (autoSelect) {
+        mdSel.value = String(vals[0]);            // 새 탐색: 최솟값 강제 선택
+      } else if (vals.includes(parseInt(prev, 10))) {
+        mdSel.value = prev;                       // 필터 변경: 사용자 선택 유지
       } else {
-        mdSel.value = '';                 // 사용자가 전체 선택 → 유지
+        mdSel.value = '';
       }
-      console.log('[syncFilter] mdSel vals:', vals, '→ value:', mdSel.value);
     }
   }
 
   const qSel = document.getElementById('qualitySel');
   if (qSel) {
-    const isFirst = qSel.options.length <= 1;
-    const prev    = qSel.value;
+    const prev = qSel.value;
     if (candidates.length === 0) {
       qSel.innerHTML = '<option value="">전체</option>';
       qSel.value = '';
@@ -407,14 +402,13 @@ function _syncFilterOptions(result) {
       const vals = [...new Set(candidates.map(c => c.total_score ?? 0))].sort((a, b) => b - a);
       qSel.innerHTML = '<option value="">전체</option>' +
         vals.map(v => `<option value="${v}">Σ ${v >= 0 ? '+' : ''}${v}</option>`).join('');
-      if (vals.includes(parseInt(prev, 10))) {
-        qSel.value = prev;               // 사용자 선택 유지
-      } else if (isFirst) {
-        qSel.value = String(vals[0]);    // 최댓값 자동 선택
+      if (autoSelect) {
+        qSel.value = String(vals[0]);             // 새 탐색: 최댓값 강제 선택
+      } else if (vals.includes(parseInt(prev, 10))) {
+        qSel.value = prev;                        // 필터 변경: 사용자 선택 유지
       } else {
         qSel.value = '';
       }
-      console.log('[syncFilter] qSel vals:', vals, '→ value:', qSel.value);
     }
   }
 }
@@ -425,7 +419,7 @@ function filterByQuality()   { _renderFromCache(); }
 
 function _renderFromCache() {
   if (state.arrangement === 'custom') {
-    _renderCustomCandidates(_enumResult);
+    _renderCustomCandidates(_enumResult, false);  // 필터 변경: 사용자 선택 유지
   } else {
     // square/staggered: _enumResult 캐시 기준으로 ①②③④ 재수행 (재열거 없음)
     if (!_enumResult) return;
@@ -439,7 +433,7 @@ function _renderFromCache() {
     if (state.max_plates > 0)
       candidates = candidates.filter(c => (c.m_distinct || 0) <= state.max_plates);
 
-    _syncFilterOptions({ candidates });
+    _syncFilterOptions({ candidates }, false);  // 필터 변경: 사용자 선택 유지
 
     const mdSel = document.getElementById('mdistinctSel');
     const mdV = mdSel ? mdSel.value : '';
