@@ -648,10 +648,13 @@ function renderCustomRows(params) {
     });
   }
 
-  // 커스텀 배열은 행 오프셋으로 대각 인접(√2·pitch) 가능 → threshold 1.5 적용
+  // stagger 유무에 따라 임계값 분리:
+  //   non-stagger: 1.05P (동일 열폭 행간 순수 수직/대각 ≤1.005P 허용, 비인접 1.118P 차단)
+  //   stagger: 1.2P (정규 스태거 대각 √(1²+0.5²)·P ≈1.118P 허용)
   const isAdj = (a, b) => {
     const dx = a.x - b.x, dy = a.y - b.y;
-    return dx * dx + dy * dy <= pitchPx * pitchPx * 2.25; // 1.5² — 커스텀 대각 인접 허용
+    const thr = params.custom_stagger ? pitchPx * 1.2 : pitchPx * 1.05;
+    return dx * dx + dy * dy <= thr * thr;
   };
 
   // 원칙 9 검증: 외부 그룹은 열거기가 보장 → snake 폴백만 검증

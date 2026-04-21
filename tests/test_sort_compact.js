@@ -27,9 +27,10 @@ function sumCompact(cand, pitch, arr) {
   check('케이스1 후보 존재', res.candidates.length >= 2);
 
   if (res.candidates.length >= 2) {
-    // total_score 동점 그룹 추출
+    // m_distinct + total_score 동점 그룹 추출 (m_distinct가 상위 정렬 키)
+    const m0 = res.candidates[0].m_distinct;
     const ts0 = res.candidates[0].total_score;
-    const tied = res.candidates.filter(c => c.total_score === ts0);
+    const tied = res.candidates.filter(c => c.m_distinct === m0 && c.total_score === ts0);
     check('케이스1 동점 후보 2개 이상', tied.length >= 2,
       `동점 후보: ${tied.length}`);
 

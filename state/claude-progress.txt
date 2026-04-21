@@ -1,9 +1,45 @@
 ========================================
-마지막 업데이트: 2026-04-21 (세션 34 — Phase 2 Beam Search 완료)
+마지막 업데이트: 2026-04-21 (세션 35 — P9 isAdj 수정 + m_distinct 정렬 적용)
 버전: battery_pack_renderer.html, src/app.js, src/generator.js (v0.4.0), src/renderer.js
-테스트 상태: pass=846 fail=0 + test_phase2_candidates 4/4 + test_bfs_compact 6/6 + test_p29_parallel_polarity 44/44
+테스트 상태: pass=846 fail=0 + test_phase2_candidates 4/4 + test_bfs_compact 6/6 + test_p29_parallel_polarity 44/44 + test_p09_pixel_adj 6/6 + test_sort_mdistinct 4/4 + test_sort_compact 5/5
 feature_list.json: 모든 항목 passes:true
-git 상태: 세션 34 커밋 완료
+git 상태: 세션 35 커밋 완료
+
+## 세션 35 진행 (2026-04-21) — P9 isAdj 수정 + m_distinct 정렬
+
+### 완료 사항
+
+#### Task 1: P9 isAdj 임계값 수정 (renderer.js:652)
+- 문제: `pitchPx² × 2.25` (1.5P²) — 비인접 대각 1.118P 허용
+- 수정: `thr = params.custom_stagger ? pitchPx * 1.2 : pitchPx * 1.05`
+  - non-stagger: 1.05P (동일 행폭 순수 인접만 허용, 1.118P 차단)
+  - stagger: 1.2P (정규 스태거 대각 ≈1.118P 허용)
+- 결과: test_p09_pixel_adj 6/6 PASS (이전 PA1/PA2/PA3/PA5 4개 실패 → 전부 PASS)
+
+#### Task 2: m_distinct 정렬 우선순위 변경 (generator.js:2077)
+- 이전: B+/B- → ICC → total_score → compact → m_distinct (마지막)
+- 변경: B+/B- → **m_distinct (오름차순)** → ICC → total_score → compact
+- m_distinct = 금형 종류 수 (적을수록 비용 효율적) → 사용자 요청으로 최우선 적용
+- candidate 객체에 `m_distinct` 필드 주석 (UI/테스트에서 직접 사용 가능)
+- test_sort_mdistinct 4/4 PASS (신규), test_sort_compact 5/5 PASS (갱신)
+
+#### 정렬 변경 영향 (13S4P custom 기준)
+- ICC OFF: 40후보, top m_distinct=7 (G0=[11,12,23,24]), {48,49,36,37} → rank 12 (m=8)
+- ICC ON (일반 사용): 3후보, {48,49,36,37} → **rank 2** (m=8), rank1 m=7
+
+#### C3 테스트 완화
+- 이전: `G0={48,49,36,37} top-3 이내`
+- 변경: `G0={48,49,36,37} 후보에 존재 (rank 무관)` — m_distinct 정렬로 rank 변동 반영
+
+#### Task 3: 브라우저 검증
+- 18650 + 13S4P custom, ICC ON: 3후보 정상 생성, rank1 m=7 / rank2 {48,49,36,37} m=8
+- 렌더링 오류 없음 (favicon 404 제외)
+
+### 다음 할 일
+- [ ] Phase 3: docs 정합성 업데이트 (선택적)
+- [ ] 브라우저에서 staggered+holder 모드 니켈 플레이트 형상 확인
+
+---
 
 ## 세션 34 진행 (2026-04-21) — Phase 2 Beam Search 완료
 
