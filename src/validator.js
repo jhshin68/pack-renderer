@@ -13,11 +13,11 @@
  *   LAYER 2 (rule)      : prune_candidate → SFMT 후보 가지치기만, passed 유지
  *                         (단, P10·P14는 예외적으로 abort_design)
  *
- * 현 버전: Tier 2c 완료 — 14건 전량 실구현 (P01·P04·P06·P07·P08·P09·P10·P12·P14·P16·P17·P21·P25·P26)
+ * 현 버전: Tier 2d 완료 — 15건 전량 실구현 (P01·P04·P06·P07·P08·P09·P10·P12·P14·P16·P17·P21·P25·P26·P29)
  *                   skip 정책: 필수 ctx 필드 누락 시 {ok:true, detail:'skipped...'} 반환
  *                   (test_validator_stub.js 빈 ctx 호환 유지)
  *
- * 최종 업데이트: 2026-04-18 (v7 세션 16 — Tier 2c P07·P16·P25 실구현, 14건 전량 완료)
+ * 최종 업데이트: 2026-04-21 (v7 세션 34 — P29 병렬 극성 일관성 불변 추가)
  */
 
 (function (global) {
@@ -666,6 +666,46 @@
     return { ok: true };
   }
 
+  // ─────────────────────────────────────────────
+  // P29: 병렬 극성 일관성 (LAYER 0 절대 불변)
+  // 각 셀은 정확히 1개 그룹에만 속해야 한다.
+  // 위반 시 abort_design.
+  // ─────────────────────────────────────────────
+  function checkP29ParallelPolarity(ctx /*, params */) {
+    const groups = ctx && ctx.groups;
+    if (!Array.isArray(groups) || groups.length === 0) {
+      return { ok: true, detail: 'skipped: ctx.groups 없음' };
+    }
+
+    const seen = new Map(); // "row,col" → first groupIndex
+    const violations = [];
+
+    for (const grp of groups) {
+      const gIdx = grp.index;
+      for (const cell of (grp.cells || [])) {
+        const key = `${cell.row},${cell.col}`;
+        if (seen.has(key)) {
+          violations.push({
+            cell: key,
+            firstGroup: seen.get(key),
+            duplicateGroup: gIdx,
+          });
+        } else {
+          seen.set(key, gIdx);
+        }
+      }
+    }
+
+    if (violations.length > 0) {
+      return {
+        ok: false,
+        detail: `P29 위반: ${violations.length}개 셀이 복수 그룹에 중복 할당됨`,
+        data: violations,
+      };
+    }
+    return { ok: true };
+  }
+
   // ═══════════════════════════════════════════════
   // CHECKS 레지스트리
   // ═══════════════════════════════════════════════
@@ -684,6 +724,7 @@
     checkICC,
     checkGroupValidity,
     checkTerminalTab,
+    checkP29ParallelPolarity,
   };
 
   // ═══════════════════════════════════════════════
@@ -760,7 +801,7 @@
   // export (Node + Browser 양쪽 지원)
   // ═══════════════════════════════════════════════
   const api = {
-    VERSION: 'v7-tier2c-p14',
+    VERSION: 'v7-tier2d-p29',
     loadSpec,
     runValidation,
     CHECKS,

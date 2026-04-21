@@ -18,11 +18,11 @@ function assert(cond, msg) {
 // ─── 1. spec 로드 ────────────────────────────
 const spec = Validator.loadSpec();
 assert(spec, 'spec loaded');
-assert(spec.rules.length === 14, `spec.rules.length === 14 (actual: ${spec.rules.length})`);
+assert(spec.rules.length === 15, `spec.rules.length === 15 (actual: ${spec.rules.length})`);
 
 // ─── 2. CHECKS 레지스트리 완전성 ───────────────
 const checksInRegistry = Object.keys(Validator.CHECKS);
-assert(checksInRegistry.length === 14, `CHECKS count === 14 (actual: ${checksInRegistry.length})`);
+assert(checksInRegistry.length === 15, `CHECKS count === 15 (actual: ${checksInRegistry.length})`);
 const expectedChecks = spec.checks_registry_required;
 for (const c of expectedChecks) {
   assert(typeof Validator.CHECKS[c] === 'function', `CHECKS.${c} is function`);
@@ -33,12 +33,12 @@ const ctx = { S: 13, P: 5, N: 65, arrangement: 'custom', rows: [8,8,10,13,13,13]
 const r1 = Validator.runValidation(ctx);
 assert(r1.passed === true, 'runValidation stub: passed === true');
 assert(r1.violations.length === 0, `violations === 0 (actual: ${r1.violations.length})`);
-assert(r1.summary.executed === 14, `summary.executed === 14 (actual: ${r1.summary.executed})`);
-assert(r1.summary.passed === 14, `summary.passed === 14 (actual: ${r1.summary.passed})`);
+assert(r1.summary.executed === 15, `summary.executed === 15 (actual: ${r1.summary.executed})`);
+assert(r1.summary.passed === 15, `summary.passed === 15 (actual: ${r1.summary.passed})`);
 
 // ─── 4. 레이어 필터 ──────────────────────────
 const r2 = Validator.runValidation(ctx, { layers: [0] });
-assert(r2.summary.executed === 5, `layer 0 only: executed === 5 (actual: ${r2.summary.executed})`);
+assert(r2.summary.executed === 6, `layer 0 only: executed === 6 (actual: ${r2.summary.executed})`);
 
 const r3 = Validator.runValidation(ctx, { layers: [1] });
 assert(r3.summary.executed === 2, `layer 1 only: executed === 2 (actual: ${r3.summary.executed})`);

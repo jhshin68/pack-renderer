@@ -4,7 +4,9 @@
 const path = require('path');
 const G = require(path.join(__dirname, '..', 'src', 'generator.js'));
 const R = require(path.join(__dirname, '..', 'src', 'renderer.js'));
+const V = require(path.join(__dirname, '..', 'src', 'validator.js'));
 G.loadSpec();
+V.loadSpec();
 
 let pass = 0, fail = 0;
 function assert(label, cond, detail) {
@@ -133,6 +135,41 @@ function getCellPolarityDirect(g, face) {
     assert('케이스4 G0 top 극성 = +', g0topPol === '+');
     assert('케이스4 G1 top 극성 = -', g1topPol === '-');
   }
+})();
+
+// ── 케이스 5: checkP29ParallelPolarity RED — 셀 중복 → ok=false ──
+(function case5() {
+  const fn = V.CHECKS.checkP29ParallelPolarity;
+  assert('케이스5 checkP29ParallelPolarity 함수 존재', typeof fn === 'function');
+  if (typeof fn !== 'function') return;
+
+  // cell (0,1) 이 G0과 G1 두 그룹에 동시 할당 → LAYER 0 위반
+  const ctx = {
+    groups: [
+      { index: 0, cells: [{ row: 0, col: 0 }, { row: 0, col: 1 }] },
+      { index: 1, cells: [{ row: 0, col: 1 }, { row: 0, col: 2 }] },
+    ],
+  };
+  const res = fn(ctx, {});
+  assert('케이스5 중복 셀 → ok=false', res.ok === false, `실제: ok=${res.ok}`);
+  assert('케이스5 violations 1개 이상', Array.isArray(res.data) && res.data.length >= 1,
+    `실제: ${JSON.stringify(res.data)}`);
+})();
+
+// ── 케이스 6: checkP29ParallelPolarity GREEN — 중복 없음 → ok=true ──
+(function case6() {
+  const fn = V.CHECKS.checkP29ParallelPolarity;
+  if (typeof fn !== 'function') return;
+
+  const ctx = {
+    groups: [
+      { index: 0, cells: [{ row: 0, col: 0 }, { row: 0, col: 1 }] },
+      { index: 1, cells: [{ row: 1, col: 0 }, { row: 1, col: 1 }] },
+      { index: 2, cells: [{ row: 2, col: 0 }, { row: 2, col: 1 }] },
+    ],
+  };
+  const res = fn(ctx, {});
+  assert('케이스6 중복 없음 → ok=true', res.ok === true, `실제: ok=${res.ok}`);
 })();
 
 console.log(`\n총 ${pass + fail}개 중 ${pass} PASS, ${fail} FAIL`);
