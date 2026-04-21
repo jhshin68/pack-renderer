@@ -48,8 +48,8 @@ if (res.count > 0) {
   const minM = Math.min(...mArr);
   const maxM = Math.max(...mArr);
 
-  // BM2: 10s 전체 탐색으로 m≤7 후보 발견 확인 (3s에서 못 찾던 m=6 포함 가능)
-  assert('BM2: 최상위 m_distinct ≤ 7 (축출로 비최적 차단)', minM <= 7,
+  // BM2: 합판 단위 plate-level m_distinct — S=13 기준 14장 플레이트, 최솟값 ≤ 13
+  assert('BM2: 최상위 m_distinct ≤ 13 (plate-level, 축출로 비최적 차단)', minM <= 13,
     `실제 최솟값: ${minM}`);
   // BM3: 스프레드 ≤ 1 — 최솟값 슬롯이 다 차면 바로 위 tier만 허용
   assert('BM3: m_distinct 스프레드 ≤ 1 (축출 정확성)', maxM - minM <= 1,

@@ -28,7 +28,7 @@
 
   const { _pt, estimatePitch, buildAdjacency, compactShapeScore,
           checkPlanarNoCrossing, groupQualityScore } = _math;
-  const { canonicalSig } = _layout;
+  const { canonicalSig, calcNickelPattern } = _layout;
 
   // ═══════════════════════════════════════════════
   // Phase 4: pentomino_tiling.js 로드 (Node: require / Browser: global)
@@ -56,6 +56,25 @@
     const cy = pts.reduce((s, p) => s + p[1], 0) / pts.length;
     const shifted = pts.map(([x, y]) => [x - cx, y - cy]);
     return canonicalSig(shifted, rotSteps);
+  }
+
+  // ═══════════════════════════════════════════════
+  // _plateMdistinct — 원칙 14 합판 단위 distinct 형상 수
+  // ═══════════════════════════════════════════════
+
+  /**
+   * 원칙 14 상/하면 합판(플레이트) 기준 distinct 형상 수.
+   *   I형 플레이트(B+/B- 단독 그룹)와 U형 플레이트(인접 2그룹 합산)를 각각 서명 계산.
+   *   rotSteps=4: 0°/90°/180°/270° 회전 동일, 미러는 별도 형상.
+   */
+  function _plateMdistinct(groups, S) {
+    const { top, bot } = calcNickelPattern(S);
+    const sigs = new Set();
+    for (const plate of [...top, ...bot]) {
+      const cells = plate.groups.flatMap(gi => (groups[gi] ? groups[gi].cells : []));
+      if (cells.length > 0) sigs.add(_shapeSigOf({ cells }, 4));
+    }
+    return sigs.size;
   }
 
   // ═══════════════════════════════════════════════
@@ -200,6 +219,8 @@
       pitch: pitchArg = null, // ★ Bug1: 커스텀 배열에서 calcCustomCenters가 반환한 실제 pitch 명시 전달
       use_beam_search = true, // ★ Phase 2: Beam Search 활성화 (false = 기존 MRV 동작)
       custom_stagger = false, // ★ P28③: 렌더러 임계값 정합성 (stagger→1.2P, non-stagger→1.05P)
+      exhaustive = false,     // ★ 완전 탐색 모드: true → 타임아웃·반복 제한·adjStarts 캡 해제
+      budget_ms = null,       // ★ 완전 탐색 시간 예산 (ms). null → exhaustive:false=10s, true=Infinity
     } = ctx || {};
 
     if (!cells || cells.length === 0 || S < 1 || P < 1) {
@@ -483,7 +504,9 @@
     // ── Phase 2: 백트래킹 (N ≤ 18 소형 또는 custom 배열, 비표준 해 탐색) ──────────
     if (arrangement === 'custom' || N <= 18) {
       strategy = 'standard+backtracking';
-      const btBudgetMs = arrangement === 'custom' ? 10000 : Infinity;
+      const btBudgetMs = budget_ms != null ? budget_ms
+                       : exhaustive ? Infinity
+                       : (arrangement === 'custom' ? 10000 : Infinity);
       const btStart    = Date.now();
 
       const adjL = Array.from({ length: N }, () => []);
@@ -513,7 +536,8 @@
         r.groups.map(g => g.cells.map(c => xyKey(c)).sort().join(';')).join('|')
       ));
       const used = new Uint8Array(N);
-      const MAX_ITER_BT = arrangement === 'custom' ? 2000000 : 50000;
+      const MAX_ITER_BT = exhaustive ? Infinity
+                       : (arrangement === 'custom' ? 2000000 : 50000);
 
       // ── 후보 정렬 비교기 (오름차순: a가 b보다 좋으면 음수) ────────────
       // B+/B- 충족 → m_distinct 오름차순 → ICC 위반 오름차순 → total_score 내림차순
@@ -547,7 +571,7 @@
         if (!seenSigs.has(sig)) {
           seenSigs.add(sig);
           const totalScore = groups.reduce((s, g) => s + g.quality_score, 0);
-          const mD = new Set(groups.map(g => _shapeSigOf(g, 4))).size;
+          const mD = _plateMdistinct(groups, S);
           const newCand = {
             groups, total_score: totalScore,
             name: `비표준 ${seenSigs.size}`, desc: 'backtracking',
@@ -816,7 +840,7 @@
               }
               const adjStarts = [];
               for (const ci of scanOrder) {
-                if (adjStarts.length >= 5) break;
+                if (!exhaustive && adjStarts.length >= 5) break;
                 if (!used[ci] && adjToSnap.has(ci)) adjStarts.push(ci);
               }
               const starts = adjStarts.length > 0
@@ -916,7 +940,7 @@
     // m_distinct 미리 계산 후 candidate에 주석 (UI·테스트에서도 사용)
     for (const c of results) {
       if (c.m_distinct == null)
-        c.m_distinct = new Set((c.groups || []).map(g => _shapeSigOf(g, 4))).size;
+        c.m_distinct = _plateMdistinct(c.groups || [], S);
     }
     results.sort((a, b) => {
       const aOk = (a.b_plus_ok && a.b_minus_ok) ? 0 : 1;
@@ -947,6 +971,7 @@
   // ═══════════════════════════════════════════════
   const _exports = {
     _shapeSigOf,
+    _plateMdistinct,
     calcBoundarySet,
     calcCustomBoundarySet,
     buildHolderGrid,
