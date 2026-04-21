@@ -1,9 +1,9 @@
 ========================================
-마지막 업데이트: 2026-04-21 (세션 40 — 문서 정합성 업데이트)
+마지막 업데이트: 2026-04-21 (세션 40 — 문서 정합성 업데이트 + 프로젝트 구조 정리 완료)
 버전: battery_pack_renderer.html, src/app.js (thin), src/app-state.js, src/app-ui.js, src/app-render.js, src/app-panel.js, src/generator.js (v0.4.2), src/renderer.js
 테스트 상태: pass=846 fail=0 (전체 0 failures)
 feature_list.json: 모든 항목 passes:true
-git 상태: 세션 40 커밋 예정
+git 상태: 세션 40 커밋·푸시 완료
 
 ## 세션 40 진행 (2026-04-21) — 문서 정합성 업데이트
 
@@ -19,6 +19,16 @@ git 상태: 세션 40 커밋 예정
 **nickel-plate-design.md (v7.1 → v7.2)**
 - 원칙 15 Step C' 후보 우선순위 정렬: m_distinct 오름차순 2순위 추가 — 세션 35 코드 변경 반영
 - 원칙 15 Step C' 탐색 전략: Beam Search(4 프리셋 × width=5) + 우선순위 축출(Priority Eviction) 기술 추가 — 세션 34·36 코드 변경 반영
+
+#### 프로젝트 구조 정리
+
+- `principles.md` 삭제 — skills/ 4파일로 대체된 레거시 통합본 (413줄 제거)
+- `new_design.md` → `docs/new_design.md` 이동 — 코드·훅 직접 참조 없는 설계 참고 문서
+- `.bkit/`, `.gstack/`, `~` 폴더 삭제 — 미사용 잔재
+- `.claude/worktrees/` 삭제 — 과거 worktree 3개 잔재 (pensive-hawking, sharp-lichterman, thirsty-hugle)
+- `.gitignore` 업데이트 — `tmp/`, `png/`, `.graphify_incremental.json`, `.graphify_python` 추가
+
+**루트 잔류 파일**: `CLAUDE.md`, `README.md`, `battery_pack_renderer.html` 3개만 유지
 
 ### 다음 할 일
 - [ ] 신규 기능 개발 (사용자 요청 대기)
