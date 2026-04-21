@@ -1,9 +1,34 @@
 ========================================
-마지막 업데이트: 2026-04-20 (세션 33 — P9 폴백 극성 버그 수정 + P29 회귀 테스트)
-버전: battery_pack_renderer.html, src/app.js, src/generator.js, src/renderer.js
-테스트 상태: pass=846 fail=0 + test_bfs_compact 6/6 + test_p29_parallel_polarity 44/44
+마지막 업데이트: 2026-04-21 (세션 34 — Phase 2 Beam Search 완료)
+버전: battery_pack_renderer.html, src/app.js, src/generator.js (v0.4.0), src/renderer.js
+테스트 상태: pass=846 fail=0 + test_phase2_candidates 4/4 + test_bfs_compact 6/6 + test_p29_parallel_polarity 44/44
 feature_list.json: 모든 항목 passes:true
-git 상태: 세션 33 커밋 완료 (2개 커밋)
+git 상태: 세션 34 커밋 완료
+
+## 세션 34 진행 (2026-04-21) — Phase 2 Beam Search 완료
+
+### 완료 사항
+
+#### Phase 2 Beam Search (generator.js)
+- `pickCompact` 액션 점수 함수 구현 (wh·H + wv·V + wd·D + wc·C + ws·M - piso·I - picc·X)
+- 4 PC_PRESETS: HORIZ_FIRST, VERT_FIRST, COMPACT, SHAPE_MATCH
+- B+ 시드 × 4 프리셋 × beam_width=5 beam search 루프
+- DFS I-shape 조기 가지치기 (P-1 depth에서 I-shape 완성 셀 skip)
+- `use_beam_search` feature flag 추가 (기본값 true, false → 기존 MRV DFS 동작 유지)
+- 진단 코드 제거 (_diagCounters, lastDiag getter)
+
+#### §8.2 Phase 2 완료 기준 달성
+- [x] 커스텀 회귀 20/20 PASS (regression 846/0)
+- [x] 13S4P 사용자 예시 {48,49,37,36} 상위 3 포함
+- [x] 실행 시간 3000ms 이하 (~560ms)
+- [x] use_beam_search=false 시 기존 MRV DFS 동작 유지
+
+### 다음 할 일
+- [ ] 브라우저에서 13S4P 커스텀 배열 후보 렌더링 확인 (G0=[#48,#49,#36,#37] 포함)
+- [ ] test_p09_pixel_adj: PA1/PA2/PA3/PA5 4개 기존 실패 — renderer.js isAdj 픽셀 거리 수정
+- [ ] Phase 3: 문서 정합성 · 원칙 파일 업데이트 (선택적)
+
+---
 
 ## 세션 33 진행 (2026-04-20) — P9 폴백 버그 수정 + P29 테스트
 

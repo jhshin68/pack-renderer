@@ -1392,6 +1392,7 @@
       allow_I = false,   // ★ Phase 4: I-pentomino 허용 여부
       allow_U = false,   // ★ Phase 4: U-pentomino 허용 여부
       pitch: pitchArg = null, // ★ Bug1: 커스텀 배열에서 calcCustomCenters가 반환한 실제 pitch 명시 전달
+      use_beam_search = true, // ★ Phase 2: Beam Search 활성화 (false = 기존 MRV 동작)
     } = ctx || {};
 
     if (!cells || cells.length === 0 || S < 1 || P < 1) {
@@ -1701,7 +1702,6 @@
       const seenSigs = new Set(results.map(r =>
         r.groups.map(g => g.cells.map(c => xyKey(c)).sort().join(';')).join('|')
       ));
-
       const used = new Uint8Array(N);
       const MAX_ITER_BT = arrangement === 'custom' ? 2000000 : 50000;
 
@@ -1814,6 +1814,129 @@
           }
         }
 
+        // ── Phase 2: Beam Search (pickCompact × 4 프리셋 × beam_width=5) ────────────
+        if (use_beam_search && results.length < max_candidates && Date.now() - btStart < btBudgetMs) {
+          const BEAM_W = 5;
+          const PC_PRESETS = [
+            {wh:1.0, wv:0.5, wd:0.3, wc:1.0, ws:0.8, piso:0.8, picc:2.0}, // HORIZ_FIRST
+            {wh:0.5, wv:1.0, wd:0.3, wc:1.0, ws:0.8, piso:0.8, picc:2.0}, // VERT_FIRST
+            {wh:0.8, wv:0.8, wd:0.4, wc:2.0, ws:1.0, piso:1.0, picc:2.0}, // COMPACT
+            {wh:0.7, wv:0.7, wd:0.3, wc:1.2, ws:2.0, piso:0.8, picc:2.0}, // SHAPE_MATCH
+          ];
+
+          function computeBbox(idxArr) {
+            const cs = idxArr.map(i => cells[i]);
+            const minX = Math.min(...cs.map(c => c.x));
+            const maxX = Math.max(...cs.map(c => c.x));
+            const minY = Math.min(...cs.map(c => c.y));
+            const maxY = Math.max(...cs.map(c => c.y));
+            const w = (maxX - minX) / pitch + 1;
+            const h = (maxY - minY) / pitch + 1;
+            return { cx: (minX+maxX)/2, cy: (minY+maxY)/2, w, h, aspect: h > 0.01 ? w/h : w };
+          }
+
+          function scoreCellBeam(c, lastIdx, groupIdxs, prevBbox, usedArr, preset) {
+            const cell = cells[c];
+            const lc = lastIdx >= 0 ? cells[lastIdx] : null;
+            const H = lc && cell.row === lc.row ? 1 : 0;
+            const V = lc && Math.abs(cell.x - lc.x) < pitch * 0.1 ? 1 : 0;
+            const dx = lc ? Math.abs(cell.x - lc.x) : 0;
+            const dy = lc ? Math.abs(cell.y - lc.y) : 0;
+            const D = (lc && dx > pitch*0.3 && dy > pitch*0.3) ? 1 : 0;
+            const gco = groupIdxs.map(i => cells[i]);
+            const gx = gco.length > 0 ? gco.reduce((s,c) => s+c.x, 0)/gco.length : cell.x;
+            const gy = gco.length > 0 ? gco.reduce((s,c) => s+c.y, 0)/gco.length : cell.y;
+            const C = Math.max(0, 1 - Math.hypot(cell.x-gx, cell.y-gy)/pitch);
+            let M = 0;
+            if (prevBbox && gco.length > 0) {
+              const cb = computeBbox([...groupIdxs, c]);
+              M = Math.exp(-Math.abs(cb.aspect - prevBbox.aspect));
+            }
+            const I = adjL[c].filter(j => !usedArr[j]).length === 0 ? 1 : 0;
+            const X = _isLinearGroup([...gco, cell]) ? 1 : 0;
+            return preset.wh*H + preset.wv*V + preset.wd*D + preset.wc*C + preset.ws*M
+                   - preset.piso*I - preset.picc*X;
+          }
+
+          function buildGroupBeam(seedIdx, prevBbox, inputUsed, preset) {
+            const lu = inputUsed.slice();
+            lu[seedIdx] = 1;
+            const grp = [seedIdx];
+            const fr = new Set(adjL[seedIdx].filter(j => !lu[j]));
+            while (grp.length < P && fr.size > 0) {
+              let pool = [...fr];
+              if (grp.length === P - 1 && !allow_I) {
+                const nonI = pool.filter(c => !_isLinearGroup([...grp.map(i => cells[i]), cells[c]]));
+                if (nonI.length > 0) pool = nonI;
+              }
+              if (pool.length === 0) return null;
+              let best = -1, bestSc = -Infinity;
+              const li = grp[grp.length - 1];
+              for (const c of pool) {
+                const sc = scoreCellBeam(c, li, grp, prevBbox, lu, preset);
+                if (sc > bestSc) { bestSc = sc; best = c; }
+              }
+              if (best < 0) return null;
+              grp.push(best); lu[best] = 1; fr.delete(best);
+              for (const nb of adjL[best]) if (!lu[nb]) fr.add(nb);
+            }
+            return grp.length === P ? { group: grp, usedArr: lu } : null;
+          }
+
+          const bPlusBeam = anchorCells
+            ? [...bPlus].filter(i => anchorMatches(cells[i]))
+            : [...bPlus];
+
+          for (const seed of bPlusBeam) {
+            if (results.length >= max_candidates) break;
+            if (Date.now() - btStart > btBudgetMs) break;
+
+            for (const preset of PC_PRESETS) {
+              if (results.length >= max_candidates) break;
+              if (Date.now() - btStart > btBudgetMs) break;
+
+              const g0 = buildGroupBeam(seed, null, new Uint8Array(N), preset);
+              if (!g0 || !passICC_bt(g0.group)) continue;
+              if (S === 1 && !g0.group.some(i => bMinus.has(i))) continue;
+
+              let beam = [{ groups: [g0.group], usedArr: g0.usedArr, prevBbox: computeBbox(g0.group) }];
+
+              for (let g = 1; g < S; g++) {
+                if (Date.now() - btStart > btBudgetMs) break;
+                const newBeam = [];
+                for (const st of beam) {
+                  const lastGrp = st.groups[st.groups.length - 1];
+                  const adjSet = new Set();
+                  for (const ci of lastGrp) {
+                    for (const nb of adjL[ci]) { if (!st.usedArr[nb]) adjSet.add(nb); }
+                  }
+                  const adjArr = [...adjSet].sort((a, b) =>
+                    Math.hypot(cells[a].x-st.prevBbox.cx, cells[a].y-st.prevBbox.cy) -
+                    Math.hypot(cells[b].x-st.prevBbox.cx, cells[b].y-st.prevBbox.cy));
+                  const nextSeeds = adjArr.slice(0, 3);
+                  if (nextSeeds.length === 0) {
+                    for (let i = 0; i < N; i++) { if (!st.usedArr[i]) { nextSeeds.push(i); break; } }
+                  }
+                  for (const ns of nextSeeds) {
+                    const r = buildGroupBeam(ns, st.prevBbox, st.usedArr, preset);
+                    if (!r || !passICC_bt(r.group)) continue;
+                    if (g === S - 1 && !r.group.some(i => bMinus.has(i))) continue;
+                    newBeam.push({ groups: [...st.groups, r.group], usedArr: r.usedArr, prevBbox: computeBbox(r.group) });
+                  }
+                }
+                beam = newBeam.slice(0, BEAM_W);
+              }
+
+              for (const st of beam) {
+                if (st.groups.length === S && results.length < max_candidates) {
+                  commitCandidate(st.groups);
+                }
+              }
+            }
+          }
+        }
+        // ── end Phase 2 Beam Search ─────────────────────────────────────────────
+
         // 4종 scan order를 순서대로 시도: 열 우선 2종 → boustrophedon 2종
         // 불규칙 행 너비에서 boustrophedon U턴 패턴의 P21B 비인접 문제 해결
         const scanOrderGenerators = [
@@ -1873,6 +1996,10 @@
             }
 
             for (const cand of frontier) {
+              // Phase 2 조기 가지치기: 마지막 셀 선택 시 I형 완성 시도 차단
+              if (curIdxs.length === P - 1 && !allow_I) {
+                if (_isLinearGroup([...curIdxs.map(i => cells[i]), cells[cand]])) continue;
+              }
               used[cand] = 1;
               curIdxs.push(cand);
               const nf = new Set(frontier);
