@@ -1,9 +1,27 @@
 ========================================
-마지막 업데이트: 2026-04-21 (세션 39 — app.js 분리 + 테스트 0 failures 달성)
+마지막 업데이트: 2026-04-21 (세션 40 — 문서 정합성 업데이트)
 버전: battery_pack_renderer.html, src/app.js (thin), src/app-state.js, src/app-ui.js, src/app-render.js, src/app-panel.js, src/generator.js (v0.4.2), src/renderer.js
 테스트 상태: pass=846 fail=0 (전체 0 failures)
 feature_list.json: 모든 항목 passes:true
-git 상태: 세션 39 커밋 예정
+git 상태: 세션 40 커밋 예정
+
+## 세션 40 진행 (2026-04-21) — 문서 정합성 업데이트
+
+### 완료 사항
+
+#### Phase 3: 문서 정합성 업데이트
+
+**nickel_plate_principles.md (v8 → v8.1)**
+- LAYER 0 인덱스: 원칙 30 추가 (7→8개, `1·6·8·9·26·28·29·30`)
+- 원칙 9③: 커스텀 인접 임계값을 스태거 여부로 분리 (비 스태거: 1.05, 스태거: 1.2) — 세션 35 코드 변경 반영
+- 원칙 28③: renderThr 정합성 요구사항 추가 (generator.js validateP28 ↔ renderer.js isAdj 동일 임계값 강제) — 세션 38 코드 변경 반영
+
+**nickel-plate-design.md (v7.1 → v7.2)**
+- 원칙 15 Step C' 후보 우선순위 정렬: m_distinct 오름차순 2순위 추가 — 세션 35 코드 변경 반영
+- 원칙 15 Step C' 탐색 전략: Beam Search(4 프리셋 × width=5) + 우선순위 축출(Priority Eviction) 기술 추가 — 세션 34·36 코드 변경 반영
+
+### 다음 할 일
+- [ ] 신규 기능 개발 (사용자 요청 대기)
 
 ## 세션 39 진행 (2026-04-21) — app.js 분리 + 테스트 정리
 
