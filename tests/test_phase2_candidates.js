@@ -41,8 +41,8 @@ console.log(`후보 수: ${res.count}  경과: ${elapsed}ms`);
 // C1: 후보 수 >= 40
 assert('C1: 후보 수 >= 40', res.count >= 40, `실제: ${res.count}`);
 
-// C2: 런타임 < 5000ms (우선순위 축출로 전체 탐색 수행 → 예산 3000ms + 오버헤드 허용)
-assert('C2: 런타임 < 5000ms', elapsed < 5000, `실제: ${elapsed}ms`);
+// C2: 런타임 < 12000ms (우선순위 축출 + 10s 예산 전체 사용 → 오버헤드 포함)
+assert('C2: 런타임 < 12000ms', elapsed < 12000, `실제: ${elapsed}ms`);
 
 // C3: 반환 후보 m_distinct ≤ 전체 최솟값+1 (eviction 정확성 검증)
 // ※ max_candidates=40, 전체 공간에 m=7 후보 31개 → 상위 40은 [31×m=7, 9×m=8]이어야 함

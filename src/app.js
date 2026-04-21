@@ -709,14 +709,14 @@ function _renderSVG() {
 }
 
 // Generate Layout 버튼 전용: 현재 옵션 그대로 후보 재열거 + SVG 재렌더
-function generateLayout() {
-  populateCandidatePanel();
+async function generateLayout() {
+  await populateCandidatePanel();
   _renderSVG();
 }
 
 // ── 통합 진입점: rerender() — 후보 재열거 + SVG 재렌더 ──────────
-function rerender() {
-  populateCandidatePanel();
+async function rerender() {
+  await populateCandidatePanel();
   _renderSVG();
 }
 
@@ -908,10 +908,11 @@ function _renderCandCards(candidates, listEl, S) {
   });
 }
 
-function populateCandidatePanel() {
+async function populateCandidatePanel() {
   const { S, P, arrangement, icc1, icc2, icc3, nickel_w_mm, b_plus_side, b_minus_side } = state;
   const listEl  = document.getElementById('candList');
   const countEl = document.getElementById('rpCandCount');
+  const titleEl = document.getElementById('rpCandTitle');
   if (!listEl) return;
 
   // hintTotalPlates: 이 S 기준 총 플레이트 수 힌트 업데이트
@@ -927,6 +928,7 @@ function populateCandidatePanel() {
     if (!customRows.length || !hasGen || typeof CELL_SPEC === 'undefined') {
       listEl.innerHTML = '<div class="hint" style="color:var(--dt3);margin-top:4px">커스텀 배열 — 행 구성을 입력하세요</div>';
       if (countEl) countEl.textContent = '—';
+      if (titleEl) titleEl.textContent = '셀 배열 후보';
       _enumResult = null;
       _updateEnumStatus(null);
       return;
@@ -944,10 +946,18 @@ function populateCandidatePanel() {
     } catch (e) {
       listEl.innerHTML = `<div class="hint" style="color:var(--red)">커스텀 좌표 오류: ${e.message}</div>`;
       if (countEl) countEl.textContent = '오류';
+      if (titleEl) titleEl.textContent = '셀 배열 후보';
       _enumResult = null;
       _updateEnumStatus(null);
       return;
     }
+
+    // 탐색 시작 — 브라우저가 "탐색중..." 상태를 렌더링할 수 있도록 50ms 양보
+    if (titleEl) titleEl.textContent = '셀 배열 후보 탐색중…';
+    if (countEl) countEl.textContent = '…';
+    listEl.innerHTML = '<div class="hint" style="margin-top:6px;color:var(--dt3)">후보를 탐색하고 있습니다…</div>';
+    await new Promise(resolve => setTimeout(resolve, 50));
+
     let result;
     try {
       result = Generator.enumerateGroupAssignments({
@@ -964,10 +974,13 @@ function populateCandidatePanel() {
     } catch (e) {
       listEl.innerHTML = `<div class="hint" style="color:var(--red)">열거 오류: ${e.message}</div>`;
       if (countEl) countEl.textContent = '오류';
+      if (titleEl) titleEl.textContent = '셀 배열 후보';
       _enumResult = null;
       _updateEnumStatus(null);
       return;
     }
+
+    if (titleEl) titleEl.textContent = '셀 배열 후보';
     _enumResult = result;
     _updateEnumStatus(result);
     let candidates = result.candidates || [];

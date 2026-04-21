@@ -1673,7 +1673,7 @@
     // ── Phase 2: 백트래킹 (N ≤ 18 소형 또는 custom 배열, 비표준 해 탐색) ──────────
     if (arrangement === 'custom' || N <= 18) {
       strategy = 'standard+backtracking';
-      const btBudgetMs = arrangement === 'custom' ? 3000 : Infinity;
+      const btBudgetMs = arrangement === 'custom' ? 10000 : Infinity;
       const btStart    = Date.now();
 
       const adjL = Array.from({ length: N }, () => []);
