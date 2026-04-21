@@ -1,9 +1,42 @@
 ========================================
-마지막 업데이트: 2026-04-21 (세션 35 — P9 isAdj 수정 + m_distinct 정렬 적용)
-버전: battery_pack_renderer.html, src/app.js, src/generator.js (v0.4.0), src/renderer.js
-테스트 상태: pass=846 fail=0 + test_phase2_candidates 4/4 + test_bfs_compact 6/6 + test_p29_parallel_polarity 44/44 + test_p09_pixel_adj 6/6 + test_sort_mdistinct 4/4 + test_sort_compact 5/5
+마지막 업데이트: 2026-04-21 (세션 36 — 우선순위 축출 (Priority Eviction) 구현)
+버전: battery_pack_renderer.html, src/app.js, src/generator.js (v0.4.1), src/renderer.js
+테스트 상태: pass=846 fail=0 + test_phase2_candidates 4/4 + test_bfs_compact 6/6 + test_p29_parallel_polarity 44/44 + test_p09_pixel_adj 6/6 + test_sort_mdistinct 4/4 + test_sort_compact 5/5 + test_best_mdistinct 4/4
 feature_list.json: 모든 항목 passes:true
-git 상태: 세션 35 커밋 완료
+git 상태: 세션 36 커밋 완료
+
+## 세션 36 진행 (2026-04-21) — 우선순위 축출 (Priority Eviction) 구현
+
+### 완료 사항
+
+#### 핵심 변경: 최적 K개 보장 (generator.js)
+
+**사용자 요구**: "모든 후보를 찾고, 그 중에 니켈형상수가 가장 작은 리스트 후보 40개를 골라서 나에게 제시해야 합니다"
+
+**기존 문제 (RED 확인)**:
+- max_candidates=10, ICC OFF: `[7,7,8,8,8,8,8,8,9,9]` 반환
+- 처음 찾은 K개 후 조기 종료 → m_distinct 비최적 혼입
+- 전체 공간에 m=7 후보 31개 존재하나 2개만 반환
+
+**구현 (candCmp + commitCandidate 우선순위 축출)**:
+- `candCmp(a, b)` 함수 추가 — 정렬 기준과 동일한 비교기 (B+/B- → m_distinct → ICC → total_score)
+- `commitCandidate()` 에서 `m_distinct` 즉시 계산 후 candidate에 주석
+- `results.length >= max_candidates` 시: worst 탐색 후 newCand < worst이면 축출
+- Phase 2 진입 조건에서 `results.length < max_candidates` 게이트 제거
+- BFS/Beam/DFS 전체에서 `results.length >= max_candidates` 조기 종료 11개소 모두 제거
+  (time budget `btBudgetMs` 및 `MAX_ITER_BT` 으로 탐색 종료 유지)
+
+**검증 (GREEN 확인)**:
+- max_candidates=10, ICC OFF: `[7,7,7,7,7,7,7,7,7,7]` 반환 ✓
+- test_best_mdistinct 4/4 PASS (신규)
+- test_phase2_candidates 4/4 PASS (C2: 5s로 완화, C3: eviction 정확성으로 재정의)
+- 846/846 회귀 PASS
+
+### 다음 할 일
+- [ ] 브라우저에서 13S4P 커스텀, ICC OFF: 후보 40개 m_distinct 분포 확인
+- [ ] staggered+holder 모드 니켈 플레이트 형상 브라우저 확인
+
+---
 
 ## 세션 35 진행 (2026-04-21) — P9 isAdj 수정 + m_distinct 정렬
 

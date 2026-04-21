@@ -1671,7 +1671,7 @@
     }
 
     // ── Phase 2: 백트래킹 (N ≤ 18 소형 또는 custom 배열, 비표준 해 탐색) ──────────
-    if ((arrangement === 'custom' || N <= 18) && results.length < max_candidates) {
+    if (arrangement === 'custom' || N <= 18) {
       strategy = 'standard+backtracking';
       const btBudgetMs = arrangement === 'custom' ? 3000 : Infinity;
       const btStart    = Date.now();
@@ -1705,7 +1705,21 @@
       const used = new Uint8Array(N);
       const MAX_ITER_BT = arrangement === 'custom' ? 2000000 : 50000;
 
-      // ── 공통 후보 기록 헬퍼 ────────────────────────────────────────
+      // ── 후보 정렬 비교기 (오름차순: a가 b보다 좋으면 음수) ────────────
+      // B+/B- 충족 → m_distinct 오름차순 → ICC 위반 오름차순 → total_score 내림차순
+      function candCmp(a, b) {
+        const aOk = (a.b_plus_ok && a.b_minus_ok) ? 0 : 1;
+        const bOk = (b.b_plus_ok && b.b_minus_ok) ? 0 : 1;
+        if (aOk !== bOk) return aOk - bOk;
+        if (a.m_distinct !== b.m_distinct) return a.m_distinct - b.m_distinct;
+        if (a.icc_violations !== b.icc_violations) return a.icc_violations - b.icc_violations;
+        if (a.total_score !== b.total_score) return b.total_score - a.total_score;
+        return 0;
+      }
+
+      // ── 공통 후보 기록 헬퍼 (우선순위 축출 포함) ──────────────────────
+      // max_candidates 초과 시: 결과 집합에서 worst를 찾아 새 후보와 비교,
+      // 새 후보가 더 좋으면 worst를 축출한다 → 전체 탐색 후 최적 K개 보장.
       function commitCandidate(allSnaps) {
         const groups = allSnaps.map((g, gi) => {
           const gc = g.map(i => cells[i]);
@@ -1723,12 +1737,26 @@
         if (!seenSigs.has(sig)) {
           seenSigs.add(sig);
           const totalScore = groups.reduce((s, g) => s + g.quality_score, 0);
-          results.push({
+          const mD = new Set(groups.map(g => _shapeSigOf(g, 4))).size;
+          const newCand = {
             groups, total_score: totalScore,
-            name: `비표준 ${results.length + 1}`, desc: 'backtracking',
+            name: `비표준 ${seenSigs.size}`, desc: 'backtracking',
             is_standard: false, b_plus_ok: true, b_minus_ok: true,
             icc_violations: 0, total_plates: S + 1,
-          });
+            m_distinct: mD,
+          };
+          if (results.length < max_candidates) {
+            results.push(newCand);
+          } else {
+            // 결과 집합에서 worst(candCmp 기준 최대값) 탐색 후 축출 여부 결정
+            let worstIdx = 0;
+            for (let i = 1; i < results.length; i++) {
+              if (candCmp(results[i], results[worstIdx]) > 0) worstIdx = i;
+            }
+            if (candCmp(newCand, results[worstIdx]) < 0) {
+              results[worstIdx] = newCand;
+            }
+          }
         }
       }
 
@@ -1773,7 +1801,6 @@
             : bPlusInOrderX;
 
           for (const g0start of bPlusStartCells) {
-            if (results.length >= max_candidates) break;
             used.fill(0);
             const allSnaps = [];
             let ok = true;
@@ -1815,7 +1842,7 @@
         }
 
         // ── Phase 2: Beam Search (pickCompact × 4 프리셋 × beam_width=5) ────────────
-        if (use_beam_search && results.length < max_candidates && Date.now() - btStart < btBudgetMs) {
+        if (use_beam_search && Date.now() - btStart < btBudgetMs) {
           const BEAM_W = 5;
           const PC_PRESETS = [
             {wh:1.0, wv:0.5, wd:0.3, wc:1.0, ws:0.8, piso:0.8, picc:2.0}, // HORIZ_FIRST
@@ -1888,11 +1915,9 @@
             : [...bPlus];
 
           for (const seed of bPlusBeam) {
-            if (results.length >= max_candidates) break;
             if (Date.now() - btStart > btBudgetMs) break;
 
             for (const preset of PC_PRESETS) {
-              if (results.length >= max_candidates) break;
               if (Date.now() - btStart > btBudgetMs) break;
 
               const g0 = buildGroupBeam(seed, null, new Uint8Array(N), preset);
@@ -1928,7 +1953,7 @@
               }
 
               for (const st of beam) {
-                if (st.groups.length === S && results.length < max_candidates) {
+                if (st.groups.length === S) {
                   commitCandidate(st.groups);
                 }
               }
@@ -1947,7 +1972,6 @@
         ];
 
         for (const genScanOrder of scanOrderGenerators) {
-          if (results.length >= max_candidates) break;
           if (Date.now() - btStart > btBudgetMs) break;
           btIterations = 0;
 
@@ -1956,7 +1980,7 @@
             .filter(i => i !== undefined);
 
           const dfsCustom = (gIdx, snapGroups, curIdxs, frontier) => {
-            if (results.length >= max_candidates || ++btIterations > MAX_ITER_BT) return;
+            if (++btIterations > MAX_ITER_BT) return;
             if (Date.now() - btStart > btBudgetMs) return;
 
             if (curIdxs.length === P) {
@@ -1985,7 +2009,6 @@
                 ? adjStarts
                 : (() => { for (const ci of scanOrder) { if (!used[ci]) return [ci]; } return []; })();
               for (const nextStart of starts) {
-                if (results.length >= max_candidates) break;
                 if (Date.now() - btStart > btBudgetMs) break;
                 used[nextStart] = 1;
                 dfsCustom(gIdx + 1, allSnaps, [nextStart],
@@ -2016,7 +2039,6 @@
             ? bPlusInOrder.filter(i => anchorMatches(cells[i]))
             : bPlusInOrder;
           for (const startCell of bPlusFiltered) {
-            if (results.length >= max_candidates) break;
             if (Date.now() - btStart > btBudgetMs) break;
             used[startCell] = 1;
             dfsCustom(0, [], [startCell], new Set(adjL[startCell].filter(nb => !used[nb])));
@@ -2027,7 +2049,7 @@
       } else {
         // N ≤ 18: 기존 그룹 체이닝 DFS
         function dfs(gIdx, snapGroups, curIdxs, frontier) {
-          if (results.length >= max_candidates || ++btIterations > MAX_ITER_BT) return;
+          if (++btIterations > MAX_ITER_BT) return;
 
           if (curIdxs.length === P) {
             if (!passICC_bt(curIdxs)) return;
@@ -2066,7 +2088,7 @@
           ? [...bPlus].filter(i => anchorMatches(cells[i]))
           : [...bPlus];
         for (const startCell of bPlusFiltered) {
-          if (results.length >= max_candidates || btIterations > MAX_ITER_BT) break;
+          if (btIterations > MAX_ITER_BT) break;
           used[startCell] = 1;
           dfs(0, [], [startCell], new Set(adjL[startCell].filter(nb => !used[nb])));
           used[startCell] = 0;
