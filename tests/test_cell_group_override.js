@@ -144,27 +144,30 @@ const svg_badrowcol = runRender({
 check('T4: out-of-range row/col → fallback to internal snake (valid SVG)',
   typeof svg_badrowcol === 'string' && svg_badrowcol.includes('<svg'));
 
-// ─── Test 5: custom arrangement 은 cell_groups 무시 ───
+// ─── Test 5: custom arrangement 은 cell_groups 주입을 지원함 ───
+// renderCustomRows()는 cell_groups가 제공되면 그대로 사용 (후보 패널 연동).
+// 그룹 배정이 다른 cell_groups → 다른 SVG 출력 확인.
 const svg_custom_no_cg = runRender({
   ...baseParams,
   arrangement: 'custom',
   rows: [3, 3, 3],
   S: 3, P: 3,
 });
-const svg_custom_with_cg = runRender({
+// 역순 그룹: snake 기본(G0=row0, G2=row2)과 반대로 G0=row2, G2=row0
+const svg_custom_reversed_cg = runRender({
   ...baseParams,
   arrangement: 'custom',
   rows: [3, 3, 3],
   S: 3, P: 3,
   cell_groups: [
-    [{row:0,col:0},{row:0,col:1},{row:0,col:2}],
+    [{row:2,col:0},{row:2,col:1},{row:2,col:2}],  // G0 = row2 (B+ 위치 변경)
     [{row:1,col:0},{row:1,col:1},{row:1,col:2}],
-    [{row:2,col:0},{row:2,col:1},{row:2,col:2}],
+    [{row:0,col:0},{row:0,col:1},{row:0,col:2}],  // G2 = row0 (B- 위치 변경)
   ],
 });
-check('T5: custom arrangement ignores cell_groups (identical SVG)',
-  svg_custom_no_cg === svg_custom_with_cg,
-  'custom should route to renderCustomRows() regardless of cell_groups');
+check('T5: custom + cell_groups 역순 주입 → snake 기본과 다른 SVG (cell_groups 적용 확인)',
+  svg_custom_no_cg !== svg_custom_reversed_cg,
+  'cell_groups 역순 전달 시에도 SVG가 같으면 주입이 무시된 것');
 
 // ─── 결과 요약 ────────────────────────────────────
 console.log('────────────────────────────────');

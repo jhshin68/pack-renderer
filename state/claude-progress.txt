@@ -1,9 +1,31 @@
 ========================================
-마지막 업데이트: 2026-04-21 (세션 38 — 원칙 28 위반 수정 완료)
-버전: battery_pack_renderer.html, src/app.js, src/generator.js (v0.4.2), src/renderer.js
-테스트 상태: pass=846 fail=0 + test_phase2_candidates 4/4 + test_bfs_compact 6/6 + test_p29_parallel_polarity 44/44 + test_p09_pixel_adj 6/6 + test_sort_mdistinct 4/4 + test_sort_compact 5/5 + test_best_mdistinct 4/4 + test_p28_render_thr 3/3
+마지막 업데이트: 2026-04-21 (세션 39 — app.js 분리 + 테스트 0 failures 달성)
+버전: battery_pack_renderer.html, src/app.js (thin), src/app-state.js, src/app-ui.js, src/app-render.js, src/app-panel.js, src/generator.js (v0.4.2), src/renderer.js
+테스트 상태: pass=846 fail=0 (전체 0 failures)
 feature_list.json: 모든 항목 passes:true
-git 상태: 세션 38 커밋 완료 (abb1cfb)
+git 상태: 세션 39 커밋 예정
+
+## 세션 39 진행 (2026-04-21) — app.js 분리 + 테스트 정리
+
+### 완료 사항
+
+#### Phase 2: app.js → 5파일 분리 (browser-only plain script)
+- `src/app-state.js` (109줄): state, lastSVG, _enumResult, 비용 상수, _countDistinctShapes, parseCustomRows, parseRowOffsets, checkCustomConsistency
+- `src/app-ui.js` (243줄): UI 컨트롤 핸들러 (setCellType → setFace)
+- `src/app-render.js` (263줄): 렌더 파이프라인 (calcPackDimensions → _renderCustomCandidates) — estimateMmin → Generator.estimateMmin 교체
+- `src/app-panel.js` (240줄): 후보 패널 (toggleICC → _showCandDetail) — estimateMmin → Generator.estimateMmin 교체
+- `src/app.js` (55줄, thin): downloadSVG, downloadPNG, 키보드 내비, rerender()
+- `battery_pack_renderer.html`: 4개 script 태그 추가 (app-state → app-ui → app-render → app-panel → app.js)
+- 브라우저 정상 확인 (staggered+holder 포함)
+
+#### 테스트 0 failures 달성
+- `test_cell_group_override.js` T5 assertion 수정: "custom은 cell_groups 무시" → "custom은 cell_groups 주입 지원" (renderCustomRows 설계 변경 반영)
+- 전체 테스트 fail=0 (회귀 846/846 포함)
+
+### 다음 할 일
+- [ ] Phase 3: 문서 정합성 (선택적 — nickel_plate_principles.md Layer 분리)
+
+---
 
 ## 세션 38 진행 (2026-04-21) — 원칙 28 위반 수정 (P28③ renderThr 정합성)
 
