@@ -157,7 +157,7 @@ function _renderSVG() {
   let effectiveCandidates = _enumResult ? (_enumResult.candidates || []) : [];
   if (state.max_plates > 0) {
     effectiveCandidates = effectiveCandidates.filter(
-      c => _countDistinctShapes(c) <= state.max_plates
+      c => (c.m_distinct || 0) <= state.max_plates
     );
   }
 
@@ -290,13 +290,19 @@ async function _runCustomSearch() {
   }
 
   // 탐색 시작 — 버튼 비활성화 + 로딩 표시
+  const budgetMs = (state.search_budget_ms !== undefined) ? state.search_budget_ms : 600000;
+  const budgetLabel = budgetMs === null ? '무제한'
+    : budgetMs >= 60000 ? `${budgetMs / 60000}분`
+    : `${budgetMs / 1000}초`;
   if (genBtn) genBtn.disabled = true;
-  if (titleEl) titleEl.textContent = '셀 배열 후보 탐색중…';
+  if (titleEl) titleEl.textContent = `셀 배열 후보 탐색중… (${budgetLabel})`;
   if (countEl) countEl.textContent = '…';
   if (listEl) listEl.innerHTML = '<div class="hint" style="margin-top:6px;color:var(--dt3)">후보를 탐색하고 있습니다…</div>';
+  _syncFilterOptions(null);  // 탐색 시작 시 필터 초기화
 
   // 두 프레임 대기 → 브라우저 실제 repaint 보장
   await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+  const t0 = Date.now();
 
   let result;
   try {
@@ -305,7 +311,8 @@ async function _runCustomSearch() {
       b_plus_side, b_minus_side,
       icc1, icc2, icc3,
       nickel_w: nickel_w_mm * 1.5,
-      max_candidates: 40,
+      max_candidates: 999999,
+      budget_ms: budgetMs,
       g0_anchor: state.g0_anchor,
       allow_I: state.allow_I,
       allow_U: state.allow_U,
@@ -321,10 +328,13 @@ async function _runCustomSearch() {
     return;
   }
 
+  const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
   if (titleEl) titleEl.textContent = '셀 배열 후보';
   if (genBtn) genBtn.disabled = false;
   _enumResult = result;
   _updateEnumStatus(result);
+  // 필터 먼저 채운 후 후보 렌더 (순서 중요: populate → render)
+  _syncFilterOptions(result);
   _renderCustomCandidates(result);
 }
 
@@ -337,14 +347,37 @@ function _renderCustomCandidates(result) {
   if (!result) {
     listEl.innerHTML = '<div class="hint" style="color:var(--dt3);margin-top:8px">Generate Layout을 눌러 후보를 탐색하세요</div>';
     if (countEl) countEl.textContent = '—';
+    _syncFilterOptions(null);
     _showCandDetail(-1);
     return;
   }
+
   let candidates = result.candidates || [];
+  const total = candidates.length;
+
   if (state.max_plates && state.max_plates > 0)
-    candidates = candidates.filter(c => _countDistinctShapes(c) <= state.max_plates);
-  candidates = candidates.slice().sort((a, b) => _countDistinctShapes(a) - _countDistinctShapes(b));
-  if (countEl) countEl.textContent = candidates.length + '개';
+    candidates = candidates.filter(c => (c.m_distinct || 0) <= state.max_plates);
+  candidates = candidates.slice().sort((a, b) => (a.m_distinct || 0) - (b.m_distinct || 0));
+
+  // m_distinct 필터 적용
+  const mdSel = document.getElementById('mdistinctSel');
+  const mdFilter = mdSel ? mdSel.value : '';
+  if (mdFilter !== '') {
+    const mdVal = parseInt(mdFilter, 10);
+    candidates = candidates.filter(c => (c.m_distinct || 0) === mdVal);
+  }
+
+  // 품질점수 필터 적용
+  const qSel = document.getElementById('qualitySel');
+  const qFilter = qSel ? qSel.value : '';
+  if (qFilter !== '') {
+    const qVal = parseInt(qFilter, 10);
+    candidates = candidates.filter(c => (c.total_score ?? 0) === qVal);
+  }
+
+  if (countEl) countEl.textContent = candidates.length < total
+    ? `${candidates.length} / ${total}개`
+    : `${total}개`;
   listEl.innerHTML = '';
   if (candidates.length === 0) {
     listEl.innerHTML = '<div class="hint" style="margin-top:4px;color:var(--amber)">현재 제약으로 유효 후보 없음<br>ICC/B± 조건을 완화해보세요</div>';

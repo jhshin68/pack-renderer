@@ -173,10 +173,10 @@ function _renderCandCards(candidates, listEl, S) {
     const sigmaStyle = cand.is_pentomino
       ? 'font-weight:700;color:#86efac;font-size:11px'
       : 'color:#4ADE80';
-    const platesVal = _countDistinctShapes(cand);
+    const platesVal = cand.m_distinct || 0;
     const statBits = [
       `<span style="${sigmaStyle}">Σ ${totalQS >= 0 ? '+' : ''}${totalQS}</span>`,
-      `<span style="color:#ffffff">플레이트 ${platesVal}개</span>`,
+      `<span style="color:#ffffff">플레이트 ${platesVal}종</span>`,
       `행스팬 평균 ${avgRS.toFixed(1)}/최대 ${maxRS}`,
       ...(tyN > 0 ? [`<span style="color:var(--amber)">T/Y ${tyN}</span>`] : []),
     ];
@@ -250,7 +250,7 @@ function populateCandidatePanel() {
       b_plus_side, b_minus_side,
       icc1, icc2, icc3,
       nickel_w: nickel_w_mm * 1.5,  // scale 반영 근사
-      max_candidates: 40,
+      max_candidates: 999999,
       g0_anchor: state.g0_anchor,   // ★ Phase 2: 1번 셀 위치 제약
       allow_I: state.allow_I,       // ★ Phase 4: I-pentomino 허용
       allow_U: state.allow_U,       // ★ Phase 4: U-pentomino 허용
@@ -267,9 +267,9 @@ function populateCandidatePanel() {
   let candidates = result.candidates || [];
   // ★ max_plates 필터: 고유 형상(금형) 종류 수 ≤ state.max_plates
   if (state.max_plates && state.max_plates > 0) {
-    candidates = candidates.filter(c => _countDistinctShapes(c) <= state.max_plates);
+    candidates = candidates.filter(c => (c.m_distinct || 0) <= state.max_plates);
   }
-  candidates = candidates.slice().sort((a, b) => _countDistinctShapes(a) - _countDistinctShapes(b));
+  candidates = candidates.slice().sort((a, b) => (a.m_distinct || 0) - (b.m_distinct || 0));
   if (countEl) countEl.textContent = candidates.length + '개';
 
   listEl.innerHTML = '';
@@ -349,3 +349,56 @@ function _showCandDetail(idx) {
     `<div class="row"><span class="key">ICC②</span><span class="val">${state.icc2 ? '종횡비≤2.0' : '비활성'}</span></div>` +
     `<div class="row"><span class="key">ICC③</span><span class="val">${state.icc3 ? '볼록≥0.75' : '비활성'}</span></div>`;
 }
+
+// 필터 콤보박스 동기화 — _renderCustomCandidates 내부에서 호출
+// 첫 표시(옵션 1개=전체만): 기본값 자동 선택 (m_distinct 최솟값 / Σ 최댓값)
+// 이후 재렌더: 사용자 선택 유지 (전체 선택 포함)
+function _syncFilterOptions(result) {
+  const candidates = (result && result.candidates) || [];
+
+  const mdSel = document.getElementById('mdistinctSel');
+  if (mdSel) {
+    const isFirst = mdSel.options.length <= 1;  // null-reset 직후 또는 초기 상태
+    const prev    = mdSel.value;
+    if (candidates.length === 0) {
+      mdSel.innerHTML = '<option value="">전체</option>';
+      mdSel.value = '';
+    } else {
+      const vals = [...new Set(candidates.map(c => c.m_distinct || 0))].sort((a, b) => a - b);
+      mdSel.innerHTML = '<option value="">전체</option>' +
+        vals.map(v => `<option value="${v}">${v}종</option>`).join('');
+      if (vals.includes(parseInt(prev, 10))) {
+        mdSel.value = prev;               // 사용자 선택 유지
+      } else if (isFirst) {
+        mdSel.value = String(vals[0]);    // 최솟값 자동 선택
+      } else {
+        mdSel.value = '';                 // 사용자가 전체 선택 → 유지
+      }
+    }
+  }
+
+  const qSel = document.getElementById('qualitySel');
+  if (qSel) {
+    const isFirst = qSel.options.length <= 1;
+    const prev    = qSel.value;
+    if (candidates.length === 0) {
+      qSel.innerHTML = '<option value="">전체</option>';
+      qSel.value = '';
+    } else {
+      const vals = [...new Set(candidates.map(c => c.total_score ?? 0))].sort((a, b) => b - a);
+      qSel.innerHTML = '<option value="">전체</option>' +
+        vals.map(v => `<option value="${v}">Σ ${v >= 0 ? '+' : ''}${v}</option>`).join('');
+      if (vals.includes(parseInt(prev, 10))) {
+        qSel.value = prev;               // 사용자 선택 유지
+      } else if (isFirst) {
+        qSel.value = String(vals[0]);    // 최댓값 자동 선택
+      } else {
+        qSel.value = '';
+      }
+    }
+  }
+}
+
+// 필터 변경 핸들러
+function filterByMdistinct(val) { _renderCustomCandidates(_enumResult); }
+function filterByQuality(val)    { _renderCustomCandidates(_enumResult); }

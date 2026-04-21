@@ -41,10 +41,11 @@ const state = {
   // H3 보조 — G0 앵커 (1번 셀 위치 제약)
   g0_anchor:     null,        // null | 'TL' | 'TR' | 'BL' | 'BR' | {row, col}
   // Phase 4 — pentomino 도형 허용 토글
-  allow_I:       true,        // 1자(I-pentomino) 허용 여부
+  allow_I:       false,       // 1자(I-pentomino) 허용 여부
   allow_U:       false,       // ㄷ자(U-pentomino) 허용 여부
   // Phase 5 — 니켈 플레이트 수 제한
   max_plates:    0,           // 0 = 제한 없음, N = 고유 형상(금형) 종류 수 ≤ N인 후보만 표시
+  search_budget_ms: 600000,  // 탐색 시간 제한 (ms): null = 무제한, 기본 10분
   // UI
   zoom:          1.0,         // 중앙 SVG 표시 배율 (0.3 ~ 3.0)
 };

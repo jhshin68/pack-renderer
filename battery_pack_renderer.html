@@ -105,7 +105,6 @@
         <textarea id="customRows" rows="2" placeholder="예: 5:1,12:1,13:-1,12:-2,10"
                   oninput="checkCustomConsistency()">10,12:-2,13:-2,12:-2,5:-1</textarea>
         <div id="customConsistWarn" style="display:none;margin-top:4px;font-size:10px;color:var(--amber);font-family:'JetBrains Mono',monospace;line-height:1.5"></div>
-        <div class="hint" style="margin-top:2px">1단(아래)→위 순서로 입력<br>셀수 또는 셀수:오프셋 (음수=왼쪽, 양수·생략=오른쪽)<br>예) 10,12:-2,13:-1,12:1,5:1</div>
         <div class="toggle-row" style="margin-top:8px">
           <span class="toggle-label">엇배열 (Staggered)</span>
           <button class="toggle" id="togCustomStagger" onclick="toggleCustomStagger()"></button>
@@ -130,7 +129,6 @@
           <button class="num-btn" onclick="adjBmsPos(0.1)">+</button>
           <div class="num-tag">pos</div>
         </div>
-        <div class="hint" style="margin-top:4px">BMS 모듈 위치 (엣지 · 비율 0–100%)</div>
       </div>
 
       <!-- H2: B+/B- 출력 방향 (원칙 4 L2) -->
@@ -149,7 +147,6 @@
           <button class="seg-btn active" id="bmRight"  onclick="setBTermDir('b_minus_side','right')">Right</button>
           <button class="seg-btn" id="bmBottom" onclick="setBTermDir('b_minus_side','bottom')">Bot</button>
         </div>
-        <div class="hint" style="margin-top:4px">경계 셀 집합 → 열거기 시작/종료 제약</div>
       </div>
 
       <div class="ctrl-sep"></div>
@@ -163,7 +160,6 @@
             onchange="setMaxPlates(this.value)" oninput="setMaxPlates(this.value)">
           <button onclick="setMaxPlates((state.max_plates||0)+1)" class="adj-btn">+</button>
         </div>
-        <div class="hint" style="margin-top:4px">0 = 제한 없음 | 니켈 형상 종류(금형) 수 제한</div>
       </div>
 
       <!-- H3 보조: G0 앵커 (1번 셀 위치) -->
@@ -176,7 +172,6 @@
           <option value="BL">좌하단 (Bottom-Left)</option>
           <option value="BR">우하단 (Bottom-Right)</option>
         </select>
-        <div class="hint" style="margin-top:4px">G0 시작 셀 고정 → 후보 수 감소</div>
       </div>
 
       <!-- ICC 제약 조건 -->
@@ -194,7 +189,6 @@
           <span class="toggle-label">③ 볼록성 ≥ 0.75</span>
           <button class="toggle" id="togICC3" onclick="toggleICC('icc3')"></button>
         </div>
-        <div class="hint" style="margin-top:4px">OFF: 해당 제약 검사 생략</div>
       </div>
 
       <!-- 도형 허용 -->
@@ -202,10 +196,9 @@
         <div class="ctrl-label">도형 허용 <span style="font-size:8px;color:var(--dt3)">(기본: P만)</span></div>
         <div class="toggle-row">
           <span class="toggle-label">1자 (I)</span>
-          <button class="toggle on" id="togAllowI" onclick="toggleAllowShape('allow_I')"></button>
+          <button class="toggle" id="togAllowI" onclick="toggleAllowShape('allow_I')"></button>
         </div>
 
-        <div class="hint" style="margin-top:4px">P=5일 때 pentomino 후보에 적용</div>
       </div>
 
       <div class="ctrl-sep"></div>
@@ -224,6 +217,17 @@
         <div class="toggle-row" style="display:none">
           <span class="toggle-label">Emboss · no-mirror</span>
           <button class="toggle on" id="togEmboss" onclick="toggleOpt('emboss')"></button>
+        </div>
+      </div>
+
+      <!-- 탐색 시간 제한 -->
+      <div>
+        <div class="ctrl-label">탐색 시간 제한</div>
+        <div class="seg">
+          <button class="seg-btn" id="bgt1"   onclick="setSearchBudget(60000)">1분</button>
+          <button class="seg-btn" id="bgt5"   onclick="setSearchBudget(300000)">5분</button>
+          <button class="seg-btn active" id="bgt10"  onclick="setSearchBudget(600000)">10분</button>
+          <button class="seg-btn" id="bgtInf" onclick="setSearchBudget(null)">무제한</button>
         </div>
       </div>
 
@@ -295,6 +299,20 @@
     <div class="rp-header">
       <span class="rp-title" id="rpCandTitle">셀 배열 후보</span>
       <span class="rp-badge" id="rpCandCount">—</span>
+    </div>
+    <div id="candidateFilterBar" style="padding:5px 8px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:4px">
+        <span style="font-size:9px;color:var(--dt3)">형상종류</span>
+        <select id="mdistinctSel" onchange="filterByMdistinct(this.value)" style="font-size:9px;background:var(--bg2);color:var(--dt1);border:1px solid var(--border);border-radius:3px;padding:2px 5px;cursor:pointer">
+          <option value="">전체</option>
+        </select>
+      </div>
+      <div style="display:flex;align-items:center;gap:4px">
+        <span style="font-size:9px;color:var(--dt3)">품질 Σ</span>
+        <select id="qualitySel" onchange="filterByQuality(this.value)" style="font-size:9px;background:var(--bg2);color:var(--dt1);border:1px solid var(--border);border-radius:3px;padding:2px 5px;cursor:pointer">
+          <option value="">전체</option>
+        </select>
+      </div>
     </div>
 
     <div class="rp-body">

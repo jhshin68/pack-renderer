@@ -1,9 +1,66 @@
 ========================================
-마지막 업데이트: 2026-04-21 (세션 40 — 문서 정합성 업데이트 + 프로젝트 구조 정리 완료)
+마지막 업데이트: 2026-04-21 (세션 41 — 탐색 시간 제한 UI + 필터 콤보박스 구현)
 버전: battery_pack_renderer.html, src/app.js (thin), src/app-state.js, src/app-ui.js, src/app-render.js, src/app-panel.js, src/generator.js (v0.4.2), src/renderer.js
 테스트 상태: pass=846 fail=0 (전체 0 failures)
 feature_list.json: 모든 항목 passes:true
-git 상태: 세션 40 커밋·푸시 완료
+git 상태: 세션 41 작업 중 (커밋 예정)
+
+## 세션 41 진행 (2026-04-21) — 탐색 시간 제한 UI + 필터 콤보박스
+
+### 완료 사항
+
+#### 탐색 시간 제한 UI (좌측 사이드바)
+- `state.search_budget_ms: 600000` 기본값 추가 (`src/app-state.js`)
+- `setSearchBudget(ms)` 함수 추가 (`src/app-ui.js`) — 버튼 활성화 토글 포함
+- 좌측 사이드바 Display Options 아래 버튼 그룹 추가 (1분/5분/10분/무제한)
+- CSS 버그 수정: `.sidebar-body { min-height: 0; overflow-y: auto }` 추가 → 버튼 클릭 가능
+
+#### 형상종류/품질 Σ 필터 콤보박스 (우측 패널 상단, 상시 표시)
+- `candidateFilterBar` div 추가 — `mdistinctSel` + `qualitySel` 두 셀렉트
+- `_syncFilterOptions(result)` 함수 추가 (`src/app-panel.js`):
+  - 첫 populate 시: m_distinct 최솟값 / 품질 Σ 최댓값 자동 선택
+  - 이후: 사용자 선택 유지
+- `filterByMdistinct` / `filterByQuality` 핸들러 추가
+- **호출 순서 수정**: `_runCustomSearch` 완료 후 `_syncFilterOptions(result)` → `_renderCustomCandidates(result)` 순서로 분리
+
+#### 기타 수정
+- `allow_I` 기본값 `false`로 변경 (HTML 토글 + `app-state.js`)
+- `_renderSVG` 내 `_countDistinctShapes(c)` → `(c.m_distinct || 0)` 교체
+- `max_candidates: 999999` + `budget_ms` 방식으로 모든 탐색 통일
+- 후보 카드: `플레이트 N종` 표시 (`cand.m_distinct`)
+
+### 미해결 버그 (현재 작업 중)
+
+- **필터 콤보박스 미입력**: 검색 완료 후 `mdistinctSel` / `qualitySel` 에 값이 들어오지 않음
+  - 36,000개 이상 후보가 필터 없이 전부 표시됨
+  - `_syncFilterOptions(result)` 호출 분리 후에도 여전히 미해결
+  - 브라우저 실측 디버그 필요
+
+### 다음 할 일
+- [ ] **[CRITICAL]** 필터 콤보박스 실제 DOM 업데이트 되는지 디버그
+- [ ] 커밋 및 push (현재 세션 변경 7개 파일)
+
+---
+
+## ⚠️ 구 "다음 할 일" 항목 정리 노트 (세션 41)
+
+아래 항목들은 과거 세션 기록에 반복 등장하나, **현재 존재하지 않거나 이미 해소**됨. 다시 추적 금지.
+
+| 항목 | 상태 |
+|---|---|
+| `test_enumerate_integration` (10S5P C3/C4 실패) | ❌ 파일 없음 — 해소 또는 제거됨 |
+| `validator_tier2a/b` (P29 셀 좌표 undefined) | ❌ 파일 없음 — validator.js v7-tier2d 전량 실구현 완료 |
+| `test_holder_constraints` (H3/I3/L2) | ❌ 파일 없음 — 해소 또는 제거됨 |
+| `test_p14_face_merging` | ❌ 파일 없음 — checkFaceMerging 실구현, test_validator_stub.js 커버 |
+| `test_enumerate_integration` snake C3/C4 | ❌ 파일 없음 |
+| 13S4P 비균일 staggerON 0후보 물리적 가능 여부 | 미확인 (물리 도메인 질문 — 코드 문제 아님) |
+
+현재 실존 테스트 파일: tests/ 내 15개, 전부 0 fail.
+
+### 다음 할 일
+- [ ] 커스텀 배열 미완 기능 (사용자와 협의 중)
+
+---
 
 ## 세션 40 진행 (2026-04-21) — 문서 정합성 업데이트
 
@@ -31,7 +88,7 @@ git 상태: 세션 40 커밋·푸시 완료
 **루트 잔류 파일**: `CLAUDE.md`, `README.md`, `battery_pack_renderer.html` 3개만 유지
 
 ### 다음 할 일
-- [ ] 신규 기능 개발 (사용자 요청 대기)
+- [x] 신규 기능 개발 → 세션 41에서 커스텀 배열 작업 진행 중
 
 ## 세션 39 진행 (2026-04-21) — app.js 분리 + 테스트 정리
 
