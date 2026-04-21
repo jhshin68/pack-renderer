@@ -35,10 +35,18 @@ const SVG_DIR       = path.join(REGRESSION_DIR, 'svg');
 const BASELINE_FILE = path.join(REGRESSION_DIR, 'baseline_hashes.json');
 
 // ── VM 컨텍스트 (renderer + generator 로드) ─────
-const genSrc = fs.readFileSync(path.join(ROOT, 'src', 'generator.js'), 'utf8');
-const renSrc = fs.readFileSync(path.join(ROOT, 'src', 'renderer.js'), 'utf8');
+const ptSrc     = fs.readFileSync(path.join(ROOT, 'src', 'pentomino_tiling.js'), 'utf8');
+const mathSrc   = fs.readFileSync(path.join(ROOT, 'src', 'gen-math.js'), 'utf8');
+const layoutSrc = fs.readFileSync(path.join(ROOT, 'src', 'gen-layout.js'), 'utf8');
+const enumSrc   = fs.readFileSync(path.join(ROOT, 'src', 'gen-enum.js'), 'utf8');
+const genSrc    = fs.readFileSync(path.join(ROOT, 'src', 'generator.js'), 'utf8');
+const renSrc    = fs.readFileSync(path.join(ROOT, 'src', 'renderer.js'), 'utf8');
 const vmCtx  = { console, __result: null };
 vm.createContext(vmCtx);
+vm.runInContext(ptSrc, vmCtx);
+vm.runInContext(mathSrc, vmCtx);
+vm.runInContext(layoutSrc, vmCtx);
+vm.runInContext(enumSrc, vmCtx);
 vm.runInContext(genSrc, vmCtx);
 vm.runInContext(renSrc, vmCtx);
 

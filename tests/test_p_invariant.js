@@ -59,12 +59,21 @@ function assert(label, cond, detail) {
 // ─── Case C — P=4·P=5 렌더 결과 패턴 비교 ─────────────
 // Type-A의 고유 SVG 시그니처 = <rect> 요소. P=4는 <line>만. P=5도 <line>만이어야.
 {
-  const rendererSrc  = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer.js'), 'utf8');
-  const generatorSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'generator.js'), 'utf8');
+  const SRC_DIR = path.join(__dirname, '..');
+  const ptSrc2     = fs.readFileSync(path.join(SRC_DIR, 'src', 'pentomino_tiling.js'), 'utf8');
+  const mathSrc2   = fs.readFileSync(path.join(SRC_DIR, 'src', 'gen-math.js'), 'utf8');
+  const layoutSrc2 = fs.readFileSync(path.join(SRC_DIR, 'src', 'gen-layout.js'), 'utf8');
+  const enumSrc2   = fs.readFileSync(path.join(SRC_DIR, 'src', 'gen-enum.js'), 'utf8');
+  const rendererSrc  = fs.readFileSync(path.join(SRC_DIR, 'src', 'renderer.js'), 'utf8');
+  const generatorSrc = fs.readFileSync(path.join(SRC_DIR, 'src', 'generator.js'), 'utf8');
 
   function renderSVG(S, P) {
     const ctx = { console, __result: null };
     vm.createContext(ctx);
+    vm.runInContext(ptSrc2, ctx);
+    vm.runInContext(mathSrc2, ctx);
+    vm.runInContext(layoutSrc2, ctx);
+    vm.runInContext(enumSrc2, ctx);
     vm.runInContext(generatorSrc, ctx);
     vm.runInContext(rendererSrc, ctx);
     vm.runInContext(`__result = render({

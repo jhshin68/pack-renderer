@@ -18,12 +18,20 @@ const path = require('path');
 const ROOT = path.join(__dirname, '..');
 
 // ── VM 컨텍스트 ────────────────────────────────────
-const genSrc = fs.readFileSync(path.join(ROOT, 'src', 'generator.js'), 'utf8');
-const renSrc = fs.readFileSync(path.join(ROOT, 'src', 'renderer.js'), 'utf8');
+const ptSrc     = fs.readFileSync(path.join(ROOT, 'src', 'pentomino_tiling.js'), 'utf8');
+const mathSrc   = fs.readFileSync(path.join(ROOT, 'src', 'gen-math.js'), 'utf8');
+const layoutSrc = fs.readFileSync(path.join(ROOT, 'src', 'gen-layout.js'), 'utf8');
+const enumSrc   = fs.readFileSync(path.join(ROOT, 'src', 'gen-enum.js'), 'utf8');
+const genSrc    = fs.readFileSync(path.join(ROOT, 'src', 'generator.js'), 'utf8');
+const renSrc    = fs.readFileSync(path.join(ROOT, 'src', 'renderer.js'), 'utf8');
 
 const silent = { log: () => {}, warn: () => {}, error: () => {} };
 const ctx = { console: silent, __result: null };
 vm.createContext(ctx);
+vm.runInContext(ptSrc, ctx);
+vm.runInContext(mathSrc, ctx);
+vm.runInContext(layoutSrc, ctx);
+vm.runInContext(enumSrc, ctx);
 vm.runInContext(genSrc, ctx);
 vm.runInContext(renSrc, ctx);
 

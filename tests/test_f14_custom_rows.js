@@ -10,8 +10,13 @@ const fs  = require('fs');
 const vm  = require('vm');
 const path = require('path');
 
-const generatorSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'generator.js'), 'utf8');
-const rendererSrc  = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer.js'), 'utf8');
+const ROOT = path.join(__dirname, '..');
+const ptSrc        = fs.readFileSync(path.join(ROOT, 'src', 'pentomino_tiling.js'), 'utf8');
+const mathSrc      = fs.readFileSync(path.join(ROOT, 'src', 'gen-math.js'), 'utf8');
+const layoutSrc    = fs.readFileSync(path.join(ROOT, 'src', 'gen-layout.js'), 'utf8');
+const enumSrc      = fs.readFileSync(path.join(ROOT, 'src', 'gen-enum.js'), 'utf8');
+const generatorSrc = fs.readFileSync(path.join(ROOT, 'src', 'generator.js'), 'utf8');
+const rendererSrc  = fs.readFileSync(path.join(ROOT, 'src', 'renderer.js'), 'utf8');
 
 let pass = 0, fail = 0;
 function assert(cond, msg) {
@@ -22,6 +27,10 @@ function assert(cond, msg) {
 // ─── VM 컨텍스트 생성 ─────────────────────────
 const ctx = { console, __result: null };
 vm.createContext(ctx);
+vm.runInContext(ptSrc, ctx);
+vm.runInContext(mathSrc, ctx);
+vm.runInContext(layoutSrc, ctx);
+vm.runInContext(enumSrc, ctx);
 vm.runInContext(generatorSrc, ctx);
 vm.runInContext(rendererSrc, ctx);
 

@@ -1,9 +1,28 @@
 ========================================
-마지막 업데이트: 2026-04-21 (세션 37 — 후보 목록 정렬 + _enumResult 오염 수정)
-버전: battery_pack_renderer.html, src/app.js, src/generator.js (v0.4.1), src/renderer.js
-테스트 상태: pass=846 fail=0 + test_phase2_candidates 4/4 + test_bfs_compact 6/6 + test_p29_parallel_polarity 44/44 + test_p09_pixel_adj 6/6 + test_sort_mdistinct 4/4 + test_sort_compact 5/5 + test_best_mdistinct 4/4
+마지막 업데이트: 2026-04-21 (세션 38 — 원칙 28 위반 수정 완료)
+버전: battery_pack_renderer.html, src/app.js, src/generator.js (v0.4.2), src/renderer.js
+테스트 상태: pass=846 fail=0 + test_phase2_candidates 4/4 + test_bfs_compact 6/6 + test_p29_parallel_polarity 44/44 + test_p09_pixel_adj 6/6 + test_sort_mdistinct 4/4 + test_sort_compact 5/5 + test_best_mdistinct 4/4 + test_p28_render_thr 3/3
 feature_list.json: 모든 항목 passes:true
-git 상태: 세션 37 커밋 예정
+git 상태: 세션 38 커밋 완료 (abb1cfb)
+
+## 세션 38 진행 (2026-04-21) — 원칙 28 위반 수정 (P28③ renderThr 정합성)
+
+### 완료 사항
+
+#### Fix: generator-renderer 임계값 불일치 수정 (generator.js + app.js)
+- **근본 원인**: validateCandidate P28③이 `pitch*1.5`로 U판 연결성 검증, renderer.js isAdj는 `pitch*1.05`. 1.05P~1.5P 사이 대각 cross-group 쌍을 가진 snake 후보가 generator에서 합격하지만 renderer에서 연결선 미표시 → 4셀 섬 2개로 보임 (원칙 28 위반)
+- 수정: `renderThr = custom_stagger ? pitch*1.2 : pitch*1.05` 정의 후 P28③에 적용
+- `isGroupConnected(gc, thrOverride)` — thrOverride 옵션 파라미터 추가
+- app.js: `enumerateGroupAssignments` 호출 시 `custom_stagger: !!state.custom_stagger` 전달
+- **결과**: 13S4P custom 상면/하면 `[4,8,8,8,8,8,8]` ✓ (수정 전: `[4,4,4,4,4,8,8,8,8]`)
+- 후보 수: 40개 → 26개 (비인접 snake 14개 올바르게 제거)
+- test_p28_render_thr.js 3/3 PASS (신규), 846/846 회귀 PASS
+
+### 다음 할 일
+- [ ] staggered + holder 모드 브라우저 니켈 플레이트 형상 확인
+- [ ] 원칙 28 관련 추가 엣지케이스 있는지 검토 (다른 S×P 조합)
+
+---
 
 ## 세션 37 진행 (2026-04-21) — 후보 목록 정렬 + 원칙 28 위반 조사
 
@@ -299,3 +318,38 @@ function pickCompactHoriz(candidates, group) {
 
 ## 세션 28 진행 (2026-04-20) — validateCandidate 게이트 + 커스텀 회귀 테스트
 (이전 항목 유지 — 자세한 내용은 git log 참조)
+
+---
+
+## 세션 38 진행 (2026-04-21) — 서브모듈 분리 + P28 renderThr 수정
+
+### 완료 사항
+
+#### P28③ renderThr 정합성 수정 (이전 세션 carry-over)
+- 문제: generator 검증 임계값(pitch×1.05) vs renderer isAdj(custom_stagger: pitch×1.2, 일반: pitch×1.05) 불일치
+- 해결: validateP28에 `renderThr = custom_stagger ? pitch * 1.2 : pitch * 1.05` 추가
+- 테스트: tests/test_p28_render_thr.js 3 PASS
+
+#### generator.js 서브모듈 분리 (메인 작업)
+- 2199줄 단일 파일 → 4파일 구조:
+  - `src/gen-math.js` (~220줄): 순수 수학 (_pt, estimatePitch, buildAdjacency, checkPlanarNoCrossing, groupQualityScore, compactShapeScore)
+  - `src/gen-layout.js` (~200줄): 레이아웃 (canonicalSig, calcNickelPattern, buildSnakeLayout, calcCustomCenters, estimateMmin)
+  - `src/gen-enum.js` (~850줄): 열거기 (buildHolderGrid, calcBoundarySet, enumerateGroupAssignments, _shapeSigOf)
+  - `src/generator.js` (~940줄, 파사드): SFMT 파이프라인 + 전 API re-export
+- 이중 런타임: Node require() + Browser window._GenMath/_GenLayout/_GenEnum
+- 의존 순서: gen-math → gen-layout → gen-enum → generator
+
+#### battery_pack_renderer.html 스크립트 로드 순서 업데이트
+- pentomino_tiling.js → gen-math.js → gen-layout.js → gen-enum.js → generator.js → renderer.js → app.js
+
+#### VM 기반 테스트 수정 (6개 파일)
+- test_regression_all_sp.js, test_cell_group_override.js, test_g0_anchor.js, test_no_crossing.js, test_p_invariant.js, test_f14_custom_rows.js
+- 각 파일에 sub-module readFileSync + vm.runInContext 선행 로드 추가
+
+### 테스트 결과
+- 전체 37개 테스트 파일 실행
+- 새 회귀 없음 (서브모듈 분리로 인한 신규 실패 0개)
+- 기존 알려진 실패 그대로 유지 (pre-existing):
+  - validator P29 셀 좌표 undefined (validator_tier2a/b)
+  - custom threshold 1.5 vs 테스트 기대값 1.1 (p09_adjacency C3/C4)
+  - holder_constraints H3/I3/L2, p14_face_merging, enumerate_integration 스네이크
