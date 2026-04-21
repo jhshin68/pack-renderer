@@ -355,6 +355,8 @@ function _showCandDetail(idx) {
 // 이후 재렌더: 사용자 선택 유지 (전체 선택 포함)
 function _syncFilterOptions(result) {
   const candidates = (result && result.candidates) || [];
+  console.log('[syncFilter] candidates:', candidates.length,
+    candidates.length > 0 ? `m_distinct[0]=${candidates[0].m_distinct} score[0]=${candidates[0].total_score}` : '(empty)');
 
   const mdSel = document.getElementById('mdistinctSel');
   if (mdSel) {
@@ -374,6 +376,7 @@ function _syncFilterOptions(result) {
       } else {
         mdSel.value = '';                 // 사용자가 전체 선택 → 유지
       }
+      console.log('[syncFilter] mdSel vals:', vals, '→ value:', mdSel.value);
     }
   }
 
@@ -395,6 +398,7 @@ function _syncFilterOptions(result) {
       } else {
         qSel.value = '';
       }
+      console.log('[syncFilter] qSel vals:', vals, '→ value:', qSel.value);
     }
   }
 }

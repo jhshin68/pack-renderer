@@ -375,16 +375,29 @@ function _renderCustomCandidates(result) {
     candidates = candidates.filter(c => (c.total_score ?? 0) === qVal);
   }
 
-  if (countEl) countEl.textContent = candidates.length < total
-    ? `${candidates.length} / ${total}개`
-    : `${total}개`;
+  const filtered = candidates.length;
+  // 표시 상한: 필터링 후에도 너무 많으면 상위 200개만 렌더링
+  const DISPLAY_CAP = 200;
+  const display = candidates.slice(0, DISPLAY_CAP);
+
+  if (countEl) {
+    if (filtered === 0) {
+      countEl.textContent = '0개';
+    } else if (filtered > DISPLAY_CAP) {
+      countEl.textContent = `${DISPLAY_CAP} / ${total}개 표시`;
+    } else if (filtered < total) {
+      countEl.textContent = `${filtered} / ${total}개`;
+    } else {
+      countEl.textContent = `${total}개`;
+    }
+  }
   listEl.innerHTML = '';
-  if (candidates.length === 0) {
+  if (display.length === 0) {
     listEl.innerHTML = '<div class="hint" style="margin-top:4px;color:var(--amber)">현재 제약으로 유효 후보 없음<br>ICC/B± 조건을 완화해보세요</div>';
     _showCandDetail(-1);
     return;
   }
-  if (state.selected_ordering >= candidates.length) state.selected_ordering = 0;
-  _renderCandCards(candidates, listEl, S);
+  if (state.selected_ordering >= display.length) state.selected_ordering = 0;
+  _renderCandCards(display, listEl, S);
   _showCandDetail(state.selected_ordering);
 }
