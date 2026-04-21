@@ -780,6 +780,7 @@ async function _runCustomSearch() {
       allow_I: state.allow_I,
       allow_U: state.allow_U,
       pitch: customPitch,
+      custom_stagger: !!state.custom_stagger,
     });
   } catch (e) {
     if (listEl) listEl.innerHTML = `<div class="hint" style="color:var(--red)">열거 오류: ${e.message}</div>`;

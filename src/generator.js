@@ -1393,6 +1393,7 @@
       allow_U = false,   // ★ Phase 4: U-pentomino 허용 여부
       pitch: pitchArg = null, // ★ Bug1: 커스텀 배열에서 calcCustomCenters가 반환한 실제 pitch 명시 전달
       use_beam_search = true, // ★ Phase 2: Beam Search 활성화 (false = 기존 MRV 동작)
+      custom_stagger = false, // ★ P28③: 렌더러 임계값 정합성 (stagger→1.2P, non-stagger→1.05P)
     } = ctx || {};
 
     if (!cells || cells.length === 0 || S < 1 || P < 1) {
@@ -1405,6 +1406,8 @@
 
     const pitch = (pitchArg != null) ? pitchArg : estimatePitch(cells);
     const thr   = arrangement === 'custom' ? pitch * 1.5 : pitch * 1.05;
+    // renderThr: renderer.js isAdj와 동일한 임계값 — P28③ U판 연결성 검증에 사용
+    const renderThr = custom_stagger ? pitch * 1.2 : pitch * 1.05;
     const bPlus  = arrangement === 'custom' ? calcCustomBoundarySet(cells, b_plus_side)  : calcBoundarySet(cells, b_plus_side);
     const bMinus = arrangement === 'custom' ? calcCustomBoundarySet(cells, b_minus_side) : calcBoundarySet(cells, b_minus_side);
 
@@ -1508,12 +1511,13 @@
     }
 
     // 그룹 내 셀 연결성 검사 (원칙 1: P개 셀이 인접 그래프 상 연결되어야 함)
-    function isGroupConnected(gc) {
+    function isGroupConnected(gc, thrOverride) {
+      const t = (thrOverride != null ? thrOverride : thr) + 0.5;
       if (gc.length <= 1) return true;
       const adj = Array.from({ length: gc.length }, () => []);
       for (let i = 0; i < gc.length; i++)
         for (let j = i + 1; j < gc.length; j++)
-          if (Math.hypot(gc[i].x - gc[j].x, gc[i].y - gc[j].y) <= thr + 0.5) {
+          if (Math.hypot(gc[i].x - gc[j].x, gc[i].y - gc[j].y) <= t) {
             adj[i].push(j); adj[j].push(i);
           }
       const vis = new Set([0]);
@@ -1542,11 +1546,11 @@
           Math.hypot(a.x - b.x, a.y - b.y) <= thr + 0.5));
         if (!ok) return false;
       }
-      // P28③: 2P 병합 플레이트 연결성
+      // P28③: 2P 병합 플레이트 연결성 — renderThr 사용(renderer.js isAdj와 임계값 일치)
       for (let pStart = 0; pStart <= 1; pStart++) {
         for (let g = pStart; g + 1 < groups.length; g += 2) {
           const merged = [...groups[g].cells, ...groups[g + 1].cells];
-          if (!isGroupConnected(merged)) return false;
+          if (!isGroupConnected(merged, renderThr)) return false;
         }
       }
       // ★ 원칙 30: 동일 면 이종 플레이트 비교차 (쇼트 절대 금지)
