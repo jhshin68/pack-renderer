@@ -272,10 +272,13 @@ async function _runCustomSearch() {
     if (countEl) countEl.textContent = '—';
     return;
   }
+  // 열거용 좌표: custom_stagger=false 고정 (엇배열 여부와 무관하게 동일한 인접 그래프)
+  // 렌더링은 state.custom_stagger 그대로 사용 — 열거만 rectangular 기준
   const customParams = {
     ...state,
     layout: 'auto', scale: 1.5, nickel_w_mm: 4.0, margin_mm: 8.0,
     rows: customRows, row_offsets: customOffsets,
+    custom_stagger: false,
   };
   let customPts, customPitch;
   try {
@@ -317,7 +320,7 @@ async function _runCustomSearch() {
       allow_I: state.allow_I,
       allow_U: state.allow_U,
       pitch: customPitch,
-      custom_stagger: !!state.custom_stagger,
+      custom_stagger: false,
     });
   } catch (e) {
     if (listEl) listEl.innerHTML = `<div class="hint" style="color:var(--red)">열거 오류: ${e.message}</div>`;
