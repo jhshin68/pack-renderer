@@ -1,462 +1,63 @@
 ========================================
-마지막 업데이트: 2026-04-21 (세션 41 — 탐색 시간 제한 UI + 필터 콤보박스 구현)
-버전: battery_pack_renderer.html, src/app.js (thin), src/app-state.js, src/app-ui.js, src/app-render.js, src/app-panel.js, src/generator.js (v0.4.2), src/renderer.js
-테스트 상태: pass=846 fail=0 (전체 0 failures)
-feature_list.json: 모든 항목 passes:true
-git 상태: 세션 41 작업 중 (커밋 예정)
-
-## 세션 41 진행 (2026-04-21) — 탐색 시간 제한 UI + 필터 콤보박스
-
-### 완료 사항
-
-#### 탐색 시간 제한 UI (좌측 사이드바)
-- `state.search_budget_ms: 600000` 기본값 추가 (`src/app-state.js`)
-- `setSearchBudget(ms)` 함수 추가 (`src/app-ui.js`) — 버튼 활성화 토글 포함
-- 좌측 사이드바 Display Options 아래 버튼 그룹 추가 (1분/5분/10분/무제한)
-- CSS 버그 수정: `.sidebar-body { min-height: 0; overflow-y: auto }` 추가 → 버튼 클릭 가능
-
-#### 형상종류/품질 Σ 필터 콤보박스 (우측 패널 상단, 상시 표시)
-- `candidateFilterBar` div 추가 — `mdistinctSel` + `qualitySel` 두 셀렉트
-- `_syncFilterOptions(result)` 함수 추가 (`src/app-panel.js`):
-  - 첫 populate 시: m_distinct 최솟값 / 품질 Σ 최댓값 자동 선택
-  - 이후: 사용자 선택 유지
-- `filterByMdistinct` / `filterByQuality` 핸들러 추가
-- **호출 순서 수정**: `_runCustomSearch` 완료 후 `_syncFilterOptions(result)` → `_renderCustomCandidates(result)` 순서로 분리
-
-#### 기타 수정
-- `allow_I` 기본값 `false`로 변경 (HTML 토글 + `app-state.js`)
-- `_renderSVG` 내 `_countDistinctShapes(c)` → `(c.m_distinct || 0)` 교체
-- `max_candidates: 999999` + `budget_ms` 방식으로 모든 탐색 통일
-- 후보 카드: `플레이트 N종` 표시 (`cand.m_distinct`)
-
-### 미해결 버그 (현재 작업 중)
-
-- **필터 콤보박스 미입력**: 검색 완료 후 `mdistinctSel` / `qualitySel` 에 값이 들어오지 않음
-  - 36,000개 이상 후보가 필터 없이 전부 표시됨
-  - `_syncFilterOptions(result)` 호출 분리 후에도 여전히 미해결
-  - 브라우저 실측 디버그 필요
-
-### 다음 할 일
-- [ ] **[CRITICAL]** 필터 콤보박스 실제 DOM 업데이트 되는지 디버그
-- [ ] 커밋 및 push (현재 세션 변경 7개 파일)
-
----
-
-## ⚠️ 구 "다음 할 일" 항목 정리 노트 (세션 41)
-
-아래 항목들은 과거 세션 기록에 반복 등장하나, **현재 존재하지 않거나 이미 해소**됨. 다시 추적 금지.
-
-| 항목 | 상태 |
-|---|---|
-| `test_enumerate_integration` (10S5P C3/C4 실패) | ❌ 파일 없음 — 해소 또는 제거됨 |
-| `validator_tier2a/b` (P29 셀 좌표 undefined) | ❌ 파일 없음 — validator.js v7-tier2d 전량 실구현 완료 |
-| `test_holder_constraints` (H3/I3/L2) | ❌ 파일 없음 — 해소 또는 제거됨 |
-| `test_p14_face_merging` | ❌ 파일 없음 — checkFaceMerging 실구현, test_validator_stub.js 커버 |
-| `test_enumerate_integration` snake C3/C4 | ❌ 파일 없음 |
-| 13S4P 비균일 staggerON 0후보 물리적 가능 여부 | 미확인 (물리 도메인 질문 — 코드 문제 아님) |
-
-현재 실존 테스트 파일: tests/ 내 15개, 전부 0 fail.
-
-### 다음 할 일
-- [ ] 커스텀 배열 미완 기능 (사용자와 협의 중)
-
----
-
-## 세션 40 진행 (2026-04-21) — 문서 정합성 업데이트
-
-### 완료 사항
-
-#### Phase 3: 문서 정합성 업데이트
-
-**nickel_plate_principles.md (v8 → v8.1)**
-- LAYER 0 인덱스: 원칙 30 추가 (7→8개, `1·6·8·9·26·28·29·30`)
-- 원칙 9③: 커스텀 인접 임계값을 스태거 여부로 분리 (비 스태거: 1.05, 스태거: 1.2) — 세션 35 코드 변경 반영
-- 원칙 28③: renderThr 정합성 요구사항 추가 (generator.js validateP28 ↔ renderer.js isAdj 동일 임계값 강제) — 세션 38 코드 변경 반영
-
-**nickel-plate-design.md (v7.1 → v7.2)**
-- 원칙 15 Step C' 후보 우선순위 정렬: m_distinct 오름차순 2순위 추가 — 세션 35 코드 변경 반영
-- 원칙 15 Step C' 탐색 전략: Beam Search(4 프리셋 × width=5) + 우선순위 축출(Priority Eviction) 기술 추가 — 세션 34·36 코드 변경 반영
-
-#### 프로젝트 구조 정리
-
-- `principles.md` 삭제 — skills/ 4파일로 대체된 레거시 통합본 (413줄 제거)
-- `new_design.md` → `docs/new_design.md` 이동 — 코드·훅 직접 참조 없는 설계 참고 문서
-- `.bkit/`, `.gstack/`, `~` 폴더 삭제 — 미사용 잔재
-- `.claude/worktrees/` 삭제 — 과거 worktree 3개 잔재 (pensive-hawking, sharp-lichterman, thirsty-hugle)
-- `.gitignore` 업데이트 — `tmp/`, `png/`, `.graphify_incremental.json`, `.graphify_python` 추가
-
-**루트 잔류 파일**: `CLAUDE.md`, `README.md`, `battery_pack_renderer.html` 3개만 유지
-
-### 다음 할 일
-- [x] 신규 기능 개발 → 세션 41에서 커스텀 배열 작업 진행 중
-
-## 세션 39 진행 (2026-04-21) — app.js 분리 + 테스트 정리
-
-### 완료 사항
-
-#### Phase 2: app.js → 5파일 분리 (browser-only plain script)
-- `src/app-state.js` (109줄): state, lastSVG, _enumResult, 비용 상수, _countDistinctShapes, parseCustomRows, parseRowOffsets, checkCustomConsistency
-- `src/app-ui.js` (243줄): UI 컨트롤 핸들러 (setCellType → setFace)
-- `src/app-render.js` (263줄): 렌더 파이프라인 (calcPackDimensions → _renderCustomCandidates) — estimateMmin → Generator.estimateMmin 교체
-- `src/app-panel.js` (240줄): 후보 패널 (toggleICC → _showCandDetail) — estimateMmin → Generator.estimateMmin 교체
-- `src/app.js` (55줄, thin): downloadSVG, downloadPNG, 키보드 내비, rerender()
-- `battery_pack_renderer.html`: 4개 script 태그 추가 (app-state → app-ui → app-render → app-panel → app.js)
-- 브라우저 정상 확인 (staggered+holder 포함)
-
-#### 테스트 0 failures 달성
-- `test_cell_group_override.js` T5 assertion 수정: "custom은 cell_groups 무시" → "custom은 cell_groups 주입 지원" (renderCustomRows 설계 변경 반영)
-- 전체 테스트 fail=0 (회귀 846/846 포함)
-
-### 다음 할 일
-- [ ] Phase 3: 문서 정합성 (선택적 — nickel_plate_principles.md Layer 분리)
-
----
-
-## 세션 38 진행 (2026-04-21) — 원칙 28 위반 수정 (P28③ renderThr 정합성)
-
-### 완료 사항
-
-#### Fix: generator-renderer 임계값 불일치 수정 (generator.js + app.js)
-- **근본 원인**: validateCandidate P28③이 `pitch*1.5`로 U판 연결성 검증, renderer.js isAdj는 `pitch*1.05`. 1.05P~1.5P 사이 대각 cross-group 쌍을 가진 snake 후보가 generator에서 합격하지만 renderer에서 연결선 미표시 → 4셀 섬 2개로 보임 (원칙 28 위반)
-- 수정: `renderThr = custom_stagger ? pitch*1.2 : pitch*1.05` 정의 후 P28③에 적용
-- `isGroupConnected(gc, thrOverride)` — thrOverride 옵션 파라미터 추가
-- app.js: `enumerateGroupAssignments` 호출 시 `custom_stagger: !!state.custom_stagger` 전달
-- **결과**: 13S4P custom 상면/하면 `[4,8,8,8,8,8,8]` ✓ (수정 전: `[4,4,4,4,4,8,8,8,8]`)
-- 후보 수: 40개 → 26개 (비인접 snake 14개 올바르게 제거)
-- test_p28_render_thr.js 3/3 PASS (신규), 846/846 회귀 PASS
-
-### 다음 할 일
-- [ ] staggered + holder 모드 브라우저 니켈 플레이트 형상 확인
-- [ ] 원칙 28 관련 추가 엣지케이스 있는지 검토 (다른 S×P 조합)
-
----
-
-## 세션 37 진행 (2026-04-21) — 후보 목록 정렬 + 원칙 28 위반 조사
-
-### 완료 사항
-
-#### Fix 1: _enumResult 오염 수정 (app.js:182)
-- 문제: 커스텀 → 정배열 → 커스텀으로 전환 시 이전 44-후보 결과가 커스텀 패널에 표시
-- 수정: `setArrangement('custom')` 진입 시 `_enumResult = null` 초기화
-- 검증: Playwright 브라우저로 확인 완료
-
-#### Fix 2: 후보 목록 플레이트 수 오름차순 정렬 (app.js:815, 1090)
-- 사용자 요청: "셀 배열 후보 리스트를 플레이트 개 순으로 나타내는 올림차순"
-- `_renderCustomCandidates()` 및 `populateCandidatePanel()` 양쪽에 정렬 추가
-- 정렬 기준: `_countDistinctShapes(cand)` 오름차순 (= 물리적 니켈 플레이트 형상 종류 수)
-
-### 조사 중: 원칙 28 위반 (미완료)
-
-**사용자 보고**: "상면에 13s4p 배열이면 반드시 4개짜리 플러스 한개만 나타나야 하고, 그 어떤 니켈플레이트가 4개짜리가 나타날 수 없다. 하면에 4개짜리 음극으로 된 니켈플레이트만 존재해야 한다."
-
-**조사 결과 (현재까지)**:
-
-1. **m_distinct 불일치 원인 파악**:
-   - `generator.js m_distinct`: 그룹(G) 단위 형상 개수 — `_shapeSigOf(g, 4)` 사용, S=13에서 6~8 반환
-   - `app.js _countDistinctShapes()`: 실제 니켈 플레이트(원칙 14 병합 후) 형상 개수 — U판(8셀)·I판(4셀) 기준, 11 반환
-   - **두 카운트는 다른 대상을 측정** — 모순 아님, 정상 동작
-
-2. **calcNickelPattern / buildNickel 로직 확인**:
-   - `calcNickelPattern(13, 4)` top: I(G0=B+), U(G1,G2), U(G3,G4), U(G5,G6), U(G7,G8), U(G9,G10), U(G11,G12) — 7판
-   - bottom: U(G0,G1), U(G2,G3), U(G4,G5), U(G6,G7), U(G8,G9), U(G10,G11), I(G12=B-) — 7판
-   - 패턴 자체는 원칙 14/28에 부합 (각 I판 = 4셀, 각 U판 = 8셀)
-
-3. **미해결**: 왜 렌더링 화면에서 여러 4셀 플레이트가 보이는지 미확인
-   - 가설 A: U 플레이트의 두 그룹이 공간적으로 비인접 → isAdj 실패 → 연결선 미표시 → 4셀 섬처럼 보임
-   - 가설 B: generator가 비표준 셀 수 그룹 생성 (unlikely, 모든 그룹 = P=4셀)
-   - **검증 미완료**: DOM 검사(face별 판당 셀 수 카운트) 필요
-
-### 다음 할 일
-- [ ] 커스텀 Generate 후 DOM 검사: 면별 플레이트 × 셀 수 카운트 (isAdj 실패 여부 확인)
-- [ ] 가설 A 검증: 비인접 U 플레이트 쌍이 어느 후보에서 발생하는지
-- [ ] 원칙 28 위반이 renderer 문제인지 generator 문제인지 확정
-
----
-
-## 세션 36 진행 (2026-04-21) — 우선순위 축출 (Priority Eviction) 구현
-
-### 완료 사항
-
-#### 핵심 변경: 최적 K개 보장 (generator.js)
-
-**사용자 요구**: "모든 후보를 찾고, 그 중에 니켈형상수가 가장 작은 리스트 후보 40개를 골라서 나에게 제시해야 합니다"
-
-**기존 문제 (RED 확인)**:
-- max_candidates=10, ICC OFF: `[7,7,8,8,8,8,8,8,9,9]` 반환
-- 처음 찾은 K개 후 조기 종료 → m_distinct 비최적 혼입
-- 전체 공간에 m=7 후보 31개 존재하나 2개만 반환
-
-**구현 (candCmp + commitCandidate 우선순위 축출)**:
-- `candCmp(a, b)` 함수 추가 — 정렬 기준과 동일한 비교기 (B+/B- → m_distinct → ICC → total_score)
-- `commitCandidate()` 에서 `m_distinct` 즉시 계산 후 candidate에 주석
-- `results.length >= max_candidates` 시: worst 탐색 후 newCand < worst이면 축출
-- Phase 2 진입 조건에서 `results.length < max_candidates` 게이트 제거
-- BFS/Beam/DFS 전체에서 `results.length >= max_candidates` 조기 종료 11개소 모두 제거
-  (time budget `btBudgetMs` 및 `MAX_ITER_BT` 으로 탐색 종료 유지)
-
-**검증 (GREEN 확인)**:
-- max_candidates=10, ICC OFF: `[7,7,7,7,7,7,7,7,7,7]` 반환 ✓
-- test_best_mdistinct 4/4 PASS (신규)
-- test_phase2_candidates 4/4 PASS (C2: 5s로 완화, C3: eviction 정확성으로 재정의)
-- 846/846 회귀 PASS
-
-### 다음 할 일
-- [ ] 브라우저에서 13S4P 커스텀, ICC OFF: 후보 40개 m_distinct 분포 확인
-- [ ] staggered+holder 모드 니켈 플레이트 형상 브라우저 확인
-
----
-
-## 세션 35 진행 (2026-04-21) — P9 isAdj 수정 + m_distinct 정렬
-
-### 완료 사항
-
-#### Task 1: P9 isAdj 임계값 수정 (renderer.js:652)
-- 문제: `pitchPx² × 2.25` (1.5P²) — 비인접 대각 1.118P 허용
-- 수정: `thr = params.custom_stagger ? pitchPx * 1.2 : pitchPx * 1.05`
-  - non-stagger: 1.05P (동일 행폭 순수 인접만 허용, 1.118P 차단)
-  - stagger: 1.2P (정규 스태거 대각 ≈1.118P 허용)
-- 결과: test_p09_pixel_adj 6/6 PASS (이전 PA1/PA2/PA3/PA5 4개 실패 → 전부 PASS)
-
-#### Task 2: m_distinct 정렬 우선순위 변경 (generator.js:2077)
-- 이전: B+/B- → ICC → total_score → compact → m_distinct (마지막)
-- 변경: B+/B- → **m_distinct (오름차순)** → ICC → total_score → compact
-- m_distinct = 금형 종류 수 (적을수록 비용 효율적) → 사용자 요청으로 최우선 적용
-- candidate 객체에 `m_distinct` 필드 주석 (UI/테스트에서 직접 사용 가능)
-- test_sort_mdistinct 4/4 PASS (신규), test_sort_compact 5/5 PASS (갱신)
-
-#### 정렬 변경 영향 (13S4P custom 기준)
-- ICC OFF: 40후보, top m_distinct=7 (G0=[11,12,23,24]), {48,49,36,37} → rank 12 (m=8)
-- ICC ON (일반 사용): 3후보, {48,49,36,37} → **rank 2** (m=8), rank1 m=7
-
-#### C3 테스트 완화
-- 이전: `G0={48,49,36,37} top-3 이내`
-- 변경: `G0={48,49,36,37} 후보에 존재 (rank 무관)` — m_distinct 정렬로 rank 변동 반영
-
-#### Task 3: 브라우저 검증
-- 18650 + 13S4P custom, ICC ON: 3후보 정상 생성, rank1 m=7 / rank2 {48,49,36,37} m=8
-- 렌더링 오류 없음 (favicon 404 제외)
-
-### 다음 할 일
-- [ ] Phase 3: docs 정합성 업데이트 (선택적)
-- [ ] 브라우저에서 staggered+holder 모드 니켈 플레이트 형상 확인
-
----
-
-## 세션 34 진행 (2026-04-21) — Phase 2 Beam Search 완료
-
-### 완료 사항
-
-#### Phase 2 Beam Search (generator.js)
-- `pickCompact` 액션 점수 함수 구현 (wh·H + wv·V + wd·D + wc·C + ws·M - piso·I - picc·X)
-- 4 PC_PRESETS: HORIZ_FIRST, VERT_FIRST, COMPACT, SHAPE_MATCH
-- B+ 시드 × 4 프리셋 × beam_width=5 beam search 루프
-- DFS I-shape 조기 가지치기 (P-1 depth에서 I-shape 완성 셀 skip)
-- `use_beam_search` feature flag 추가 (기본값 true, false → 기존 MRV DFS 동작 유지)
-- 진단 코드 제거 (_diagCounters, lastDiag getter)
-
-#### §8.2 Phase 2 완료 기준 달성
-- [x] 커스텀 회귀 20/20 PASS (regression 846/0)
-- [x] 13S4P 사용자 예시 {48,49,37,36} 상위 3 포함
-- [x] 실행 시간 3000ms 이하 (~560ms)
-- [x] use_beam_search=false 시 기존 MRV DFS 동작 유지
-
-### 다음 할 일
-- [ ] 브라우저에서 13S4P 커스텀 배열 후보 렌더링 확인 (G0=[#48,#49,#36,#37] 포함)
-- [ ] test_p09_pixel_adj: PA1/PA2/PA3/PA5 4개 기존 실패 — renderer.js isAdj 픽셀 거리 수정
-- [ ] Phase 3: 문서 정합성 · 원칙 파일 업데이트 (선택적)
-
----
-
-## 세션 33 진행 (2026-04-20) — P9 폴백 버그 수정 + P29 테스트
-
-### 완료 사항
-
-#### 세션 32 독립 커밋 (3622f99)
-- src/generator.js (pickCompactHoriz) + tests/test_bfs_compact.js 커밋
-
-#### P9 폴백 극성 버그 수정 (renderer.js:660-669)
-- 문제: P9 위반 표시 경로에서 `Math.floor(i / cellsPerGroup)` 사용 → 원칙 1 위반
-- 수정: `p9GrpMap` (groupCells 기반 Map)으로 교체
-- 원칙 1: 극성은 실제 그룹 배정 기준, snake 순서 사용 금지
-
-#### test_p29_parallel_polarity.js 신규 작성 (9486bc9)
-- 44개 assertion: getCellPolarity 일관성, square/staggered 5S4P 극성 분포, custom 13S4P 셀 배정 무결성
-- 44/44 PASS, 846/846 회귀 PASS
-
-### 다음 할 일
-- [ ] 브라우저에서 13S4P 커스텀 배열 후보 렌더링 확인 (G0=[#48,#49,#36,#37] 포함)
-- [ ] 브라우저에서 staggered+holder 모드 니켈 플레이트 형상 확인
-- [ ] 13S4P 비균일 staggerON 0후보: 물리적 불가능 여부 도메인 확인
-- [ ] test_enumerate_integration: 10S5P snake count=0 (C3/C4 실패) 원인 분석
-
----
-
-
-## 세션 32 진행 (2026-04-20) — pickCompactHoriz BFS 픽커 구현
-
-### 완료 사항
-
-#### pickMRV → pickCompactHoriz 교체 (generator.js)
-
-**문제 (세션 31 말미 식별)**
-- 기존 `pickMRV`는 MRV(최소 남은 이웃) 기준으로만 픽 → 방향 무시
-- G0 = [#23,#11,#36,#48] : 4행 스팬, I형 체인 → allow_I=false 거부 → 0 후보
-- 사용자 요구: "#23 시작 → #24(수평) 먼저, #11(사선) 나중에"
-- 사용자 예시: G0 = {#48,#49,#37,#36} (2행 스팬, 컴팩트 클러스터)
-
-**시도 1 — pickCompactHoriz + checkFutureConn (실패)**
-- 연결성 가드: c 픽 후 P개 미만 고립 컴포넌트 발생 시 차단
-- Row4 stranding 방지 목적
-- 결과: 연결성 가드가 너무 공격적 → G7 4번째 픽 전체 차단 → 0 후보
-- 원인: {#41,#52} 2-cell 고립 컴포넌트 발생, pickingLast=true 시 무조건 거부
-
-**시도 2 — pickSmartMRV (MRV + I형 페널티)**
-- step 4에서만 I형 체인 페널티 적용
-- 결과: 5/5 테스트 PASS, 846/846 회귀 PASS
-- 문제: G0 2번째 픽 = #11(MRV=1 최소) → 수평 #24(MRV=4) 보다 먼저 → 방향 규칙 위반
-
-**시도 3 — pickCompactHoriz 최종 (채택)**
-- 핵심 변경: step 2(group.length=1)에서만 같은 행(수평) 후보 필터 추가
-- step 4(마지막 픽)에서 I형 체인 후보 제거 (기존과 동일)
-- 나머지 step: MRV 기본 (병목 셀 우선)
-
-```javascript
-function pickCompactHoriz(candidates, group) {
-  const groupCells = group.map(i => cells[i]);
-  let pool = candidates;
-  // step 2: 수평(같은 행) 우선
-  if (group.length === 1) {
-    const sameRow = pool.filter(c => cells[c].row === groupCells[0].row);
-    if (sameRow.length > 0) pool = sameRow;
-  }
-  // step 4: I형 체인 회피
-  if (group.length === P - 1) {
-    const notLinear = pool.filter(c => !_isLinearGroup([...groupCells, cells[c]]));
-    if (notLinear.length > 0) pool = notLinear;
-  }
-  // MRV 선택
-  let best = -1, bestD = Infinity;
-  for (const c of pool) {
-    const d = adjL[c].filter(j => !used[j]).length;
-    if (d < bestD) { bestD = d; best = c; }
-  }
-  return best;
-}
-```
-
-**결과**
-- G0 = [#48,#49,#36,#37] — 2행 스팬(Row4+Row3), I형 아님, 컴팩트(max dist 32.9mm ≤ 2×pitch 38.0mm)
-- G1 = [#23,#24,#11,#12] — #23 시작 시 #24(수평) 먼저, #11 나중에 ✓ 방향 규칙 만족
-- 52셀 전체 배정 성공, G12에 B- 셀 포함
-- tests/test_bfs_compact.js 신규 작성 (6개 assertion): 6/6 PASS
-  - 후보 존재 / G0 컴팩트 / G0 I형 아님 / G0 행 스팬 ≤2 / 52셀 배정 / G12 B- 포함
-- 회귀: 846/846 PASS, 기존 2개 실패(C3/C4, 10S5P snake)는 세션 전부터 존재하던 사전 실패
-
-#### 핵심 진단 인사이트
-
-| 항목 | 내용 |
-|---|---|
-| G0 원본 MRV 실패 이유 | G0/G2 등 3개 그룹 I-shape → allow_I=false 전체 거부 |
-| 연결성 가드 과잉 차단 이유 | #41 adj [#40(G3), #29(G7), #42, #52] → #41,#52 고립 2-cell 컴포넌트 |
-| pickCompactHoriz 핵심 | step 2만 수평 필터 + step 4만 I형 회피; MRV가 자연스럽게 병목 처리 |
-| G0 결과 구조 | #37 has degree 3 → T/Y 모양, 비I형 판정 ✓ |
-
-### 다음 할 일
-- [ ] 브라우저에서 13S4P 커스텀 배열 후보 렌더링 확인 (G0=[#48,#49,#36,#37] 포함)
-- [ ] 브라우저에서 staggered+holder 모드 니켈 플레이트 형상 확인
-- [ ] 13S4P 비균일 staggerON 0후보: 물리적 불가능 여부 도메인 확인
-- [ ] test_enumerate_integration: 10S5P snake count=0 (C3/C4 실패) 원인 분석
-
----
-
-## 세션 31 진행 (2026-04-20) — 13S4P BFS-MRV 대화형 디버깅 준비
-
-### 완료 사항
-
-#### 진단 스크립트 작성 (tmp/diag_bfs_trace_13s4p.js)
-- generator.js require + BFS-MRV 52-step 전체 추적
-- CELL_SPEC: 18650 render_d=19.0
-- 입력: rows=[10,12,13,12,5], offsets=[0,-2,-2,-2,-1], stagDir='R'
-- 전체 52-step 성공 확인 (g0start=#23)
-
-#### 셀 배치 확인
-- ASCII 맵 방향: Row0(10셀)=물리적 하단, Row4(5셀)=상단 — 사용자 검증 완료
-- 전체 결과: state/session31_bfs_debug.md에 기록
-
----
-
-## 세션 30 진행 (2026-04-20) — 커스텀 니켈 플레이트 형상 수정
-
-### 완료 사항
-
-#### buildNickel() spanning tree → 모든 인접 쌍 수정 (renderer.js)
-- 문제: 커스텀 배열 buildNickel()이 spanning tree(최소 엣지)로 연결 → 사다리꼴 형상이 열린 채로 보임
-- 원인 분석: 정규 배열(staggered) buildFace()는 이미 all-adjacent-pairs 방식을 사용 중인데 커스텀만 spanning tree 사용
-- 수정: spanningTree 함수 + G0/G1 분기 → 단순 이중 루프 all-adjacent-pairs (정규 배열과 동일)
-- sw=nw, 노드원 없음 유지 → 정규 배열 렌더와 완전히 동일한 방식
-- 회귀: 846/846 pass
-
-#### 원칙 위반 커밋 후 즉시 revert (반면교사 기록)
-- 1차 시도: nickel_render_rules.md/nickel-plate-design.md 미열람 + 요약 해석 맹신
-  → stroke=2R + all-pairs + circles 동시 변경 → 형상 완전 변경 → 사용자 즉시 취소 요청
-- git revert로 복원 (41bfb35 → cb198b7)
-- 2차 시도: 두 파일 열람 후 정규 렌더 코드 참조 → 올바른 수정 (spanning tree만 교체)
-- 교훈 memory 파일 저장: `feedback_render_principle_violation.md`
-
----
-
-## 세션 29 진행 (2026-04-20) — 권한 설정 + 미커밋 변경 기록
-
-### 완료 사항
-
-#### .claude/settings.local.json 권한 패턴 정리
-- 멀티라인 node -e "..." 명령이 매번 권한 요청하던 문제 해결
-- 개별 패턴 다수 → `"Bash(node *)"` 단일 패턴으로 통합
-
-#### app.js 변경 (세션 28에서 커밋 누락된 내용 포함)
-- populateCandidatePanel() 커스텀 분기: customPitch 변수 추가 및 enumerateGroupAssignments pitch 파라미터 전달
-
-#### renderer.js 변경
-- renderCustomRows(): plateGroups[] 배열 병렬 추적
-- spanningTree() 헬퍼 추가
-- P 파라미터 추출: `const P = params.P || 1`
-
----
-
-## 세션 28 진행 (2026-04-20) — validateCandidate 게이트 + 커스텀 회귀 테스트
-(이전 항목 유지 — 자세한 내용은 git log 참조)
-
----
-
-## 세션 38 진행 (2026-04-21) — 서브모듈 분리 + P28 renderThr 수정
-
-### 완료 사항
-
-#### P28③ renderThr 정합성 수정 (이전 세션 carry-over)
-- 문제: generator 검증 임계값(pitch×1.05) vs renderer isAdj(custom_stagger: pitch×1.2, 일반: pitch×1.05) 불일치
-- 해결: validateP28에 `renderThr = custom_stagger ? pitch * 1.2 : pitch * 1.05` 추가
-- 테스트: tests/test_p28_render_thr.js 3 PASS
-
-#### generator.js 서브모듈 분리 (메인 작업)
-- 2199줄 단일 파일 → 4파일 구조:
-  - `src/gen-math.js` (~220줄): 순수 수학 (_pt, estimatePitch, buildAdjacency, checkPlanarNoCrossing, groupQualityScore, compactShapeScore)
-  - `src/gen-layout.js` (~200줄): 레이아웃 (canonicalSig, calcNickelPattern, buildSnakeLayout, calcCustomCenters, estimateMmin)
-  - `src/gen-enum.js` (~850줄): 열거기 (buildHolderGrid, calcBoundarySet, enumerateGroupAssignments, _shapeSigOf)
-  - `src/generator.js` (~940줄, 파사드): SFMT 파이프라인 + 전 API re-export
-- 이중 런타임: Node require() + Browser window._GenMath/_GenLayout/_GenEnum
-- 의존 순서: gen-math → gen-layout → gen-enum → generator
-
-#### battery_pack_renderer.html 스크립트 로드 순서 업데이트
-- pentomino_tiling.js → gen-math.js → gen-layout.js → gen-enum.js → generator.js → renderer.js → app.js
-
-#### VM 기반 테스트 수정 (6개 파일)
-- test_regression_all_sp.js, test_cell_group_override.js, test_g0_anchor.js, test_no_crossing.js, test_p_invariant.js, test_f14_custom_rows.js
-- 각 파일에 sub-module readFileSync + vm.runInContext 선행 로드 추가
-
-### 테스트 결과
-- 전체 37개 테스트 파일 실행
-- 새 회귀 없음 (서브모듈 분리로 인한 신규 실패 0개)
-- 기존 알려진 실패 그대로 유지 (pre-existing):
-  - validator P29 셀 좌표 undefined (validator_tier2a/b)
-  - custom threshold 1.5 vs 테스트 기대값 1.1 (p09_adjacency C3/C4)
-  - holder_constraints H3/I3/L2, p14_face_merging, enumerate_integration 스네이크
+마지막 업데이트: 2026-04-22 (세션 44 — 사이드바-렌더러 인덱스 불일치 버그 수정)
+버전: battery_pack_renderer.html, src/app-state.js, src/app-panel.js, src/app-render.js
+테스트 상태: 브라우저 기능 확인 필요
+feature_list.json: 확인 필요
+
+========================================
+## 세션 44 핵심 성과
+
+### 버그 발견 및 수정: 사이드바-렌더러 인덱스 불일치
+
+증상:
+  - 사이드바 "열 우선 L→R (2종)" 클릭 → "비표준 5" (3종) 이미지 표시
+  - 사이드바 "비표준 8 (3종)" 클릭 → "열 우선 R→L" (2종) 이미지 표시
+  - 이름·m_distinct 레이블과 렌더링 이미지가 2개씩 뒤바뀜
+
+원인:
+  - enumerateGroupAssignments 반환 원본 배열 순서:
+      [0:열우선L→R(m=2), 1:비표준5(m=3), 2:비표준6, 3:비표준7,
+       4:비표준8(m=3), 5:열우선R→L(m=2), 6:보스트로페돈L→R, 7:보스트로페돈R→L]
+  - 사이드바는 m_distinct 오름차순 정렬 후 표시:
+      [0:열우선L→R, 1:열우선R→L, 2:비표준5, 3:비표준6,
+       4:비표준7, 5:비표준8, 6:보스트로페돈L→R, 7:보스트로페돈R→L]
+  - selected_ordering = 사이드바 위치 인덱스로 저장
+  - 렌더러는 원본 배열의 동일 인덱스를 사용 → 인덱스 불일치!
+  - 위치 1 클릭 → 원본[1]=비표준5 렌더링 (열우선R→L이 아님)
+  - 위치 5 클릭 → 원본[5]=열우선R→L 렌더링 (비표준8이 아님)
+
+수정 (3파일):
+  1. src/app-state.js: `let _sortedCandidates = null;` 변수 추가
+  2. src/app-panel.js:
+     - _renderCandCards() 에서 _sortedCandidates = candidates 저장
+     - _showCandDetail() 에서 _sortedCandidates[idx] 우선 사용
+     - _enumResult=null 시 _sortedCandidates=null 함께 리셋
+  3. src/app-render.js:
+     - effectiveCandidates = _sortedCandidates || ... 우선 사용
+     - _enumResult=null 시 _sortedCandidates=null 함께 리셋 (4곳)
+
+========================================
+## 이전 세션 요약
+
+세션 41-43:
+  - 탐색 시간 제한 UI (1분/10분/30분/1시간)
+  - 형상종류/품질 필터 콤보박스
+  - 후보 표시 상한 200개
+  - CPU 최적화 병렬 탐색 (os.cpus()-2)
+  - 커스텀 배열 stagger 열거 버그 수정
+  - 필터 갱신 순서 보장
+
+세션 38-40:
+  - m_distinct 합판 단위 계산 수정 (plate-level)
+  - 커스텀 배열 니켈 플레이트 교차(쇼트) 방지
+  - .gitignore 보완
+
+========================================
+## 신규/수정 파일
+
+- src/app-state.js: _sortedCandidates 전역 변수 추가
+- src/app-panel.js: 인덱스 동기화 수정
+- src/app-render.js: 인덱스 동기화 수정
+- tests/gen_svgs.js: 신규 (3S2P 후보 SVG 생성 디버그 도구)
+- src/enum-worker.js: 신규 (웹워커, 미통합)
+- tests/parallel_search.js: CPU 최적화 수정

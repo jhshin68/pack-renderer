@@ -154,8 +154,10 @@ function adjZoom(d) {
 function _renderSVG() {
   updateInfoBox();
 
-  let effectiveCandidates = _enumResult ? (_enumResult.candidates || []) : [];
-  if (state.max_plates > 0) {
+  // ★ 사이드바와 동일한 정렬·필터 배열 사용 (인덱스 불일치 버그 방지)
+  let effectiveCandidates = _sortedCandidates ||
+    (_enumResult ? (_enumResult.candidates || []) : []);
+  if (!_sortedCandidates && state.max_plates > 0) {
     effectiveCandidates = effectiveCandidates.filter(
       c => (c.m_distinct || 0) <= state.max_plates
     );
@@ -266,7 +268,7 @@ async function _runCustomSearch() {
   const customRows    = parseCustomRows();
   const customOffsets = parseRowOffsets();
   if (!customRows.length || typeof Generator === 'undefined' || typeof CELL_SPEC === 'undefined') {
-    _enumResult = null;
+    _enumResult = null; _sortedCandidates = null;
     _updateEnumStatus(null);
     if (listEl) listEl.innerHTML = '<div class="hint" style="color:var(--dt3);margin-top:4px">커스텀 배열 — 행 구성을 입력하세요</div>';
     if (countEl) countEl.textContent = '—';
@@ -288,7 +290,7 @@ async function _runCustomSearch() {
     if (listEl) listEl.innerHTML = `<div class="hint" style="color:var(--red)">커스텀 좌표 오류: ${e.message}</div>`;
     if (countEl) countEl.textContent = '오류';
     if (titleEl) titleEl.textContent = '셀 배열 후보';
-    _enumResult = null; _updateEnumStatus(null);
+    _enumResult = null; _sortedCandidates = null; _updateEnumStatus(null);
     return;
   }
 
@@ -298,7 +300,7 @@ async function _runCustomSearch() {
     : budgetMs >= 60000 ? `${budgetMs / 60000}분`
     : `${budgetMs / 1000}초`;
   if (genBtn) genBtn.disabled = true;
-  if (titleEl) titleEl.textContent = `셀 배열 후보 탐색중… (${budgetLabel})`;
+  if (titleEl) titleEl.textContent = `셀 배열 후보 병렬 탐색중… (${budgetLabel})`;
   if (countEl) countEl.textContent = '…';
   if (listEl) listEl.innerHTML = '<div class="hint" style="margin-top:6px;color:var(--dt3)">후보를 탐색하고 있습니다…</div>';
   _syncFilterOptions(null);  // 탐색 시작 시 필터 초기화
@@ -307,28 +309,86 @@ async function _runCustomSearch() {
   await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
   const t0 = Date.now();
 
-  let result;
+  // ─── Step 1: G0 후보 열거 (분할 계획) ────────────────────────────
+  const enumBase = {
+    cells: customPts, S, P, arrangement: 'custom',
+    b_plus_side, b_minus_side, icc1, icc2, icc3,
+    nickel_w: nickel_w_mm * 1.5,
+    g0_anchor: state.g0_anchor,
+    allow_I: state.allow_I, allow_U: state.allow_U,
+    pitch: customPitch, custom_stagger: false,
+  };
+  let g0Configs = [];
   try {
-    result = Generator.enumerateGroupAssignments({
-      cells: customPts, S, P, arrangement: 'custom',
-      b_plus_side, b_minus_side,
-      icc1, icc2, icc3,
+    const g0r = Generator.enumerateGroupAssignments({ ...enumBase, enumerate_g0_only: true });
+    g0Configs = g0r.g0_configs || [];
+  } catch (_) { /* G0 열거 실패 시 단일 스레드로 폴백 */ }
+
+  const numWorkers = Math.min(
+    Math.max(1, (navigator.hardwareConcurrency || 4) - 2),
+    g0Configs.length
+  );
+
+  let result;
+
+  if (g0Configs.length >= 2 && typeof Worker !== 'undefined') {
+    // ─── Step 2: Web Workers 병렬 탐색 ────────────────────────────
+    const chunks = Array.from({ length: numWorkers }, () => []);
+    g0Configs.forEach((g0, i) => chunks[i % numWorkers].push(g0));
+
+    const wParams = {
+      S, P, b_plus_side, b_minus_side, icc1, icc2, icc3,
       nickel_w: nickel_w_mm * 1.5,
-      max_candidates: 999999,
-      budget_ms: budgetMs,
-      g0_anchor: state.g0_anchor,
-      allow_I: state.allow_I,
-      allow_U: state.allow_U,
-      pitch: customPitch,
-      custom_stagger: false,
-    });
-  } catch (e) {
-    if (listEl) listEl.innerHTML = `<div class="hint" style="color:var(--red)">열거 오류: ${e.message}</div>`;
-    if (countEl) countEl.textContent = '오류';
-    _enumResult = null; _updateEnumStatus(null);
-    if (titleEl) titleEl.textContent = '셀 배열 후보';
-    if (genBtn) genBtn.disabled = false;
-    return;
+      allow_I: state.allow_I, allow_U: state.allow_U,
+    };
+
+    try {
+      const allBatches = await Promise.all(
+        chunks.map(chunk => new Promise((resolve, reject) => {
+          const w = new Worker('src/enum-worker.js');
+          w.onmessage = ev => { w.terminate(); resolve(ev.data.candidates || []); };
+          w.onerror   = err => { w.terminate(); reject(err); };
+          w.postMessage({ params: wParams, g0Configs: chunk, budgetMs, cells: customPts, pitch: customPitch });
+        }))
+      );
+
+      // 중복 제거 병합
+      const seen   = new Set();
+      const merged = [];
+      for (const batch of allBatches) {
+        for (const cand of batch) {
+          const key = (cand.groups || []).map(g =>
+            (g.cells || []).map(c => `${c.row},${c.col}`).sort().join('|')
+          ).join('§');
+          if (!seen.has(key)) { seen.add(key); merged.push(cand); }
+        }
+      }
+      result = { candidates: merged, count: merged.length };
+    } catch (e) {
+      // Worker 실패 → 단일 스레드 폴백
+      try {
+        result = Generator.enumerateGroupAssignments({ ...enumBase, max_candidates: 999999, budget_ms: budgetMs });
+      } catch (e2) {
+        if (listEl) listEl.innerHTML = `<div class="hint" style="color:var(--red)">열거 오류: ${e2.message}</div>`;
+        if (countEl) countEl.textContent = '오류';
+        _enumResult = null; _sortedCandidates = null; _updateEnumStatus(null);
+        if (titleEl) titleEl.textContent = '셀 배열 후보';
+        if (genBtn) genBtn.disabled = false;
+        return;
+      }
+    }
+  } else {
+    // ─── 단일 스레드 (G0 없음 또는 Workers 미지원) ─────────────────
+    try {
+      result = Generator.enumerateGroupAssignments({ ...enumBase, max_candidates: 999999, budget_ms: budgetMs });
+    } catch (e) {
+      if (listEl) listEl.innerHTML = `<div class="hint" style="color:var(--red)">열거 오류: ${e.message}</div>`;
+      if (countEl) countEl.textContent = '오류';
+      _enumResult = null; _sortedCandidates = null; _updateEnumStatus(null);
+      if (titleEl) titleEl.textContent = '셀 배열 후보';
+      if (genBtn) genBtn.disabled = false;
+      return;
+    }
   }
 
   const elapsed = ((Date.now() - t0) / 1000).toFixed(1);

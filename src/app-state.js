@@ -50,7 +50,8 @@ const state = {
   zoom:          1.0,         // 중앙 SVG 표시 배율 (0.3 ~ 3.0)
 };
 let lastSVG = '';
-let _enumResult = null;   // 마지막 enumerateGroupAssignments 결과
+let _enumResult = null;       // 마지막 enumerateGroupAssignments 결과
+let _sortedCandidates = null; // 사이드바 표시용 정렬·필터 적용 배열 (인덱스 동기화용)
 
 // ── 후보의 고유 형상(금형) 종류 수 계산 ──────────────
 // 실제 니켈 플레이트 형상 기준: I형(단독 그룹) + U형(인접 두 그룹 합집합)

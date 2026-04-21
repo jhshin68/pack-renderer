@@ -504,7 +504,7 @@
     }
 
     // ── Phase 2: 백트래킹 (N ≤ 18 소형 또는 custom 배열, 비표준 해 탐색) ──────────
-    if (arrangement === 'custom' || N <= 18) {
+    if (arrangement === 'custom' || N <= 18 || fixed_g0 != null || enumerate_g0_only) {
       strategy = 'standard+backtracking';
       const btBudgetMs = budget_ms != null ? budget_ms
                        : exhaustive ? Infinity

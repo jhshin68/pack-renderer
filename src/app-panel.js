@@ -135,6 +135,7 @@ function _probeRelief(cfg) {
 }
 
 function _renderCandCards(candidates, listEl, S) {
+  _sortedCandidates = candidates; // ★ 렌더러·_showCandDetail 인덱스 동기화
   listEl.innerHTML = '';
   candidates.forEach((cand, idx) => {
     const groups  = cand.groups || [];
@@ -215,7 +216,7 @@ function populateCandidatePanel() {
     if (!customRows.length || !hasGen || typeof CELL_SPEC === 'undefined') {
       listEl.innerHTML = '<div class="hint" style="color:var(--dt3);margin-top:4px">커스텀 배열 — 행 구성을 입력하세요</div>';
       if (countEl) countEl.textContent = '—';
-      _enumResult = null;
+      _enumResult = null; _sortedCandidates = null;
       _updateEnumStatus(null);
       return;
     }
@@ -238,7 +239,7 @@ function populateCandidatePanel() {
       ? `<div class="hint" style="color:var(--red)">⚠ 홀더 슬롯 부족: ${hR}×${hC}=${slots} < ${N}셀<br>행×열이 ${N} 이상이어야 합니다</div>`
       : '<div class="hint">셀 데이터 없음</div>';
     if (countEl) countEl.textContent = '—';
-    _enumResult = null;
+    _enumResult = null; _sortedCandidates = null;
     _updateEnumStatus(null);
     _showCandDetail(-1);
     return;
@@ -330,7 +331,8 @@ function _showCandDetail(idx) {
   const boxEl    = document.getElementById('candDetailBox');
   if (!detailEl || !boxEl) return;
 
-  const cand = _enumResult && _enumResult.candidates && _enumResult.candidates[idx];
+  const cand = (_sortedCandidates && _sortedCandidates[idx]) ||
+               (_enumResult && _enumResult.candidates && _enumResult.candidates[idx]);
   if (!cand) {
     detailEl.style.display = 'none';
     if (divEl) divEl.style.display = 'none';
