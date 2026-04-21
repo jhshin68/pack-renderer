@@ -221,6 +221,8 @@
       custom_stagger = false, // ★ P28③: 렌더러 임계값 정합성 (stagger→1.2P, non-stagger→1.05P)
       exhaustive = false,     // ★ 완전 탐색 모드: true → 타임아웃·반복 제한·adjStarts 캡 해제
       budget_ms = null,       // ★ 완전 탐색 시간 예산 (ms). null → exhaustive:false=10s, true=Infinity
+      fixed_g0 = null,        // ★ 병렬탐색: G0 셀 인덱스 배열 고정 → G1..G(S-1)만 백트래킹
+      enumerate_g0_only = false, // ★ 병렬탐색: true → G0 후보 목록만 반환 (backtracking 생략)
     } = ctx || {};
 
     if (!cells || cells.length === 0 || S < 1 || P < 1) {
@@ -876,11 +878,73 @@
           const bPlusFiltered = anchorCells
             ? bPlusInOrder.filter(i => anchorMatches(cells[i]))
             : bPlusInOrder;
-          for (const startCell of bPlusFiltered) {
-            if (Date.now() - btStart > btBudgetMs) break;
-            used[startCell] = 1;
-            dfsCustom(0, [], [startCell], new Set(adjL[startCell].filter(nb => !used[nb])));
-            used[startCell] = 0;
+
+          if (fixed_g0) {
+            // G0 고정 모드: fixed_g0 인덱스로 G0 지정, G1..G(S-1)만 탐색
+            if (passICC_bt(fixed_g0) && fixed_g0.some(i => bPlus.has(i))) {
+              for (const ci of fixed_g0) used[ci] = 1;
+              const adjToG0 = new Set();
+              for (const ci of fixed_g0) {
+                for (const nb of adjL[ci]) { if (!used[nb]) adjToG0.add(nb); }
+              }
+              const adjStarts = [];
+              for (const ci of scanOrder) {
+                if (!exhaustive && adjStarts.length >= 5) break;
+                if (!used[ci] && adjToG0.has(ci)) adjStarts.push(ci);
+              }
+              const starts = adjStarts.length > 0
+                ? adjStarts
+                : (() => { for (const ci of scanOrder) { if (!used[ci]) return [ci]; } return []; })();
+              for (const nextStart of starts) {
+                if (Date.now() - btStart > btBudgetMs) break;
+                used[nextStart] = 1;
+                dfsCustom(1, [fixed_g0], [nextStart],
+                  new Set(adjL[nextStart].filter(nb => !used[nb])));
+                used[nextStart] = 0;
+              }
+              for (const ci of fixed_g0) used[ci] = 0;
+            }
+          } else if (enumerate_g0_only) {
+            // G0 열거 전용 모드: 유효한 G0 후보 목록만 수집
+            const g0Configs = [];
+            const seenG0 = new Set();
+            function dfsG0(curIdxs, frontier) {
+              if (curIdxs.length === P) {
+                if (!passICC_bt(curIdxs)) return;
+                if (!allow_I && _isLinearGroup(curIdxs.map(i => cells[i]))) return;
+                if (!curIdxs.some(i => bPlus.has(i))) return;
+                const key = [...curIdxs].sort((a, b) => a - b).join(',');
+                if (!seenG0.has(key)) { seenG0.add(key); g0Configs.push([...curIdxs]); }
+                return;
+              }
+              for (const cand of frontier) {
+                if (curIdxs.length === P - 1 && !allow_I) {
+                  if (_isLinearGroup([...curIdxs.map(i => cells[i]), cells[cand]])) continue;
+                }
+                used[cand] = 1;
+                curIdxs.push(cand);
+                const nf = new Set(frontier);
+                nf.delete(cand);
+                for (const nb of adjL[cand]) { if (!used[nb]) nf.add(nb); }
+                dfsG0(curIdxs, nf);
+                curIdxs.pop();
+                used[cand] = 0;
+              }
+            }
+            for (const startCell of bPlusFiltered) {
+              used[startCell] = 1;
+              dfsG0([startCell], new Set(adjL[startCell].filter(nb => !used[nb])));
+              used[startCell] = 0;
+            }
+            // enumerate_g0_only 모드는 g0Configs만 반환 (backtracking 결과 무시)
+            return { g0_configs: g0Configs, count: g0Configs.length };
+          } else {
+            for (const startCell of bPlusFiltered) {
+              if (Date.now() - btStart > btBudgetMs) break;
+              used[startCell] = 1;
+              dfsCustom(0, [], [startCell], new Set(adjL[startCell].filter(nb => !used[nb])));
+              used[startCell] = 0;
+            }
           }
         }
 
