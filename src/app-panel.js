@@ -94,6 +94,9 @@ function _probeRelief(cfg) {
     b_plus_side, b_minus_side,
     nickel_w: nickel_w_mm * 1.5,
     max_candidates: 10,
+    allow_I: state.allow_I,
+    allow_U: state.allow_U,
+    g0_anchor: state.g0_anchor,
   };
   const out = [];
 
@@ -101,22 +104,22 @@ function _probeRelief(cfg) {
   if (state.max_plates > 0) {
     const mMin = Generator.estimateMmin(S, P, arrangement, state.allow_mirror);
     if (mMin > state.max_plates) {
-      out.push({
-        label: `최대 형상 종류 해제 (최소 ${mMin}종 필요)`,
-        action: 'setMaxPlates(0)',
-        count: -1,   // 특별값: 재열거 없이 삽입
-      });
+      out.push({ label: `최대 형상 종류 해제 (최소 ${mMin}종 필요)`, action: 'setMaxPlates(0)', count: -1 });
     }
   }
 
   const trials = [];
-  if (icc1) trials.push({ args: { ...baseArgs, icc1: false, icc2, icc3, g0_anchor: state.g0_anchor },
+  if (!state.allow_I) trials.push({ args: { ...baseArgs, allow_I: true },
+                                    label: '1자(I)형 허용', action: "toggleAllowShape('allow_I')" });
+  if (!state.allow_U) trials.push({ args: { ...baseArgs, allow_U: true },
+                                    label: 'ㄷ자(U)형 허용', action: "toggleAllowShape('allow_U')" });
+  if (icc1) trials.push({ args: { ...baseArgs, icc1: false },
                           label: 'ICC① 해제', action: "toggleICC('icc1')" });
-  if (icc2) trials.push({ args: { ...baseArgs, icc1, icc2: false, icc3, g0_anchor: state.g0_anchor },
+  if (icc2) trials.push({ args: { ...baseArgs, icc2: false },
                           label: 'ICC② 해제', action: "toggleICC('icc2')" });
-  if (icc3) trials.push({ args: { ...baseArgs, icc1, icc2, icc3: false, g0_anchor: state.g0_anchor },
+  if (icc3) trials.push({ args: { ...baseArgs, icc3: false },
                           label: 'ICC③ 해제', action: "toggleICC('icc3')" });
-  if (state.g0_anchor) trials.push({ args: { ...baseArgs, icc1, icc2, icc3, g0_anchor: null },
+  if (state.g0_anchor) trials.push({ args: { ...baseArgs, g0_anchor: null },
                                      label: '1번 셀 위치 자동', action: "setG0Anchor('auto')" });
   for (const t of trials) {
     let n = 0;
@@ -126,7 +129,6 @@ function _probeRelief(cfg) {
     } catch (_) { n = 0; }
     if (n > 0) out.push({ label: t.label, action: t.action, count: n });
   }
-  // max_plates 항목은 이미 맨앞에 삽입됨 — count=-1은 표시 시 후보 수 미표시 처리
   const maxPlatesEntry = out.find(x => x.count === -1);
   const rest = out.filter(x => x.count !== -1).sort((a, b) => b.count - a.count).slice(0, 3);
   return maxPlatesEntry ? [maxPlatesEntry, ...rest].slice(0, 3) : rest.slice(0, 3);
@@ -249,11 +251,11 @@ function populateCandidatePanel() {
       cells, S, P, arrangement,
       b_plus_side, b_minus_side,
       icc1, icc2, icc3,
-      nickel_w: nickel_w_mm * 1.5,  // scale 반영 근사
+      nickel_w: nickel_w_mm * 1.5,
       max_candidates: 999999,
-      g0_anchor: state.g0_anchor,   // ★ Phase 2: 1번 셀 위치 제약
-      allow_I: state.allow_I,       // ★ Phase 4: I-pentomino 허용
-      allow_U: state.allow_U,       // ★ Phase 4: U-pentomino 허용
+      g0_anchor: state.g0_anchor,
+      allow_I: state.allow_I,
+      allow_U: state.allow_U,
     });
   } catch (e) {
     listEl.innerHTML = `<div class="hint" style="color:var(--red)">열거 오류: ${e.message}</div>`;
@@ -264,16 +266,16 @@ function populateCandidatePanel() {
   _enumResult = result;
   _updateEnumStatus(result);
 
+  // ① 후보 확정 (max_plates 필터 + 정렬)
   let candidates = result.candidates || [];
-  // ★ max_plates 필터: 고유 형상(금형) 종류 수 ≤ state.max_plates
   if (state.max_plates && state.max_plates > 0) {
     candidates = candidates.filter(c => (c.m_distinct || 0) <= state.max_plates);
   }
   candidates = candidates.slice().sort((a, b) => (a.m_distinct || 0) - (b.m_distinct || 0));
-  if (countEl) countEl.textContent = candidates.length + '개';
 
   listEl.innerHTML = '';
   if (candidates.length === 0) {
+    _syncFilterOptions({ candidates });
     // ★ Phase 3a: 각 제약을 1개씩 해제 재열거 → 가장 많이 복구되는 것을 CTA로 제시
     const reliefs = _probeRelief({ cells, S, P, arrangement, b_plus_side, b_minus_side, icc1, icc2, icc3, nickel_w_mm });
     const baseHint = '<div class="hint" style="margin-top:4px;color:var(--amber)">현재 제약으로 유효 후보 없음</div>';
@@ -292,7 +294,21 @@ function populateCandidatePanel() {
     return;
   }
 
+  // ② 필터 갱신
+  _syncFilterOptions({ candidates });
+
+  // ③ 필터 읽기
+  const mdSelF = document.getElementById('mdistinctSel');
+  const mdFilterF = mdSelF ? mdSelF.value : '';
+  if (mdFilterF !== '') candidates = candidates.filter(c => (c.m_distinct || 0) === parseInt(mdFilterF, 10));
+  const qSelF = document.getElementById('qualitySel');
+  const qFilterF = qSelF ? qSelF.value : '';
+  if (qFilterF !== '') candidates = candidates.filter(c => (c.total_score ?? 0) === parseInt(qFilterF, 10));
+
+  if (countEl) countEl.textContent = candidates.length + '개';
+
   if (state.selected_ordering >= candidates.length) state.selected_ordering = 0;
+  // ④ 카드 렌더링
   _renderCandCards(candidates, listEl, S);
   _showCandDetail(state.selected_ordering);
 }
@@ -403,6 +419,44 @@ function _syncFilterOptions(result) {
   }
 }
 
-// 필터 변경 핸들러
-function filterByMdistinct(val) { _renderCustomCandidates(_enumResult); }
-function filterByQuality(val)    { _renderCustomCandidates(_enumResult); }
+// 필터 변경 핸들러 — custom/square/staggered 모두 _enumResult 캐시 기준 재렌더
+function filterByMdistinct() { _renderFromCache(); }
+function filterByQuality()   { _renderFromCache(); }
+
+function _renderFromCache() {
+  if (state.arrangement === 'custom') {
+    _renderCustomCandidates(_enumResult);
+  } else {
+    // square/staggered: _enumResult 캐시 기준으로 ①②③④ 재수행 (재열거 없음)
+    if (!_enumResult) return;
+    const listEl  = document.getElementById('candList');
+    const countEl = document.getElementById('rpCandCount');
+    const { S }   = state;
+    if (!listEl) return;
+
+    let candidates = (_enumResult.candidates || []).slice()
+      .sort((a, b) => (a.m_distinct || 0) - (b.m_distinct || 0));
+    if (state.max_plates > 0)
+      candidates = candidates.filter(c => (c.m_distinct || 0) <= state.max_plates);
+
+    _syncFilterOptions({ candidates });
+
+    const mdSel = document.getElementById('mdistinctSel');
+    const mdV = mdSel ? mdSel.value : '';
+    if (mdV !== '') candidates = candidates.filter(c => (c.m_distinct || 0) === parseInt(mdV, 10));
+    const qSel = document.getElementById('qualitySel');
+    const qV = qSel ? qSel.value : '';
+    if (qV !== '') candidates = candidates.filter(c => (c.total_score ?? 0) === parseInt(qV, 10));
+
+    if (countEl) countEl.textContent = candidates.length + '개';
+    listEl.innerHTML = '';
+    if (candidates.length === 0) {
+      listEl.innerHTML = '<div class="hint" style="margin-top:4px;color:var(--amber)">현재 필터 조건으로 후보 없음</div>';
+      _showCandDetail(-1);
+      return;
+    }
+    if (state.selected_ordering >= candidates.length) state.selected_ordering = 0;
+    _renderCandCards(candidates, listEl, S);
+    _showCandDetail(state.selected_ordering);
+  }
+}

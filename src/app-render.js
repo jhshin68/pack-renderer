@@ -333,12 +333,11 @@ async function _runCustomSearch() {
   if (genBtn) genBtn.disabled = false;
   _enumResult = result;
   _updateEnumStatus(result);
-  // 필터 먼저 채운 후 후보 렌더 (순서 중요: populate → render)
-  _syncFilterOptions(result);
-  _renderCustomCandidates(result);
+  _renderCustomCandidates(result);  // 내부에서 ①후보확정 →②필터갱신 →③필터읽기 →④렌더 순서 보장
 }
 
 // 커스텀 배열 후보 목록 렌더링 (캐시 결과 사용)
+// 순서 불변: ① 후보 확정 → ② 필터 갱신 → ③ 필터 읽기 → ④ 카드 렌더링
 function _renderCustomCandidates(result) {
   const listEl  = document.getElementById('candList');
   const countEl = document.getElementById('rpCandCount');
@@ -352,14 +351,17 @@ function _renderCustomCandidates(result) {
     return;
   }
 
+  // ① 후보 확정 (max_plates 필터 + 정렬)
   let candidates = result.candidates || [];
   const total = candidates.length;
-
   if (state.max_plates && state.max_plates > 0)
     candidates = candidates.filter(c => (c.m_distinct || 0) <= state.max_plates);
   candidates = candidates.slice().sort((a, b) => (a.m_distinct || 0) - (b.m_distinct || 0));
 
-  // m_distinct 필터 적용
+  // ② 필터 갱신 — 카드를 그리기 전에 반드시 먼저 (항상 이 위치에서 호출)
+  _syncFilterOptions({ candidates });
+
+  // ③ 필터 읽기 (갱신된 값 기준)
   const mdSel = document.getElementById('mdistinctSel');
   const mdFilter = mdSel ? mdSel.value : '';
   if (mdFilter !== '') {
@@ -367,7 +369,6 @@ function _renderCustomCandidates(result) {
     candidates = candidates.filter(c => (c.m_distinct || 0) === mdVal);
   }
 
-  // 품질점수 필터 적용
   const qSel = document.getElementById('qualitySel');
   const qFilter = qSel ? qSel.value : '';
   if (qFilter !== '') {

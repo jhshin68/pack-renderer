@@ -10,8 +10,8 @@
 // gap: 0.0 — 원칙(셀-셀 맞닿음, pitch = render_d), renderer.js DEFAULT_PARAMS와 동일
 const state = {
   cell_type:       '21700',
-  S:               13,
-  P:               4,
+  S:               3,
+  P:               3,
   gap:             0.0,   // ★ 원칙: gap=0 (셀 맞닿음) — renderer.js 기본값과 동일
   arrangement:     'square',
   stag_dir:        'R',        // 엇배열 방향: 'R' = 홀수 행 오른쪽, 'L' = 짝수 행 오른쪽
