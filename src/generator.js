@@ -1947,14 +1947,18 @@
       }
     }
 
-    // 정렬: B+/B- 충족 우선 → ICC 위반 적은 순 → 점수 높은 순 → 금형 종류 수 적은 순
+    // 정렬: B+/B- 충족 우선 → ICC 위반 적은 순 → 점수 높은 순 → compact 높은 순 → 금형 종류 수 적은 순
     const _mDistinct = (c) => new Set((c.groups || []).map(g => _shapeSigOf(g, 4))).size;
+    const _sumCompact = (c) => (c.groups || []).reduce(
+      (s, g) => s + compactShapeScore(g.cells, pitch, arrangement), 0);
     results.sort((a, b) => {
       const aOk = (a.b_plus_ok && a.b_minus_ok) ? 0 : 1;
       const bOk = (b.b_plus_ok && b.b_minus_ok) ? 0 : 1;
       if (aOk !== bOk) return aOk - bOk;
       if (a.icc_violations !== b.icc_violations) return a.icc_violations - b.icc_violations;
       if (a.total_score !== b.total_score) return b.total_score - a.total_score;
+      const csDiff = _sumCompact(b) - _sumCompact(a);
+      if (Math.abs(csDiff) > 0.01) return csDiff;
       return _mDistinct(a) - _mDistinct(b);
     });
 
