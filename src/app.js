@@ -710,14 +710,118 @@ function _renderSVG() {
 
 // Generate Layout 버튼 전용: 현재 옵션 그대로 후보 재열거 + SVG 재렌더
 async function generateLayout() {
-  await populateCandidatePanel();
+  if (state.arrangement === 'custom') {
+    await _runCustomSearch();
+  } else {
+    populateCandidatePanel();
+  }
   _renderSVG();
 }
 
 // ── 통합 진입점: rerender() — 후보 재열거 + SVG 재렌더 ──────────
-async function rerender() {
-  await populateCandidatePanel();
+// 커스텀 배열은 _enumResult 캐시를 표시 (탐색 재실행 없음)
+function rerender() {
+  populateCandidatePanel();
   _renderSVG();
+}
+
+// ── 커스텀 배열 전용 10초 탐색 (Generate 버튼에서만 호출) ────────
+async function _runCustomSearch() {
+  const { S, P, icc1, icc2, icc3, nickel_w_mm, b_plus_side, b_minus_side } = state;
+  const listEl  = document.getElementById('candList');
+  const countEl = document.getElementById('rpCandCount');
+  const titleEl = document.getElementById('rpCandTitle');
+  const genBtn  = document.querySelector('.render-btn');
+
+  const customRows    = parseCustomRows();
+  const customOffsets = parseRowOffsets();
+  if (!customRows.length || typeof Generator === 'undefined' || typeof CELL_SPEC === 'undefined') {
+    _enumResult = null;
+    _updateEnumStatus(null);
+    if (listEl) listEl.innerHTML = '<div class="hint" style="color:var(--dt3);margin-top:4px">커스텀 배열 — 행 구성을 입력하세요</div>';
+    if (countEl) countEl.textContent = '—';
+    return;
+  }
+  const customParams = {
+    ...state,
+    layout: 'auto', scale: 1.5, nickel_w_mm: 4.0, margin_mm: 8.0,
+    rows: customRows, row_offsets: customOffsets,
+  };
+  let customPts, customPitch;
+  try {
+    const cc = Generator.calcCustomCenters(customRows, customParams, CELL_SPEC);
+    customPts = cc.pts; customPitch = cc.pitch;
+  } catch (e) {
+    if (listEl) listEl.innerHTML = `<div class="hint" style="color:var(--red)">커스텀 좌표 오류: ${e.message}</div>`;
+    if (countEl) countEl.textContent = '오류';
+    if (titleEl) titleEl.textContent = '셀 배열 후보';
+    _enumResult = null; _updateEnumStatus(null);
+    return;
+  }
+
+  // 탐색 시작 — 버튼 비활성화 + 로딩 표시
+  if (genBtn) genBtn.disabled = true;
+  if (titleEl) titleEl.textContent = '셀 배열 후보 탐색중…';
+  if (countEl) countEl.textContent = '…';
+  if (listEl) listEl.innerHTML = '<div class="hint" style="margin-top:6px;color:var(--dt3)">후보를 탐색하고 있습니다…</div>';
+
+  // 두 프레임 대기 → 브라우저 실제 repaint 보장
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+  let result;
+  try {
+    result = Generator.enumerateGroupAssignments({
+      cells: customPts, S, P, arrangement: 'custom',
+      b_plus_side, b_minus_side,
+      icc1, icc2, icc3,
+      nickel_w: nickel_w_mm * 1.5,
+      max_candidates: 40,
+      g0_anchor: state.g0_anchor,
+      allow_I: state.allow_I,
+      allow_U: state.allow_U,
+      pitch: customPitch,
+    });
+  } catch (e) {
+    if (listEl) listEl.innerHTML = `<div class="hint" style="color:var(--red)">열거 오류: ${e.message}</div>`;
+    if (countEl) countEl.textContent = '오류';
+    _enumResult = null; _updateEnumStatus(null);
+    if (titleEl) titleEl.textContent = '셀 배열 후보';
+    if (genBtn) genBtn.disabled = false;
+    return;
+  }
+
+  if (titleEl) titleEl.textContent = '셀 배열 후보';
+  if (genBtn) genBtn.disabled = false;
+  _enumResult = result;
+  _updateEnumStatus(result);
+  _renderCustomCandidates(result);
+}
+
+// 커스텀 배열 후보 목록 렌더링 (캐시 결과 사용)
+function _renderCustomCandidates(result) {
+  const listEl  = document.getElementById('candList');
+  const countEl = document.getElementById('rpCandCount');
+  const { S } = state;
+  if (!listEl) return;
+  if (!result) {
+    listEl.innerHTML = '<div class="hint" style="color:var(--dt3);margin-top:8px">Generate Layout을 눌러 후보를 탐색하세요</div>';
+    if (countEl) countEl.textContent = '—';
+    _showCandDetail(-1);
+    return;
+  }
+  let candidates = result.candidates || [];
+  if (state.max_plates && state.max_plates > 0)
+    candidates = candidates.filter(c => _countDistinctShapes(c) <= state.max_plates);
+  if (countEl) countEl.textContent = candidates.length + '개';
+  listEl.innerHTML = '';
+  if (candidates.length === 0) {
+    listEl.innerHTML = '<div class="hint" style="margin-top:4px;color:var(--amber)">현재 제약으로 유효 후보 없음<br>ICC/B± 조건을 완화해보세요</div>';
+    _showCandDetail(-1);
+    return;
+  }
+  if (state.selected_ordering >= candidates.length) state.selected_ordering = 0;
+  _renderCandCards(candidates, listEl, S);
+  _showCandDetail(state.selected_ordering);
 }
 
 // ── 우측 패널 제어 ────────────────────────────────
@@ -908,11 +1012,10 @@ function _renderCandCards(candidates, listEl, S) {
   });
 }
 
-async function populateCandidatePanel() {
+function populateCandidatePanel() {
   const { S, P, arrangement, icc1, icc2, icc3, nickel_w_mm, b_plus_side, b_minus_side } = state;
   const listEl  = document.getElementById('candList');
   const countEl = document.getElementById('rpCandCount');
-  const titleEl = document.getElementById('rpCandTitle');
   if (!listEl) return;
 
   // hintTotalPlates: 이 S 기준 총 플레이트 수 힌트 업데이트
@@ -921,81 +1024,17 @@ async function populateCandidatePanel() {
 
   const hasGen = typeof Generator !== 'undefined';
 
-  // 커스텀 배열: Generator.calcCustomCenters → enumerateGroupAssignments
+  // 커스텀 배열: _enumResult 캐시 표시 (탐색은 generateLayout/_runCustomSearch에서만)
   if (arrangement === 'custom') {
-    const customRows    = parseCustomRows();
-    const customOffsets = parseRowOffsets();
+    const customRows = parseCustomRows();
     if (!customRows.length || !hasGen || typeof CELL_SPEC === 'undefined') {
       listEl.innerHTML = '<div class="hint" style="color:var(--dt3);margin-top:4px">커스텀 배열 — 행 구성을 입력하세요</div>';
       if (countEl) countEl.textContent = '—';
-      if (titleEl) titleEl.textContent = '셀 배열 후보';
       _enumResult = null;
       _updateEnumStatus(null);
       return;
     }
-    const customParams = {
-      ...state,
-      layout: 'auto', scale: 1.5, nickel_w_mm: 4.0, margin_mm: 8.0,
-      rows: customRows, row_offsets: customOffsets,
-    };
-    let customPts, customPitch;
-    try {
-      const cc = Generator.calcCustomCenters(customRows, customParams, CELL_SPEC);
-      customPts = cc.pts;
-      customPitch = cc.pitch;
-    } catch (e) {
-      listEl.innerHTML = `<div class="hint" style="color:var(--red)">커스텀 좌표 오류: ${e.message}</div>`;
-      if (countEl) countEl.textContent = '오류';
-      if (titleEl) titleEl.textContent = '셀 배열 후보';
-      _enumResult = null;
-      _updateEnumStatus(null);
-      return;
-    }
-
-    // 탐색 시작 — 브라우저가 "탐색중..." 상태를 렌더링할 수 있도록 50ms 양보
-    if (titleEl) titleEl.textContent = '셀 배열 후보 탐색중…';
-    if (countEl) countEl.textContent = '…';
-    listEl.innerHTML = '<div class="hint" style="margin-top:6px;color:var(--dt3)">후보를 탐색하고 있습니다…</div>';
-    await new Promise(resolve => setTimeout(resolve, 50));
-
-    let result;
-    try {
-      result = Generator.enumerateGroupAssignments({
-        cells: customPts, S, P, arrangement: 'custom',
-        b_plus_side, b_minus_side,
-        icc1, icc2, icc3,
-        nickel_w: nickel_w_mm * 1.5,
-        max_candidates: 40,
-        g0_anchor: state.g0_anchor,
-        allow_I: state.allow_I,
-        allow_U: state.allow_U,
-        pitch: customPitch,
-      });
-    } catch (e) {
-      listEl.innerHTML = `<div class="hint" style="color:var(--red)">열거 오류: ${e.message}</div>`;
-      if (countEl) countEl.textContent = '오류';
-      if (titleEl) titleEl.textContent = '셀 배열 후보';
-      _enumResult = null;
-      _updateEnumStatus(null);
-      return;
-    }
-
-    if (titleEl) titleEl.textContent = '셀 배열 후보';
-    _enumResult = result;
-    _updateEnumStatus(result);
-    let candidates = result.candidates || [];
-    if (state.max_plates && state.max_plates > 0)
-      candidates = candidates.filter(c => _countDistinctShapes(c) <= state.max_plates);
-    if (countEl) countEl.textContent = candidates.length + '개';
-    listEl.innerHTML = '';
-    if (candidates.length === 0) {
-      listEl.innerHTML = '<div class="hint" style="margin-top:4px;color:var(--amber)">현재 제약으로 유효 후보 없음<br>ICC/B± 조건을 완화해보세요</div>';
-      _showCandDetail(-1);
-      return;
-    }
-    if (state.selected_ordering >= candidates.length) state.selected_ordering = 0;
-    _renderCandCards(candidates, listEl, S);
-    _showCandDetail(state.selected_ordering);
+    _renderCustomCandidates(_enumResult);
     return;
   }
 
