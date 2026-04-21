@@ -179,7 +179,7 @@ function setArrangement(a) {
   document.getElementById('customGroup').style.display     = isCustom ? 'block' : 'none';
   document.getElementById('holderSizeGroup').style.display = isCustom ? 'none'  : 'block';
   document.getElementById('stagDirGroup').style.display    = isStag   ? 'block' : 'none';
-  if (isCustom) checkCustomConsistency();
+  if (isCustom) { _enumResult = null; checkCustomConsistency(); }
   rerender();
 }
 
@@ -812,6 +812,7 @@ function _renderCustomCandidates(result) {
   let candidates = result.candidates || [];
   if (state.max_plates && state.max_plates > 0)
     candidates = candidates.filter(c => _countDistinctShapes(c) <= state.max_plates);
+  candidates = candidates.slice().sort((a, b) => _countDistinctShapes(a) - _countDistinctShapes(b));
   if (countEl) countEl.textContent = candidates.length + '개';
   listEl.innerHTML = '';
   if (candidates.length === 0) {
@@ -1086,6 +1087,7 @@ function populateCandidatePanel() {
   if (state.max_plates && state.max_plates > 0) {
     candidates = candidates.filter(c => _countDistinctShapes(c) <= state.max_plates);
   }
+  candidates = candidates.slice().sort((a, b) => _countDistinctShapes(a) - _countDistinctShapes(b));
   if (countEl) countEl.textContent = candidates.length + '개';
 
   listEl.innerHTML = '';

@@ -1,9 +1,51 @@
 ========================================
-마지막 업데이트: 2026-04-21 (세션 36 — 우선순위 축출 (Priority Eviction) 구현)
+마지막 업데이트: 2026-04-21 (세션 37 — 후보 목록 정렬 + _enumResult 오염 수정)
 버전: battery_pack_renderer.html, src/app.js, src/generator.js (v0.4.1), src/renderer.js
 테스트 상태: pass=846 fail=0 + test_phase2_candidates 4/4 + test_bfs_compact 6/6 + test_p29_parallel_polarity 44/44 + test_p09_pixel_adj 6/6 + test_sort_mdistinct 4/4 + test_sort_compact 5/5 + test_best_mdistinct 4/4
 feature_list.json: 모든 항목 passes:true
-git 상태: 세션 36 커밋 완료
+git 상태: 세션 37 커밋 예정
+
+## 세션 37 진행 (2026-04-21) — 후보 목록 정렬 + 원칙 28 위반 조사
+
+### 완료 사항
+
+#### Fix 1: _enumResult 오염 수정 (app.js:182)
+- 문제: 커스텀 → 정배열 → 커스텀으로 전환 시 이전 44-후보 결과가 커스텀 패널에 표시
+- 수정: `setArrangement('custom')` 진입 시 `_enumResult = null` 초기화
+- 검증: Playwright 브라우저로 확인 완료
+
+#### Fix 2: 후보 목록 플레이트 수 오름차순 정렬 (app.js:815, 1090)
+- 사용자 요청: "셀 배열 후보 리스트를 플레이트 개 순으로 나타내는 올림차순"
+- `_renderCustomCandidates()` 및 `populateCandidatePanel()` 양쪽에 정렬 추가
+- 정렬 기준: `_countDistinctShapes(cand)` 오름차순 (= 물리적 니켈 플레이트 형상 종류 수)
+
+### 조사 중: 원칙 28 위반 (미완료)
+
+**사용자 보고**: "상면에 13s4p 배열이면 반드시 4개짜리 플러스 한개만 나타나야 하고, 그 어떤 니켈플레이트가 4개짜리가 나타날 수 없다. 하면에 4개짜리 음극으로 된 니켈플레이트만 존재해야 한다."
+
+**조사 결과 (현재까지)**:
+
+1. **m_distinct 불일치 원인 파악**:
+   - `generator.js m_distinct`: 그룹(G) 단위 형상 개수 — `_shapeSigOf(g, 4)` 사용, S=13에서 6~8 반환
+   - `app.js _countDistinctShapes()`: 실제 니켈 플레이트(원칙 14 병합 후) 형상 개수 — U판(8셀)·I판(4셀) 기준, 11 반환
+   - **두 카운트는 다른 대상을 측정** — 모순 아님, 정상 동작
+
+2. **calcNickelPattern / buildNickel 로직 확인**:
+   - `calcNickelPattern(13, 4)` top: I(G0=B+), U(G1,G2), U(G3,G4), U(G5,G6), U(G7,G8), U(G9,G10), U(G11,G12) — 7판
+   - bottom: U(G0,G1), U(G2,G3), U(G4,G5), U(G6,G7), U(G8,G9), U(G10,G11), I(G12=B-) — 7판
+   - 패턴 자체는 원칙 14/28에 부합 (각 I판 = 4셀, 각 U판 = 8셀)
+
+3. **미해결**: 왜 렌더링 화면에서 여러 4셀 플레이트가 보이는지 미확인
+   - 가설 A: U 플레이트의 두 그룹이 공간적으로 비인접 → isAdj 실패 → 연결선 미표시 → 4셀 섬처럼 보임
+   - 가설 B: generator가 비표준 셀 수 그룹 생성 (unlikely, 모든 그룹 = P=4셀)
+   - **검증 미완료**: DOM 검사(face별 판당 셀 수 카운트) 필요
+
+### 다음 할 일
+- [ ] 커스텀 Generate 후 DOM 검사: 면별 플레이트 × 셀 수 카운트 (isAdj 실패 여부 확인)
+- [ ] 가설 A 검증: 비인접 U 플레이트 쌍이 어느 후보에서 발생하는지
+- [ ] 원칙 28 위반이 renderer 문제인지 generator 문제인지 확정
+
+---
 
 ## 세션 36 진행 (2026-04-21) — 우선순위 축출 (Priority Eviction) 구현
 
