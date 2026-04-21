@@ -410,6 +410,43 @@
   }
 
   /**
+   * HANDOFF §4 — 컴팩트 형상 점수 (연속 버전)
+   * S(G) = 10·D·√A − 10·σ  (범위 약 [-10, +10])
+   *   D = |G| / (wCells × hCells)  -- bbox 밀도
+   *   A = min(w,h) / max(w,h)      -- 종횡비 품질
+   *   σ = 1  iff  (maxDeg≥3) AND (D<0.95) AND (사이클 없음)
+   *
+   * groupCells: [{x,y}|{cx,cy}], pitch: 피치(mm), arrangement: 배열 종류
+   */
+  function compactShapeScore(groupCells, pitch, arrangement) {
+    if (!groupCells || groupCells.length <= 1) return 0;
+
+    const pts = groupCells.map(c => _pt(c));
+    const pitchY = arrangement === 'staggered' ? pitch * Math.sqrt(3) / 2 : pitch;
+
+    const xs = pts.map(p => p.x);
+    const ys = pts.map(p => p.y);
+    const minX = Math.min(...xs), maxX = Math.max(...xs);
+    const minY = Math.min(...ys), maxY = Math.max(...ys);
+
+    const wCells = Math.round((maxX - minX) / pitch) + 1;
+    const hCells = Math.round((maxY - minY) / pitchY) + 1;
+
+    const D = groupCells.length / (wCells * hCells);
+    const A = Math.min(wCells, hCells) / Math.max(wCells, hCells);
+
+    // σ: 사이클 없는 T/Y 분기 → 돌기 페널티
+    const adj = buildAdjacency(groupCells, arrangement, pitch);
+    const degree = new Array(groupCells.length).fill(0);
+    for (const { i, j } of adj) { degree[i]++; degree[j]++; }
+    const maxDeg = degree.length > 0 ? Math.max(...degree) : 0;
+    const hasCycle = adj.length >= groupCells.length;
+    const sigma = (maxDeg >= 3 && D < 0.95 && !hasCycle) ? 1 : 0;
+
+    return 10 * D * Math.sqrt(A) - 10 * sigma;
+  }
+
+  /**
    * 원칙 21 — 조건 A(BFS 연결성) + 조건 B(G_i↔G_{i+1} 인접쌍 ≥1) 검증
    * groups: [{index, cells:[{x,y}|{cx,cy}]}]
    * arrangement: 'square'|'staggered'|'custom'
@@ -1967,6 +2004,7 @@
     estimatePitch,
     buildAdjacency,
     groupQualityScore,
+    compactShapeScore,
     checkGroupValidity,
     validateP28,            // 원칙 28 — P/2P/P 셀 수 + BFS 연결성 불변
     checkPlanarNoCrossing, // 원칙 30 — 동일 면 이종 플레이트 비교차 (쇼트 절대 금지)
