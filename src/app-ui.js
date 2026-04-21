@@ -330,7 +330,7 @@ function setFace(f) {
 
 function setSearchBudget(ms) {
   state.search_budget_ms = ms;
-  const map = { bgt1: 60000, bgt5: 300000, bgt10: 600000, bgtInf: null };
+  const map = { bgt1: 60000, bgt5: 300000, bgt10: 600000 };
   Object.keys(map).forEach(id => {
     const el = document.getElementById(id);
     if (el) el.classList.toggle('active', map[id] === ms);
