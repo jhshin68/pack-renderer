@@ -161,6 +161,20 @@ function pitchPx(cell_type, scale) {
 }
 
 // ─────────────────────────────────────────────
+// PA6: P9 에러 SVG 메시지에 "극성 표시 없음 (P9 위반 상태)" 포함 (Phase 1.5)
+// ─────────────────────────────────────────────
+{
+  const svg = render({
+    arrangement: 'custom',
+    rows: [10, 3],
+    S: 13, P: 1,
+    cell_type: '18650', scale: 3,
+    show_nickel: false, face: 'top',
+  });
+  check('PA6: P9 위반 SVG — "극성 표시 없음" 메시지 포함', svg.includes('극성 표시 없음'));
+}
+
+// ─────────────────────────────────────────────
 console.log('────────────────────────────────');
 console.log(`[TEST RESULT] pass=${pass}  fail=${fail}`);
 process.exit(fail > 0 ? 1 : 0);

@@ -233,8 +233,12 @@ function drawCell(cx, cy, R, polarity, scale) {
   // v0.2.11 불변 원칙 6:
   //   + 단자부 = 빨강 테두리 + 빨강 캡(직경 10mm 고정)
   //   − 단자부 = 검정 테두리 + 내부 무채움(fill=none) + 중앙 검정 점(R×0.25)
-  const isPlus = polarity === '+';
+  //   ? 미정(P9 위반 상태) = 회색 테두리만
   const sw = (R * 0.08).toFixed(2);
+  if (polarity === '?') {
+    return `<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="#888888" stroke-width="${sw}"/>`;
+  }
+  const isPlus = polarity === '+';
   if (isPlus) {
     const capR = (PLUS_CAP_DIAMETER_MM / 2) * scale; // 직경 10mm 고정
     return [
@@ -658,13 +662,13 @@ function renderCustomRows(params) {
   }
 
   if (p9ViolationIdx >= 0) {
-    const errMsg = `원칙 9 위반: G${p9ViolationIdx}↔G${p9ViolationIdx + 1} 비인접 — S·P·행 배열을 재조정하세요`;
-    // 원칙 1: 극성은 실제 groupCells 배정 기준 (snake 순서 사용 금지)
+    const errMsg = `원칙 9 위반: G${p9ViolationIdx}↔G${p9ViolationIdx + 1} 비인접 — 극성 표시 없음 (P9 위반 상태)`;
     const p9GrpMap = new Map();
     groupCells.forEach((gc, gIdx) => gc.forEach(c => p9GrpMap.set(`${c.row},${c.col}`, gIdx)));
     const allCells = snake.map(pt => {
-      const g = p9GrpMap.get(`${pt.row},${pt.col}`) ?? 0;
-      return drawCell(pt.x, pt.y, R, getCellPolarity(g, 'top'), params.scale);
+      const g = p9GrpMap.get(`${pt.row},${pt.col}`);
+      const pol = g !== undefined ? getCellPolarity(g, 'top') : '?';
+      return drawCell(pt.x, pt.y, R, pol, params.scale);
     });
     const errH = H + 80;
     const ln = [];
