@@ -27,6 +27,7 @@ const PARAMS = {
   hRows: 7, hCols: 8,
   b_plus_side:  'left',
   b_minus_side: 'right',
+  g0_anchor:    'TL',
   icc1: true, icc2: true, icc3: false,
   allow_I: false, allow_U: false,
 };
@@ -83,6 +84,7 @@ if (!isMainThread) {
       arrangement: params.arrangement,
       b_plus_side:  params.b_plus_side,
       b_minus_side: params.b_minus_side,
+      g0_anchor:    params.g0_anchor,
       icc1: params.icc1, icc2: params.icc2, icc3: params.icc3,
       allow_I: params.allow_I, allow_U: params.allow_U,
       pitch, custom_stagger: false,
@@ -122,6 +124,7 @@ if (!isMainThread) {
     cells: pts, S: params.S, P: params.P,
     arrangement: params.arrangement,
     b_plus_side: params.b_plus_side, b_minus_side: params.b_minus_side,
+    g0_anchor:   params.g0_anchor,
     icc1: params.icc1, icc2: params.icc2, icc3: params.icc3,
     allow_I: params.allow_I, allow_U: params.allow_U,
     pitch, custom_stagger: false,

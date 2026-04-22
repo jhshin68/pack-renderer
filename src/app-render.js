@@ -342,10 +342,13 @@ async function _runCustomSearch() {
       allow_I: state.allow_I, allow_U: state.allow_U,
     };
 
+    // file:// 호환: importScripts 없는 번들 파일 사용 (gen-* 의존성 내장)
+    const workerUrl = 'src/enum-worker-bundle.js';
+
     try {
       const allBatches = await Promise.all(
         chunks.map(chunk => new Promise((resolve, reject) => {
-          const w = new Worker('src/enum-worker.js');
+          const w = new Worker(workerUrl);
           w.onmessage = ev => { w.terminate(); resolve(ev.data.candidates || []); };
           w.onerror   = err => { w.terminate(); reject(err); };
           w.postMessage({ params: wParams, g0Configs: chunk, budgetMs, cells: customPts, pitch: customPitch });
