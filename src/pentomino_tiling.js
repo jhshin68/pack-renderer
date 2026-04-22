@@ -44,9 +44,9 @@ function estimatePitch(cells) {
   return minDist === Infinity ? 1 : minDist;
 }
 
-function buildAdj(cells, pitch) {
+function buildAdj(cells, pitch, adj_thr) {
   const p = pitch || estimatePitch(cells);
-  const thr = p * 1.05;
+  const thr = adj_thr != null ? adj_thr : p * 1.05;
   const edges = [];
   for (let i = 0; i < cells.length; i++) {
     const a = _pt(cells[i]);
@@ -92,6 +92,41 @@ function calcBoundarySet(cells, side) {
     if (side === 'right'  && x >= maxX - tol) set.add(i);
     if (side === 'top'    && y <= minY + tol) set.add(i);
     if (side === 'bottom' && y >= maxY - tol) set.add(i);
+  }
+  return set;
+}
+
+// 커스텀 배열 전용 경계 셀 집합: 각 행의 leftmost/rightmost (전역 min/max 아님)
+function calcCustomBoundarySet(cells, side) {
+  if (!cells || cells.length === 0) return new Set();
+  const rowMap = new Map();
+  for (let i = 0; i < cells.length; i++) {
+    const r = cells[i].row;
+    if (!rowMap.has(r)) rowMap.set(r, []);
+    rowMap.get(r).push(i);
+  }
+  const set = new Set();
+  if (side === 'left') {
+    for (const idxs of rowMap.values()) {
+      let minX = Infinity, minI = -1;
+      for (const i of idxs) { if (_pt(cells[i]).x < minX) { minX = _pt(cells[i]).x; minI = i; } }
+      if (minI >= 0) set.add(minI);
+    }
+  } else if (side === 'right') {
+    for (const idxs of rowMap.values()) {
+      let maxX = -Infinity, maxI = -1;
+      for (const i of idxs) { if (_pt(cells[i]).x > maxX) { maxX = _pt(cells[i]).x; maxI = i; } }
+      if (maxI >= 0) set.add(maxI);
+    }
+  } else {
+    const ys = cells.map(c => _pt(c).y);
+    const minY = Math.min(...ys), maxY = Math.max(...ys);
+    const tol = estimatePitch(cells) * 0.5;
+    for (let i = 0; i < cells.length; i++) {
+      const y = _pt(cells[i]).y;
+      if (side === 'top'    && y <= minY + tol) set.add(i);
+      if (side === 'bottom' && y >= maxY - tol) set.add(i);
+    }
   }
   return set;
 }
@@ -184,7 +219,24 @@ function buildShapeLibrary(P, allowI, allowChain) {
 // Placement 생성
 // ─────────────────────────────────────────────────────────────────────────
 
-function generatePlacements(cells, shapes, pitch) {
+function _isPhysConnected(gcells, thr) {
+  if (gcells.length <= 1) return true;
+  const visited = new Set([0]);
+  const queue = [0];
+  while (queue.length) {
+    const ci = queue.shift();
+    const a = _pt(gcells[ci]);
+    for (let j = 0; j < gcells.length; j++) {
+      if (!visited.has(j)) {
+        const b = _pt(gcells[j]);
+        if (Math.hypot(a.x - b.x, a.y - b.y) <= thr) { visited.add(j); queue.push(j); }
+      }
+    }
+  }
+  return visited.size === gcells.length;
+}
+
+function generatePlacements(cells, shapes, pitch, adj_thr) {
   const rcMap = new Map();
   for (let i = 0; i < cells.length; i++) {
     const c = cells[i];
@@ -200,13 +252,6 @@ function generatePlacements(cells, shapes, pitch) {
       const ac = cells[ai];
       const ar = ac.row != null ? ac.row : Math.round(_pt(ac).y / pitch);
       const acc = ac.col != null ? ac.col : Math.round(_pt(ac).x / pitch);
-      // anchor offset is always [0,0] in normalized shapes
-      // so ac MUST be the top-left corner of the shape
-      // Check anchor matches shape's [0,0]:
-      if (shape.offsets[0][0] !== 0 || shape.offsets[0][1] !== 0) {
-        // If anchor is not [0,0], skip (we always anchor at [0,0])
-        // This shouldn't happen since all shapes start with [0,0]
-      }
 
       const idxs = [];
       let ok = true;
@@ -217,6 +262,9 @@ function generatePlacements(cells, shapes, pitch) {
       }
       if (!ok) continue;
       if (new Set(idxs).size !== idxs.length) continue;
+
+      // 커스텀 배열: 논리적 인접이 물리적 인접을 보장하지 않으므로 연결성 재검증
+      if (adj_thr != null && !_isPhysConnected(idxs.map(i => cells[i]), adj_thr)) continue;
 
       placements.push({ name: shape.name, cellIdxs: idxs });
     }
@@ -346,10 +394,10 @@ function solveDLX(N, placements, maxSolutions, timeBudgetMs) {
 // Hamiltonian 경로 탐색 (그룹 인접 그래프 위)
 // ─────────────────────────────────────────────────────────────────────────
 
-function buildGroupAdj(groupCellIdxArrays, cells, pitch) {
+function buildGroupAdj(groupCellIdxArrays, cells, pitch, adj_thr) {
   const S = groupCellIdxArrays.length;
   const adj = Array.from({ length: S }, () => []);
-  const thr = pitch * 1.05;
+  const thr = adj_thr != null ? adj_thr : pitch * 1.05;
 
   for (let i = 0; i < S; i++) {
     for (let j = i + 1; j < S; j++) {
@@ -417,6 +465,8 @@ function enumeratePentominoTilings(cells, S, P, opts) {
     allow_U        = false,
     max_candidates = 20,
     time_budget_ms = 1500,
+    arrangement    = 'square',  // 'custom' → 완화된 인접 임계값 + 행별 경계 계산
+    adj_thr        = null,      // null → arrangement에 따라 자동 선택
   } = opts;
 
   if (!cells || cells.length === 0 || P < 1) return [];
@@ -425,8 +475,11 @@ function enumeratePentominoTilings(cells, S, P, opts) {
 
   const t0 = Date.now();
   const pitch = estimatePitch(cells);
-  const bPlus  = calcBoundarySet(cells, b_plus_side);
-  const bMinus = calcBoundarySet(cells, b_minus_side);
+  const isCustom = arrangement === 'custom';
+  // 커스텀 배열: 대각 인접(√2·p≈1.41p)까지 허용하도록 임계값 완화
+  const adjThr = adj_thr != null ? adj_thr : (isCustom ? pitch * 1.5 : pitch * 1.05);
+  const bPlus  = isCustom ? calcCustomBoundarySet(cells, b_plus_side)  : calcBoundarySet(cells, b_plus_side);
+  const bMinus = isCustom ? calcCustomBoundarySet(cells, b_minus_side) : calcBoundarySet(cells, b_minus_side);
 
   // ── Anchor 해석 ──────────────────────────────────────
   let anchorIdxSet = null;
@@ -454,7 +507,7 @@ function enumeratePentominoTilings(cells, S, P, opts) {
   // allow_U: 비직선 Tier B 명시 허용 (Tier A 없으면 자동 활성)
   let shapes = buildShapeLibrary(P, allow_I, allow_U);
   if (shapes.length === 0) return [];
-  let placements = generatePlacements(cells, shapes, pitch);
+  let placements = generatePlacements(cells, shapes, pitch, isCustom ? adjThr : null);
   if (placements.length === 0) return [];
 
   // ── 해 후처리 공통 함수 (클로저) ──────────────────────
@@ -468,7 +521,7 @@ function enumeratePentominoTilings(cells, S, P, opts) {
 
       const groupCellIdxs = sol.map(pIdx => plcmts[pIdx].cellIdxs);
 
-      const adj = buildGroupAdj(groupCellIdxs, cells, pitch);
+      const adj = buildGroupAdj(groupCellIdxs, cells, pitch, isCustom ? adjThr : null);
 
       const g0Set = new Set();
       const gLastSet = new Set();
@@ -565,7 +618,7 @@ function enumeratePentominoTilings(cells, S, P, opts) {
   if (results.length < 5 && !allow_U) {
     const shapesExp = buildShapeLibrary(P, allow_I, true);
     if (shapesExp.length > shapes.length) {
-      const placementsExp = generatePlacements(cells, shapesExp, pitch);
+      const placementsExp = generatePlacements(cells, shapesExp, pitch, isCustom ? adjThr : null);
       remaining = time_budget_ms - (Date.now() - t0);
       if (placementsExp.length > 0 && remaining > 10) {
         const rawSolExp = solveDLX(N, placementsExp, 5000, remaining);

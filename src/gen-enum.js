@@ -488,12 +488,14 @@
       }
     }
 
-    // ── Phase 4: 폴리오미노 DLX (P>=2, non-custom) ──────────────────
-    if (_PT && arrangement !== 'custom' && P >= 2 && S >= 2) {
+    // ── Phase 4: 폴리오미노 DLX (P>=2, 커스텀 포함) ──────────────────
+    if (_PT && P >= 2 && S >= 2) {
       const pentResults = _PT.enumeratePentominoTilings(cells, S, P, {
         b_plus_side, b_minus_side,
         g0_anchor,
         allow_I, allow_U,
+        arrangement,
+        adj_thr: thr,  // 커스텀=1.5p, 표준=1.05p
         max_candidates: Math.max(20, max_candidates),
         time_budget_ms: 1500,
       });
