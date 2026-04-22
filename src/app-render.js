@@ -258,7 +258,12 @@ function rerender() {
 }
 
 // ── 커스텀 배열 전용 10초 탐색 (Generate 버튼에서만 호출) ────────
-async function _runCustomSearch() {
+// 고정 그룹 탐색 전용 진입점 (UI 버튼에서만 호출)
+async function runPinnedGroupsSearch() {
+  await _runCustomSearch(true);
+}
+
+async function _runCustomSearch(usePinned = false) {
   const { S, P, icc1, icc2, icc3, nickel_w_mm, b_plus_side, b_minus_side } = state;
   const listEl  = document.getElementById('candList');
   const countEl = document.getElementById('rpCandCount');
@@ -293,8 +298,8 @@ async function _runCustomSearch() {
     return;
   }
 
-  // ─── 부분 고정 탐색: pinned_groups 있으면 단일 스레드 직통 ──────────
-  const pinnedGroups = parsePinnedGroups();
+  // ─── 부분 고정 탐색: 전용 버튼 호출 시에만 실행 (일반 탐색과 분리) ──
+  const pinnedGroups = usePinned ? parsePinnedGroups() : [];
   if (pinnedGroups.length > 0) {
     if (genBtn) genBtn.disabled = true;
     if (titleEl) titleEl.textContent = `고정 그룹 탐색중… (${pinnedGroups.length}개 그룹 고정)`;

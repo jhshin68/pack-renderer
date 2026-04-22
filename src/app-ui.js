@@ -209,7 +209,7 @@ function addBmsMarkerToDOM() {
 
 function adj(k, d) {
   if (k === 'S') state.S = Math.max(2, Math.min(23, state.S + d));
-  if (k === 'P') state.P = Math.max(1, Math.min(8,  state.P + d));
+  if (k === 'P') state.P = Math.max(1, Math.min(20, state.P + d));
   const el = document.getElementById('val' + k);
   if (el) el.value = state[k];
   checkCustomConsistency();
@@ -220,7 +220,7 @@ function setFromInput(k, v) {
   const n = parseInt(v, 10);
   if (!Number.isFinite(n) || v === '') return;
   if (k === 'S') state.S = Math.max(2, Math.min(23, n));
-  if (k === 'P') state.P = Math.max(1, Math.min(8,  n));
+  if (k === 'P') state.P = Math.max(1, Math.min(20, n));
   const el = document.getElementById('val' + k);
   if (el && parseInt(el.value, 10) !== state[k]) el.value = state[k];
   checkCustomConsistency();
