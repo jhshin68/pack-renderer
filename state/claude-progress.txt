@@ -1,7 +1,7 @@
 ========================================
-마지막 업데이트: 2026-04-22 (세션 48 — L/R 앵커 추가, Phase4 가드, fixed_g0 워커 최적화)
-버전: battery_pack_renderer.html, src/gen-enum.js, src/app-render.js, src/enum-worker-bundle.js
-테스트 상태: 버그 분석 완료 (13S4P 커스텀 배열 0후보 원인 5개 확인)
+마지막 업데이트: 2026-04-22 (세션 49 — Fix 2 완료: custom_stagger 하드코딩 해제)
+버전: battery_pack_renderer.html, src/gen-enum.js, src/app-render.js, src/enum-worker.js, src/enum-worker-bundle.js
+테스트 상태: 846개 통과 (Fix 2 후), stagger=true 10초 탐색 2개 후보 확인
 feature_list.json: 전체 passes: true + 신규 F37 추가 예정
 
 ========================================
@@ -67,6 +67,31 @@ feature_list.json: 전체 passes: true + 신규 F37 추가 예정
 - 846개 테스트 모두 통과
 
 ========================================
+## 세션 49 핵심 성과
+
+### Fix 2 완료 (커밋 24558c8): custom_stagger 하드코딩 해제
+
+#### 변경 파일
+- `src/app-render.js`:
+  - customParams: `custom_stagger: false` → `!!state.custom_stagger`
+  - enumBase: 동일
+  - wParams: `custom_stagger: !!state.custom_stagger` 추가
+- `src/enum-worker.js`:
+  - enumerateGroupAssignments: `custom_stagger: false` → `params.custom_stagger || false`
+- `src/enum-worker-bundle.js`: 재빌드 (59.5 KB)
+
+#### 효과
+- stagger=false: 기존 동작 완전 동일 (회귀 없음)
+- stagger=true: pitchY = pitch×√3/2 (28.58mm) 사용 → 표시 좌표 = 탐색 좌표 일치
+  - 탐색 공간이 실제 헥사 배열에 맞게 재구성됨
+  - G0 configs: stagger=false 100개 → stagger=true 39개 (L앵커 기준)
+  - 10초 탐색 → 2개 후보, spans 2r×3c (S/Z 형상) 확인
+
+#### 검증
+- 846개 회귀 테스트 모두 통과
+- test_p28_render_thr, test_g0_anchor, test_f14_custom_rows 모두 통과
+
+========================================
 ## 세션 48 핵심 성과
 
 ### 커밋 1 (1475ed6): 커스텀 배열 DLX 활성화 (세션 47 → 48 이행)
@@ -101,9 +126,11 @@ feature_list.json: 전체 passes: true + 신규 F37 추가 예정
 ========================================
 ## 수정 계획 (잔여)
 
-### 수정 2 (보류): 열거 엔진 stagger 좌표 전달
-- app-render.js:283,319: `custom_stagger: false` 하드코딩 해제
-- 위험: 세션 45 104-후보 결과가 forced-false 기준 → 회귀 가능성
+### 수정 2 (완료 — 세션 49, 커밋 24558c8): 열거 엔진 stagger 좌표 전달
+- app-render.js 3곳 + enum-worker.js 1곳: `custom_stagger: false` → `!!state.custom_stagger` / `params.custom_stagger||false`
+- stagger=true 시 pitchY=pitch×√3/2 → 탐색 좌표 = 표시 좌표 일치
+- stagger=true, L anchor, 10s → 2개 후보 확인 (spans 2r×3c = S/Z 형상)
+- 846개 회귀 통과
 
 ### 수정 3 (보류): ICC① 정의 정정
 - 코드: Math.min(rowSpan, colSpan) <= 2
