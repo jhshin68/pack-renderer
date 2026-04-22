@@ -1523,7 +1523,7 @@ self.onmessage = function (e) {
       icc1: params.icc1, icc2: params.icc2, icc3: params.icc3,
       allow_I: params.allow_I, allow_U: params.allow_U,
       pitch,
-      custom_stagger: false,
+      custom_stagger: params.custom_stagger || false,
       fixed_g0: g0,
       max_candidates: 999999,
       exhaustive: true,   // 시간 예산 안에서 무제한 탐색 (반복·adjStarts 캡 해제)
