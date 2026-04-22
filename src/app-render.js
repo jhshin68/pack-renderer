@@ -293,6 +293,53 @@ async function _runCustomSearch() {
     return;
   }
 
+  // ─── 부분 고정 탐색: pinned_groups 있으면 단일 스레드 직통 ──────────
+  const pinnedGroups = parsePinnedGroups();
+  if (pinnedGroups.length > 0) {
+    if (genBtn) genBtn.disabled = true;
+    if (titleEl) titleEl.textContent = `고정 그룹 탐색중… (${pinnedGroups.length}개 그룹 고정)`;
+    if (countEl) countEl.textContent = '…';
+    if (listEl) listEl.innerHTML = '<div class="hint" style="margin-top:6px;color:var(--dt3)">고정 그룹 기반 탐색 중…</div>';
+    _syncFilterOptions(null);
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const t0p = Date.now();
+    let presult;
+    try {
+      presult = Generator.enumerateGroupAssignments({
+        cells: customPts, S, P, arrangement: 'custom',
+        b_plus_side, b_minus_side, icc1, icc2, icc3,
+        nickel_w: nickel_w_mm * 1.5,
+        allow_I: state.allow_I, allow_U: state.allow_U,
+        pitch: customPitch, custom_stagger: !!state.custom_stagger,
+        pinned_groups: pinnedGroups,
+        exhaustive: true,
+        budget_ms: (state.search_budget_ms !== undefined) ? state.search_budget_ms : 600000,
+        max_candidates: 999999,
+      });
+    } catch (e) {
+      presult = { candidates: [], count: 0, error: e.message };
+    }
+    const candidates = (presult.candidates || []).map(c => ({ ...c, pinned: true }));
+    _enumResult = { candidates };
+    _sortedCandidates = null;
+    const elapsed = ((Date.now() - t0p) / 1000).toFixed(1);
+    const warnEl = document.getElementById('pinnedGroupsWarn');
+    if (warnEl) {
+      if (candidates.length === 0) {
+        warnEl.textContent = `⚠ 고정 그룹 탐색: 후보 없음 — B+ 셀 포함 여부와 인접성을 확인하세요`;
+        warnEl.style.display = 'block';
+      } else {
+        warnEl.style.display = 'none';
+      }
+    }
+    _updateEnumStatus(presult);
+    populateCandidatePanel();
+    if (genBtn) genBtn.disabled = false;
+    if (titleEl) titleEl.textContent = `셀 배열 후보 (고정 탐색 ${elapsed}s)`;
+    if (countEl) countEl.textContent = candidates.length;
+    return;
+  }
+
   // 탐색 시작 — 버튼 비활성화 + 로딩 표시
   const budgetMs = (state.search_budget_ms !== undefined) ? state.search_budget_ms : 600000;
   const budgetLabel = budgetMs === null ? '무제한'

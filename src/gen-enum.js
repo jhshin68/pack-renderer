@@ -223,6 +223,7 @@
       budget_ms = null,       // ★ 완전 탐색 시간 예산 (ms). null → exhaustive:false=10s, true=Infinity
       fixed_g0 = null,        // ★ 병렬탐색: G0 셀 인덱스 배열 고정 → G1..G(S-1)만 백트래킹
       enumerate_g0_only = false, // ★ 병렬탐색: true → G0 후보 목록만 반환 (backtracking 생략)
+      pinned_groups = null,  // ★ 부분 고정: [{row,col}[]] | null — G0..G(k-1) 고정, 나머지 탐색
     } = ctx || {};
 
     if (!cells || cells.length === 0 || S < 1 || P < 1) {
@@ -399,6 +400,11 @@
       return true;
     }
 
+    // ── DLX 결과 필터링: validateCandidate(P28③ 포함) 적용 ──────────
+    // _pendingPentResults는 아래 DLX 블록에서 채워진다 (선언만 먼저)
+    // (let 선언이 DLX 블록보다 먼저 와야 TDZ 오류 없음)
+    let _pendingPentResults = [];
+
     // ── Phase 1: 표준 배열 4종 생성 ─────────────────────────────────
     function makeBoustrophedon(startLTR) {
       const rowMap = new Map();
@@ -433,6 +439,15 @@
     // xy → cell index 매핑 (경계 포함 여부 빠른 판정)
     const xyKey = c => `${Math.round(c.x * 10)},${Math.round(c.y * 10)}`;
     const cellIdxMap = new Map(cells.map((c, i) => [xyKey(c), i]));
+
+    // row/col → cell index 매핑 (pinned_groups 변환용)
+    const rcIdxMap = new Map(cells.map((c, i) => [`${c.row},${c.col}`, i]));
+    // pinned_groups: [{row,col}[]] → cell index 배열로 변환
+    const pinnedIdxGroups = Array.isArray(pinned_groups) && pinned_groups.length > 0
+      ? pinned_groups.map(grp =>
+          grp.map(({row, col}) => rcIdxMap.get(`${row},${col}`)).filter(i => i !== undefined)
+        ).filter(grp => grp.length > 0)
+      : [];
 
     function cellInBoundary(c, bndSet) {
       const idx = cellIdxMap.get(xyKey(c));
@@ -475,7 +490,8 @@
     let btIterations = 0;
     let strategy = 'standard';
 
-    {
+    // ★ pinned_groups 모드: 표준 순서·DLX 생략, 백트래킹만 실행
+    if (!pinnedIdxGroups.length) {
       const STANDARD = [
         { name: '보스트로페돈 L→R', desc: '행 우선 · 짝수행 L→R', fn: () => makeBoustrophedon(true)  },
         { name: '보스트로페돈 R→L', desc: '행 우선 · 짝수행 R→L', fn: () => makeBoustrophedon(false) },
@@ -500,9 +516,10 @@
       }
     }
 
-    // ── Phase 4: 폴리오미노 DLX (P>=2, 커스텀 포함; G0 열거 단계 제외) ──────────────────
-    if (_PT && P >= 2 && S >= 2 && !enumerate_g0_only) {
-      const pentResults = _PT.enumeratePentominoTilings(cells, S, P, {
+    // ── Phase 4: 폴리오미노 DLX (P>=2; G0 열거 단계 제외, pinned 모드 제외) ──
+    // validateCandidate(P28③)로 사후 필터링 → _pendingPentResults에 임시 저장
+    if (_PT && P >= 2 && S >= 2 && !enumerate_g0_only && !pinnedIdxGroups.length) {
+      _pendingPentResults = _PT.enumeratePentominoTilings(cells, S, P, {
         b_plus_side, b_minus_side,
         g0_anchor,
         allow_I, allow_U,
@@ -511,8 +528,13 @@
         max_candidates: Math.max(20, max_candidates),
         time_budget_ms: 1500,
       });
-      if (pentResults.length > 0) {
-        results.push(...pentResults);
+    }
+
+    // DLX 결과 필터링 (validateCandidate 선언 이후 실행)
+    {
+      const validPent = _pendingPentResults.filter(r => validateCandidate(r.groups));
+      if (validPent.length > 0) {
+        results.push(...validPent);
         strategy = 'standard+pentomino';
       }
     }
@@ -614,8 +636,8 @@
         // DFS가 불규칙 행 배치에서 탐색 공간 폭발로 0개를 반환하는 문제 해결.
         // x 오름차순 스캔, 각 그룹은 BFS 확장 + MRV(최소 남은 이웃) 선택.
         // 결정론적(1후보)이므로 먼저 실행하고 DFS로 추가 후보를 시도한다.
-        // fixed_g0 모드(worker) 또는 G0 열거 전용 모드에서는 BFS Greedy 생략
-        if (!fixed_g0 && !enumerate_g0_only) {
+        // fixed_g0 모드(worker) / G0 열거 전용 모드 / pinned_groups 고정 탐색에서는 BFS Greedy 생략
+        if (!fixed_g0 && !enumerate_g0_only && !pinnedIdxGroups.length) {
           const scanByX = [...Array(N).keys()]
             .sort((a, b) => cells[a].x - cells[b].x || cells[a].y - cells[b].y);
 
@@ -696,7 +718,7 @@
         } // end if (!fixed_g0) BFS Greedy
 
         // ── Phase 2: Beam Search (pickCompact × 4 프리셋 × beam_width=5) ────────────
-        if (!fixed_g0 && !enumerate_g0_only && use_beam_search && Date.now() - btStart < btBudgetMs) {
+        if (!fixed_g0 && !enumerate_g0_only && !pinnedIdxGroups.length && use_beam_search && Date.now() - btStart < btBudgetMs) {
           const BEAM_W = 5;
           const PC_PRESETS = [
             {wh:1.0, wv:0.5, wd:0.3, wc:1.0, ws:0.8, piso:0.8, picc:2.0}, // HORIZ_FIRST
@@ -915,6 +937,38 @@
                 used[nextStart] = 0;
               }
               for (const ci of fixed_g0) used[ci] = 0;
+            }
+          } else if (pinnedIdxGroups.length > 0) {
+            // 부분 고정 탐색: G0..G(k-1) 고정, G(k)..G(S-1)만 DFS
+            const k = pinnedIdxGroups.length;
+            const pg0Valid = pinnedIdxGroups[0].some(i => bPlus.has(i));
+            if (pg0Valid) {
+              for (const grp of pinnedIdxGroups) for (const ci of grp) used[ci] = 1;
+              if (k >= S) {
+                // 모든 그룹 고정 — B- 검증 후 직접 커밋
+                if (pinnedIdxGroups[S - 1].some(i => bMinus.has(i))) {
+                  commitCandidate(pinnedIdxGroups.slice(0, S));
+                }
+              } else {
+                const lastPG = pinnedIdxGroups[k - 1];
+                const adjToLast = new Set();
+                for (const ci of lastPG) {
+                  for (const nb of adjL[ci]) { if (!used[nb]) adjToLast.add(nb); }
+                }
+                const pgStarts = [];
+                for (const ci of scanOrder) { if (!used[ci] && adjToLast.has(ci)) pgStarts.push(ci); }
+                const starts = pgStarts.length > 0
+                  ? pgStarts
+                  : (() => { for (const ci of scanOrder) { if (!used[ci]) return [ci]; } return []; })();
+                for (const nextStart of starts) {
+                  if (Date.now() - btStart > btBudgetMs) break;
+                  used[nextStart] = 1;
+                  dfsCustom(k, pinnedIdxGroups.slice(), [nextStart],
+                    new Set(adjL[nextStart].filter(nb => !used[nb])));
+                  used[nextStart] = 0;
+                }
+              }
+              for (const grp of pinnedIdxGroups) for (const ci of grp) used[ci] = 0;
             }
           } else if (enumerate_g0_only) {
             // G0 열거 전용 모드: 유효한 G0 후보 목록만 수집

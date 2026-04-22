@@ -122,6 +122,29 @@ function _parseCustomRowsRaw() {
 function parseCustomRows()    { return _parseCustomRowsRaw().counts; }
 function parseRowOffsets()    { return _parseCustomRowsRaw().offsets; }
 
+// ── 고정 그룹 파싱 (UI 입력 → [{row,col}[]] 배열) ──
+// 형식: 각 줄 = 한 그룹, 공백 구분 셀 좌표 "r{row}c{col}"
+// 예: "r4c0 r3c0 r3c1 r4c1" → [{row:4,col:0},{row:3,col:0},...]
+function parsePinnedGroups() {
+  const el = document.getElementById('pinnedGroupsInput');
+  if (!el) return [];
+  const result = [];
+  for (const line of el.value.split('\n').map(s => s.trim()).filter(Boolean)) {
+    const cells = [];
+    for (const tok of line.split(/\s+/)) {
+      const m = tok.match(/^r(-?\d+)c(-?\d+)$/i);
+      if (m) cells.push({ row: parseInt(m[1], 10), col: parseInt(m[2], 10) });
+    }
+    if (cells.length > 0) result.push(cells);
+  }
+  return result;
+}
+
+function clearPinnedGroups() {
+  const el = document.getElementById('pinnedGroupsInput');
+  if (el) { el.value = ''; }
+}
+
 // ── 커스텀 모드: S×P vs 행 합계 일치 경고 ──────────
 function checkCustomConsistency() {
   if (state.arrangement !== 'custom') return;

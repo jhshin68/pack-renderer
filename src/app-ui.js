@@ -22,8 +22,9 @@ function setArrangement(a) {
   const isCustom = (a === 'custom');
   const isStag   = (a === 'staggered');
   document.getElementById('rectConfig').style.display      = 'block';
-  document.getElementById('customGroup').style.display     = isCustom ? 'block' : 'none';
-  document.getElementById('holderSizeGroup').style.display = isCustom ? 'none'  : 'block';
+  document.getElementById('customGroup').style.display      = isCustom ? 'block' : 'none';
+  document.getElementById('pinnedGroupsUI').style.display   = isCustom ? 'block' : 'none';
+  document.getElementById('holderSizeGroup').style.display  = isCustom ? 'none'  : 'block';
   document.getElementById('stagDirGroup').style.display    = isStag   ? 'block' : 'none';
   if (isCustom) { _enumResult = null; checkCustomConsistency(); }
   rerender();
