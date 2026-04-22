@@ -160,7 +160,7 @@
         pts.push({
           x: margin + leftPad + alignOffX + stagOffX + extraOffX + i * pitch + R,
           y: margin + r * pitchY + R,
-          row: r, col: i,
+          row: rows.length - 1 - r, col: i,  // r0=하단, 위로 갈수록 증가
         });
       }
     }

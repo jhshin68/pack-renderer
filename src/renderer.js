@@ -625,9 +625,11 @@ function renderCustomRows(params) {
   const byRow = rows.map(() => []);
   pts.forEach(pt => byRow[pt.row].push(pt));
   const snake = [];
-  for (let r = 0; r < byRow.length; r++) {
+  // pt.row: 0=하단, rows.length-1=상단 → 시각적 위→아래 순서로 순회
+  for (let r = byRow.length - 1; r >= 0; r--) {
     const row = [...byRow[r]];
-    if (r % 2 === 1) row.reverse();
+    const snakeIdx = byRow.length - 1 - r;  // 0=최상단부터 카운트
+    if (snakeIdx % 2 === 1) row.reverse();
     snake.push(...row);
   }
 

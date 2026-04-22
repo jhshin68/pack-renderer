@@ -267,10 +267,10 @@
         const pred = (typeof g0_anchor === 'object')
           ? (c => c.row === g0_anchor.row && c.col === g0_anchor.col)
           : ({
-              'TL': c => c.row === rMin && c.col === cMin,
-              'TR': c => c.row === rMin && c.col === cMax,
-              'BL': c => c.row === rMax && c.col === cMin,
-              'BR': c => c.row === rMax && c.col === cMax,
+              'TL': c => c.row === rMax && c.col === cMin,  // r0=하단 → rMax=시각 상단
+              'TR': c => c.row === rMax && c.col === cMax,
+              'BL': c => c.row === rMin && c.col === cMin,
+              'BR': c => c.row === rMin && c.col === cMax,
               'L':  c => typeof c.col === 'number' && c.col === rowMinCol.get(c.row),
               'R':  c => typeof c.col === 'number' && c.col === rowMaxCol.get(c.row),
             }[g0_anchor] || (() => true));
