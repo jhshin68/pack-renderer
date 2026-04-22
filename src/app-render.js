@@ -350,8 +350,9 @@ async function _runCustomSearch() {
       const allBatches = await Promise.all(
         chunks.map(chunk => new Promise((resolve, reject) => {
           const w = new Worker(workerUrl);
-          w.onmessage = ev => { w.terminate(); resolve(ev.data.candidates || []); };
-          w.onerror   = err => { w.terminate(); reject(err); };
+          const killer = setTimeout(() => { w.terminate(); resolve([]); }, budgetMs + 3000);
+          w.onmessage = ev => { clearTimeout(killer); w.terminate(); resolve(ev.data.candidates || []); };
+          w.onerror   = err => { clearTimeout(killer); w.terminate(); reject(err); };
           w.postMessage({ params: wParams, g0Configs: chunk, budgetMs, cells: customPts, pitch: customPitch });
         }))
       );
