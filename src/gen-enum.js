@@ -213,7 +213,7 @@
       b_minus_side = 'right',
       icc1 = true, icc2 = true, icc3 = false,
       max_candidates = 20,
-      g0_anchor = null,  // ★ Phase 2: 1번 셀 위치 제약 (null | 'TL' | 'TR' | 'BL' | 'BR' | {row, col})
+      g0_anchor = null,  // ★ Phase 2: 1번 셀 위치 제약 (null | 'TL'|'TR'|'BL'|'BR'|'L'|'R' | {row, col})
       allow_I = false,   // ★ Phase 4: I-pentomino 허용 여부
       allow_U = false,   // ★ Phase 4: U-pentomino 허용 여부
       pitch: pitchArg = null, // ★ Bug1: 커스텀 배열에서 calcCustomCenters가 반환한 실제 pitch 명시 전달
@@ -253,6 +253,16 @@
       } else {
         const rMin = Math.min(...rows), rMax = Math.max(...rows);
         const cMin = Math.min(...cols), cMax = Math.max(...cols);
+        // 'L'/'R' 앵커: 각 행의 맨 왼쪽/오른쪽 셀 전체 (행별 경계)
+        const rowMinCol = new Map(), rowMaxCol = new Map();
+        for (const c of cells) {
+          if (typeof c.row === 'number' && typeof c.col === 'number') {
+            const rm = rowMinCol.get(c.row);
+            if (rm === undefined || c.col < rm) rowMinCol.set(c.row, c.col);
+            const rx = rowMaxCol.get(c.row);
+            if (rx === undefined || c.col > rx) rowMaxCol.set(c.row, c.col);
+          }
+        }
         const pred = (typeof g0_anchor === 'object')
           ? (c => c.row === g0_anchor.row && c.col === g0_anchor.col)
           : ({
@@ -260,6 +270,8 @@
               'TR': c => c.row === rMin && c.col === cMax,
               'BL': c => c.row === rMax && c.col === cMin,
               'BR': c => c.row === rMax && c.col === cMax,
+              'L':  c => typeof c.col === 'number' && c.col === rowMinCol.get(c.row),
+              'R':  c => typeof c.col === 'number' && c.col === rowMaxCol.get(c.row),
             }[g0_anchor] || (() => true));
         anchorCells = cells.filter(pred);
         if (anchorCells.length === 0) {
@@ -488,8 +500,8 @@
       }
     }
 
-    // ── Phase 4: 폴리오미노 DLX (P>=2, 커스텀 포함) ──────────────────
-    if (_PT && P >= 2 && S >= 2) {
+    // ── Phase 4: 폴리오미노 DLX (P>=2, 커스텀 포함; G0 열거 단계 제외) ──────────────────
+    if (_PT && P >= 2 && S >= 2 && !enumerate_g0_only) {
       const pentResults = _PT.enumeratePentominoTilings(cells, S, P, {
         b_plus_side, b_minus_side,
         g0_anchor,
