@@ -1,8 +1,9 @@
 ========================================
-마지막 업데이트: 2026-04-22 (세션 49 — Fix 2 완료: custom_stagger 하드코딩 해제)
+마지막 업데이트: 2026-04-22 (세션 49 — Fix 2~4 완료 + 다음 기능 계획 수립)
 버전: battery_pack_renderer.html, src/gen-enum.js, src/app-render.js, src/enum-worker.js, src/enum-worker-bundle.js
-테스트 상태: 846개 통과 (Fix 2 후), stagger=true 10초 탐색 2개 후보 확인
+테스트 상태: 846개 통과 (모든 수정 후)
 feature_list.json: 전체 passes: true + 신규 F37 추가 예정
+다음 기능: 부분 고정 탐색 (Pinned Groups Search) — 세션 50 시작 예정
 
 ========================================
 ## 세션 46 핵심 성과
@@ -90,6 +91,41 @@ feature_list.json: 전체 passes: true + 신규 F37 추가 예정
 #### 검증
 - 846개 회귀 테스트 모두 통과
 - test_p28_render_thr, test_g0_anchor, test_f14_custom_rows 모두 통과
+
+### Fix 3 (커밋 19d6c87): enumerate_g0_only 시 BFS Greedy·Beam Search 생략
+- 문제: stagger=true로 변경 후 헥사 6-방향 인접 그래프에서 BFS/Beam이
+  enumerate_g0_only=true 메인 스레드에서 실행되어 UI 블록 재발
+- 수정: gen-enum.js BFS Greedy(618줄) + Beam Search(699줄)에 !enumerate_g0_only 가드 추가
+- 결과: G0 열거 시간 L앵커 5ms, TL앵커 1ms → UI 블록 없음
+
+### Fix 4 (커밋 10ae70a): G0 config별 균등 예산 분배
+- 문제: 22워커×39 G0 configs 분배 시, 워커당 G0 2개이면
+  첫 번째 G0가 전체 예산 소모 → 두 번째 G0 미탐색 (17개 G0 누락)
+- 수정: budgetPerG0 = budgetMs / chunk.length → G0별 균등 예산
+  enum-worker.js: g0Budget = min(budgetPerG0, remaining) 사용
+- 효과: 39개 G0 config 전부 탐색 보장
+
+### 세션 49 핵심 진단: 생산 설계(image1.png) 미검출 원인 분석
+- ICC② 임계값: passICC_bt에서 custom 배열은 maxRatio=4.0 적용 → ratio=2.31 통과
+  (ICC② ON/OFF 동일 결과 확인 → ICC② 문제 아님)
+- 근본 원인: 탐색 공간 크기 (~10³⁰) vs 탐색량 불일치
+  생산 설계는 수작업 설계로 알고리즘이 그 경로를 탐색하지 못함
+
+### 다음 기능 계획: 부분 고정 탐색 (Pinned Groups Search) — 세션 50 시작 예정
+
+#### 개요
+사용자가 일부 그룹(셀 좌표 지정)을 고정하면, 알고리즘이 나머지만 탐색하는 기능.
+생산 설계의 일부 그룹을 입력하여 전체 설계를 역추적/검증하는 목적.
+
+#### 단계별 구현 계획
+1. 셀 좌표 레이블 SVG 표시 (r{row}c{col}): 토글 체크박스
+2. 고정 그룹 입력 UI: 사이드바 패널, "r4c0 r3c0 r3c1 r4c1" 형식
+   - B+ 경계 포함 그룹 → G0 자동 배정
+   - B- 경계 포함 그룹 → G(S-1) 자동 배정
+3. 알고리즘 확장: pinned_groups 파라미터 추가
+   - 고정 그룹 셀 used[] 사전 표시
+   - 나머지 셀만 백트래킹
+4. 워커 통합 + 결과 "고정 그룹 포함" 태그 표시
 
 ========================================
 ## 세션 48 핵심 성과
