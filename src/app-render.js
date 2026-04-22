@@ -340,6 +340,7 @@ async function _runCustomSearch() {
       S, P, b_plus_side, b_minus_side, icc1, icc2, icc3,
       nickel_w: nickel_w_mm * 1.5,
       allow_I: state.allow_I, allow_U: state.allow_U,
+      exhaustive: true,   // 시간 예산 안에서 무제한 탐색
     };
 
     // file:// 호환: importScripts 없는 번들 파일 사용 (gen-* 의존성 내장)
@@ -370,7 +371,7 @@ async function _runCustomSearch() {
     } catch (e) {
       // Worker 실패 → 단일 스레드 폴백
       try {
-        result = Generator.enumerateGroupAssignments({ ...enumBase, max_candidates: 999999, budget_ms: budgetMs });
+        result = Generator.enumerateGroupAssignments({ ...enumBase, max_candidates: 999999, exhaustive: true, budget_ms: budgetMs });
       } catch (e2) {
         if (listEl) listEl.innerHTML = `<div class="hint" style="color:var(--red)">열거 오류: ${e2.message}</div>`;
         if (countEl) countEl.textContent = '오류';

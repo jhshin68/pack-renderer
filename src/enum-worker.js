@@ -25,7 +25,7 @@ self.onmessage = function (e) {
       custom_stagger: false,
       fixed_g0: g0,
       max_candidates: 999999,
-      exhaustive: false,
+      exhaustive: true,   // 시간 예산 안에서 무제한 탐색 (반복·adjStarts 캡 해제)
       budget_ms: remaining,
       nickel_w: params.nickel_w,
     });

@@ -90,7 +90,7 @@ if (!isMainThread) {
       pitch, custom_stagger: false,
       fixed_g0: g0,
       max_candidates: 999999,
-      exhaustive: false,
+      exhaustive: true,   // 시간 예산 안에서 무제한 탐색
       budget_ms: remaining,
     });
     results.push(...(r.candidates || []));
