@@ -614,8 +614,8 @@
         // DFS가 불규칙 행 배치에서 탐색 공간 폭발로 0개를 반환하는 문제 해결.
         // x 오름차순 스캔, 각 그룹은 BFS 확장 + MRV(최소 남은 이웃) 선택.
         // 결정론적(1후보)이므로 먼저 실행하고 DFS로 추가 후보를 시도한다.
-        // fixed_g0 모드(worker)에서는 BFS Greedy 생략 — G0가 이미 고정됨
-        if (!fixed_g0) {
+        // fixed_g0 모드(worker) 또는 G0 열거 전용 모드에서는 BFS Greedy 생략
+        if (!fixed_g0 && !enumerate_g0_only) {
           const scanByX = [...Array(N).keys()]
             .sort((a, b) => cells[a].x - cells[b].x || cells[a].y - cells[b].y);
 
@@ -696,7 +696,7 @@
         } // end if (!fixed_g0) BFS Greedy
 
         // ── Phase 2: Beam Search (pickCompact × 4 프리셋 × beam_width=5) ────────────
-        if (!fixed_g0 && use_beam_search && Date.now() - btStart < btBudgetMs) {
+        if (!fixed_g0 && !enumerate_g0_only && use_beam_search && Date.now() - btStart < btBudgetMs) {
           const BEAM_W = 5;
           const PC_PRESETS = [
             {wh:1.0, wv:0.5, wd:0.3, wc:1.0, ws:0.8, piso:0.8, picc:2.0}, // HORIZ_FIRST
