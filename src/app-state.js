@@ -26,7 +26,7 @@ const state = {
   bms_edge:        'bottom',  // BMS 위치 엣지: 'top'|'bottom'|'left'|'right'
   bms_pos:         0.5,       // BMS 위치 비율 (0.0 ~ 1.0, 엣지 시작→끝)
   // 우측 패널
-  icc1:              true,    // ICC① 행스팬 ≤ 2
+  icc1:              false,   // ICC① 행스팬 ≤ 2 (기본 비활성)
   icc2:              true,    // ICC② 종횡비 ≤ 2.0
   icc3:              false,   // ICC③ 볼록성 ≥ 0.75 (기본 비활성)
   nickel_w_mm:       4.0,     // 니켈 폭 mm (ICC 계산 기준)
@@ -41,7 +41,7 @@ const state = {
   // H3 보조 — G0 앵커 (1번 셀 위치 제약)
   g0_anchor:     null,        // null | 'TL' | 'TR' | 'BL' | 'BR' | {row, col}
   // Phase 4 — pentomino 도형 허용 토글
-  allow_I:       false,       // 1자(I-pentomino) 허용 여부
+  allow_I:       true,        // 1자(I-pentomino) 허용 여부
   allow_U:       false,       // ㄷ자(U-pentomino) 허용 여부
   // Phase 5 — 니켈 플레이트 수 제한
   max_plates:    0,           // 0 = 제한 없음, N = 고유 형상(금형) 종류 수 ≤ N인 후보만 표시
