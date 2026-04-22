@@ -164,9 +164,10 @@ const DEFAULT_PARAMS = {
   gap:           0.0,        // ★ 불변 원칙: 셀-셀 맞닿음 (pitch = render_d)
   layout:        'auto',        // 'auto' | 'side_by_side' | 'top_bottom'
   arrangement:   'square',      // 'square' | 'staggered'  ★ v0.3
-  show_nickel:   true,
-  show_terminal: true,
-  scale:         4.0,
+  show_nickel:      true,
+  show_terminal:    true,
+  show_cell_coords: false,
+  scale:            4.0,
   nickel_w_mm:   5.0,
   // bar_h_mm 폐기 (v0.2.7): 가로 브리지 두께 = 세로 스파인 두께 = nickel_w_mm
   margin_mm:     12.0,
@@ -741,13 +742,24 @@ function renderCustomRows(params) {
   // 원칙 1: 셀 극성은 실제 그룹 배정(groupCells)에서 결정 — snake fallback 순서 사용 금지
   const cellGrpIdx = new Map();
   groupCells.forEach((gc, gIdx) => gc.forEach(c => cellGrpIdx.set(`${c.row},${c.col}`, gIdx)));
+
+  const coordLabelFs = Math.max(5, Math.min(9, Math.round(R * 0.48)));
+  function coordLabel(pt) {
+    if (!params.show_cell_coords) return '';
+    const dy = coordLabelFs * 0.4;
+    return `<text font-family="Arial" font-size="${coordLabelFs}" fill="#1a6fb5" text-anchor="middle" pointer-events="none"`
+      + ` x="${pt.x.toFixed(1)}" y="${(pt.y - dy).toFixed(1)}">r${pt.row}</text>`
+      + `<text font-family="Arial" font-size="${coordLabelFs}" fill="#1a6fb5" text-anchor="middle" pointer-events="none"`
+      + ` x="${pt.x.toFixed(1)}" y="${(pt.y + coordLabelFs * 0.95).toFixed(1)}">c${pt.col}</text>`;
+  }
+
   const topCells = pts.map(pt => {
     const g = cellGrpIdx.get(`${pt.row},${pt.col}`) ?? 0;
-    return drawCell(pt.x, pt.y, R, getCellPolarity(g, 'top'), params.scale);
+    return drawCell(pt.x, pt.y, R, getCellPolarity(g, 'top'), params.scale) + coordLabel(pt);
   });
   const botCells = pts.map(pt => {
     const g = cellGrpIdx.get(`${pt.row},${pt.col}`) ?? 0;
-    return drawCell(pt.x, pt.y, R, getCellPolarity(g, 'bottom'), params.scale);
+    return drawCell(pt.x, pt.y, R, getCellPolarity(g, 'bottom'), params.scale) + coordLabel(pt);
   });
 
   const faceFilter = params.face || 'all';

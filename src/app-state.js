@@ -15,8 +15,9 @@ const state = {
   gap:             0.0,   // ★ 원칙: gap=0 (셀 맞닿음) — renderer.js 기본값과 동일
   arrangement:     'square',
   stag_dir:        'R',        // 엇배열 방향: 'R' = 홀수 행 오른쪽, 'L' = 짝수 행 오른쪽
-  show_nickel:     true,
-  show_terminal:   true,
+  show_nickel:      true,
+  show_terminal:    true,
+  show_cell_coords: false,  // 커스텀 배열 셀 좌표 라벨(rNcM) 표시 여부
   face:            'all',
   max_plate_types: null,
   allow_mirror:    false,

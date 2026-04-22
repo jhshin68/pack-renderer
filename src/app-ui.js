@@ -312,6 +312,10 @@ function toggleOpt(k) {
     state.allow_mirror = !state.allow_mirror;
     document.getElementById('togEmboss').classList.toggle('on', !state.allow_mirror);
   }
+  if (k === 'coords') {
+    state.show_cell_coords = !state.show_cell_coords;
+    document.getElementById('togCoords').classList.toggle('on', state.show_cell_coords);
+  }
   if (lastSVG) rerender();
 }
 
