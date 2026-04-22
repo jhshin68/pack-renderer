@@ -976,8 +976,7 @@
         r.groups.map(g => g.cells.map(c => xyKey(c)).sort().join(';')).join('|')
       ));
       const used = new Uint8Array(N);
-      const MAX_ITER_BT = exhaustive ? Infinity
-                       : (arrangement === 'custom' ? 2000000 : 50000);
+      const MAX_ITER_BT = Infinity; // 시간 예산(budget_ms)으로만 제어
 
       // ── 후보 정렬 비교기 (오름차순: a가 b보다 좋으면 음수) ────────────
       // B+/B- 충족 → m_distinct 오름차순 → ICC 위반 오름차순 → total_score 내림차순
@@ -1280,7 +1279,6 @@
               }
               const adjStarts = [];
               for (const ci of scanOrder) {
-                if (!exhaustive && adjStarts.length >= 5) break;
                 if (!used[ci] && adjToSnap.has(ci)) adjStarts.push(ci);
               }
               const starts = adjStarts.length > 0
@@ -1327,7 +1325,6 @@
               }
               const adjStarts = [];
               for (const ci of scanOrder) {
-                if (!exhaustive && adjStarts.length >= 5) break;
                 if (!used[ci] && adjToG0.has(ci)) adjStarts.push(ci);
               }
               const starts = adjStarts.length > 0
@@ -1463,7 +1460,7 @@
       boundary_plus_count:  bPlus.size,
       boundary_minus_count: bMinus.size,
       iterations_used:      btIterations,
-      max_iter_hit:         btIterations >= 50000,
+      max_iter_hit:         false,
       warning:              anchorWarning,  // ★ Phase 2
     };
   }
