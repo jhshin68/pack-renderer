@@ -1,51 +1,65 @@
 ========================================
-마지막 업데이트: 2026-04-22 (세션 45 — 반복 상한 제거 + 워커 강제 종료 타이머)
+마지막 업데이트: 2026-04-22 (세션 46 — 커스텀 배열 열거 버그 분석 + 수정 시작)
 버전: battery_pack_renderer.html, src/gen-enum.js, src/app-render.js, src/enum-worker-bundle.js
-테스트 상태: 브라우저 기능 확인 완료 (104개 후보 탐색 성공)
-feature_list.json: 전체 passes: true (미완료 항목 없음)
+테스트 상태: 버그 분석 완료 (13S4P 커스텀 배열 0후보 원인 5개 확인)
+feature_list.json: 전체 passes: true + 신규 F37 추가 예정
 
 ========================================
-## 세션 45 핵심 성과
+## 세션 46 핵심 성과
 
-### 1. 반복 횟수 상한(5만·200만) + adjStarts 캡(5개) 완전 제거
+### 분석: 13S4P 커스텀 배열 (10,12:-2,13:-2,12:-2,5:-1, 엇배열 ON, TL) 후보 0개 원인
 
-변경 파일: src/gen-enum.js, src/enum-worker-bundle.js
+#### 원인 1 (치명적): 열거 엔진이 custom_stagger=false 강제
+- app-render.js:283: `custom_stagger: false` 하드코딩
+- 결과: pitchY=pitch(rectangular) vs 실제 헥사 pitchY=pitch×√3/2=0.866p
+- ICC② ratio 오계산: 2행 3열 그룹이 rect에서 ratio=2.0(통과) → hex에서 ratio=2.31(실패)
+- 탐색 좌표와 렌더링 좌표 불일치
 
-수정 내용:
-  - MAX_ITER_BT = exhaustive ? Infinity : (custom ? 2000000 : 50000)
-    → MAX_ITER_BT = Infinity (분기 제거)
-  - if (!exhaustive && adjStarts.length >= 5) break;  × 2개 제거
-  - max_iter_hit: btIterations >= 50000  →  max_iter_hit: false (고정)
-  - enum-worker-bundle.js 재생성 (58.6 KB)
+#### 원인 2: ICC① 정의 불일치
+- 코드: Math.min(rowSpan, colSpan) <= 2  ("더 짧은 쪽 ≤ 2")
+- UI: "행 스팬 ≤ 2" (rowSpan ≤ 2)
+- 두 정의가 다름 — 원칙 문서 기준으로 정정 필요
 
-탐색 중단 조건 (최종):
-  1. 시간 초과: Date.now() - btStart > btBudgetMs
-  2. 탐색 공간 소진: DFS 자연 종료
+#### 원인 3: Row 3↔4 인접 단절 (기하학적)
+- offset 차이=2 → row 3 col=0은 row 4 어떤 셀과도 thr=1.5p 내 인접 불가
+- row 3 col=0을 포함하는 그룹은 rows 2-3에만 속해야 함
 
-### 2. 워커 강제 종료 타이머 추가
+#### 원인 4 (알고리즘 한계): Phase 4 DLX 커스텀 배열 제외
+- gen-enum.js:492: `arrangement !== 'custom'` 조건으로 DLX 완전 제외
+- 13×4 완전 분할 = Exact Cover 문제 → DLX가 최적
+- BFS+Beam 휴리스틱만으로는 해 탐색 실패
 
-변경 파일: src/app-render.js
+#### 원인 5: TL 앵커가 G0 시작점을 1개로 제한
+- bPlusStartCells = [row=0, col=0] 단 1개
+- 탐색 다양성 부족
 
-문제: Promise.all에 타임아웃 없음 → 워커가 budget_ms를 조금이라도
-      초과하면 UI가 무한 대기
-수정: 각 워커에 killer setTimeout(budgetMs + 3000) 추가
-      - 정상 응답 시: clearTimeout(killer) → 즉시 resolve
-      - 초과 시: w.terminate() → resolve([])
+========================================
+## 세션 46 수정 계획 (현재 진행 중)
 
-### 3. 탐색 결과 확인 (13S4P 커스텀 배열, 10분)
+### 수정 1: Phase 4 DLX 커스텀 배열 활성화
+- gen-enum.js:492 조건에서 `arrangement !== 'custom'` 제거
+- pentomino_tiling.js API가 cells[] 기반이면 커스텀도 지원 가능
 
-파라미터: rows=[5,12,13,12,10], offsets=[-1,-2,-2,-2,0]
-          B+ 왼쪽, B- 오른쪽, G0앵커=TL, ICC①②ON/③OFF, I형OFF
+### 수정 2: 열거 엔진 stagger 좌표 전달
+- app-render.js: custom_stagger 실제 값 전달 (false 강제 해제)
+- gen-enum.js: custom_stagger=true 시 pitchY, renderThr 정합성 보장
 
-결과:
-  - 총 후보: 104개 (중복 제거 후)
-  - m_distinct=12: 1개  ← 최적 (유일)
-  - m_distinct=13: 23개
-  - m_distinct=14: 80개
-  - m_distinct=11: 없음 (구조적 한계)
+### 수정 3: ICC① 정의 정정
+- rowSpan <= 2 OR Math.min() 유지 중 원칙 기준으로 결정
+
+### 수정 4: Row 3↔4 인접 개선
+- thr 계산 방식 개선 또는 adjacency 보강
+
+### 수정 5: TL 앵커 후보 확장
+- anchorCells가 1개일 때 인접 B+ 셀도 시작점으로 허용 (옵션)
 
 ========================================
 ## 이전 세션 요약
+
+세션 45:
+  - 반복 횟수 상한(5만·200만) + adjStarts 캡(5개) 완전 제거
+  - 워커 강제 종료 타이머 추가 (budgetMs+3s)
+  - 13S4P 104개 후보 탐색 성공 확인
 
 세션 44:
   - 사이드바-렌더러 인덱스 불일치 버그 수정
@@ -59,23 +73,7 @@ feature_list.json: 전체 passes: true (미완료 항목 없음)
   - 커스텀 배열 stagger 열거 버그 수정
   - 필터 갱신 순서 보장
 
-세션 38-40:
-  - m_distinct 합판 단위 계산 수정 (plate-level)
-  - 커스텀 배열 니켈 플레이트 교차(쇼트) 방지
-  - .gitignore 보완
-
 ========================================
-## 신규/수정 파일
+## 다음 작업
 
-- src/gen-enum.js: 반복 상한 제거 (MAX_ITER_BT, adjStarts 캡)
-- src/app-render.js: 워커 강제 종료 타이머 추가
-- src/enum-worker-bundle.js: 재생성 (58.6 KB)
-- src/enum-worker.js: exhaustive: true 고정
-- tests/parallel_search.js: g0_anchor TL 추가, exhaustive true
-- scripts/build-worker-bundle.js: 번들 생성 스크립트 신규
-
-========================================
-## 다음 작업 후보
-
-- feature_list.json 전체 passes: true → 신규 기능 필요 시 사용자 지시 대기
-- m_distinct=12 유일 후보를 기준으로 실제 제조 검토 (사용자 판단)
+수정 1~5 구현 + 브라우저 검증 (13S4P 커스텀 배열 후보 생성 확인)
