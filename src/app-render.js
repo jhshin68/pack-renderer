@@ -301,43 +301,101 @@ async function _runCustomSearch(usePinned = false) {
   // ─── 부분 고정 탐색: 전용 버튼 호출 시에만 실행 (일반 탐색과 분리) ──
   const pinnedGroups = usePinned ? parsePinnedGroups() : [];
   if (pinnedGroups.length > 0) {
+    const budgetMsPinned = (state.search_budget_ms !== undefined) ? state.search_budget_ms : 600000;
+    const budgetLabelPinned = budgetMsPinned >= 60000 ? `${budgetMsPinned / 60000}분` : `${budgetMsPinned / 1000}초`;
     if (genBtn) genBtn.disabled = true;
-    if (titleEl) titleEl.textContent = `고정 그룹 탐색중… (${pinnedGroups.length}개 그룹 고정)`;
     if (countEl) countEl.textContent = '…';
-    if (listEl) listEl.innerHTML = '<div class="hint" style="margin-top:6px;color:var(--dt3)">고정 그룹 기반 탐색 중…</div>';
+    if (listEl) listEl.innerHTML = '<div class="hint" style="margin-top:6px;color:var(--dt3)">고정 그룹 탐색 중…</div>';
     _syncFilterOptions(null);
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
     const t0p = Date.now();
-    let presult;
+
+    const enumBasePinned = {
+      cells: customPts, S, P, arrangement: 'custom',
+      b_plus_side, b_minus_side, icc1, icc2, icc3,
+      nickel_w: nickel_w_mm * 1.5,
+      allow_I: state.allow_I, allow_U: state.allow_U,
+      pitch: customPitch, custom_stagger: !!state.custom_stagger,
+      pinned_groups: pinnedGroups,
+    };
+
+    // G(k) 후보 열거 — 병렬 분할 기준
+    let gkConfigs = [];
     try {
-      presult = Generator.enumerateGroupAssignments({
-        cells: customPts, S, P, arrangement: 'custom',
-        b_plus_side, b_minus_side, icc1, icc2, icc3,
+      const gkr = Generator.enumerateGroupAssignments({ ...enumBasePinned, enumerate_g0_only: true });
+      gkConfigs = gkr.g0_configs || [];
+    } catch (_) {}
+
+    // cell idx 변환 (워커 전달용)
+    const rcIdxMap = new Map(customPts.map((pt, i) => [`${pt.row},${pt.col}`, i]));
+    const pinnedCellIdxGroups = pinnedGroups.map(grp =>
+      grp.map(({row, col}) => rcIdxMap.get(`${row},${col}`)).filter(i => i !== undefined)
+    ).filter(grp => grp.length > 0);
+
+    let allCandidates = [];
+
+    if (gkConfigs.length >= 2 && typeof Worker !== 'undefined') {
+      // ── 병렬 탐색 ──────────────────────────────────────────────────
+      if (titleEl) titleEl.textContent = `고정 탐색 병렬중… (${pinnedGroups.length}개 고정, ${gkConfigs.length}분할, ${budgetLabelPinned})`;
+      const numW = Math.min(Math.max(1, (navigator.hardwareConcurrency || 4) - 2), gkConfigs.length);
+      const chunks = Array.from({ length: numW }, () => []);
+      gkConfigs.forEach((gk, i) => chunks[i % numW].push(gk));
+      const wParams = {
+        S, P, b_plus_side, b_minus_side, icc1, icc2, icc3,
         nickel_w: nickel_w_mm * 1.5,
         allow_I: state.allow_I, allow_U: state.allow_U,
-        pitch: customPitch, custom_stagger: !!state.custom_stagger,
-        pinned_groups: pinnedGroups,
-        exhaustive: true,
-        budget_ms: (state.search_budget_ms !== undefined) ? state.search_budget_ms : 600000,
-        max_candidates: 999999,
-      });
-    } catch (e) {
-      presult = { candidates: [], count: 0, error: e.message };
+        custom_stagger: !!state.custom_stagger,
+      };
+      try {
+        const batches = await Promise.all(chunks.map(chunk => {
+          const budgetPerGk = Math.floor(budgetMsPinned / Math.max(1, chunk.length));
+          return new Promise((resolve, reject) => {
+            const w = new Worker('src/enum-worker-bundle.js');
+            const killer = setTimeout(() => { w.terminate(); resolve([]); }, budgetMsPinned + 3000);
+            w.onmessage = ev => { clearTimeout(killer); w.terminate(); resolve(ev.data.candidates || []); };
+            w.onerror   = err => { clearTimeout(killer); w.terminate(); reject(err); };
+            w.postMessage({ params: wParams, g0Configs: chunk, budgetMs: budgetMsPinned, budgetPerG0: budgetPerGk,
+                            cells: customPts, pitch: customPitch, pinnedCellIdxGroups });
+          });
+        }));
+        const seen = new Set();
+        for (const batch of batches) {
+          for (const cand of batch) {
+            const key = (cand.groups || []).map(g =>
+              (g.cells || []).map(c => `${c.row},${c.col}`).sort().join('|')
+            ).join('§');
+            if (!seen.has(key)) { seen.add(key); allCandidates.push(cand); }
+          }
+        }
+      } catch (_) {
+        // 워커 실패 → 단일 스레드 폴백
+        gkConfigs = [];
+      }
     }
-    const candidates = (presult.candidates || []).map(c => ({ ...c, pinned: true }));
+
+    if (gkConfigs.length < 2) {
+      // ── 단일 스레드 폴백 ────────────────────────────────────────────
+      if (titleEl) titleEl.textContent = `고정 탐색 중… (${pinnedGroups.length}개 고정, ${budgetLabelPinned})`;
+      try {
+        const presult = Generator.enumerateGroupAssignments({
+          ...enumBasePinned, exhaustive: true, budget_ms: budgetMsPinned, max_candidates: 999999,
+        });
+        allCandidates = presult.candidates || [];
+      } catch (_) {}
+    }
+
+    const candidates = allCandidates.map(c => ({ ...c, pinned: true }));
     _enumResult = { candidates };
     _sortedCandidates = null;
     const elapsed = ((Date.now() - t0p) / 1000).toFixed(1);
     const warnEl = document.getElementById('pinnedGroupsWarn');
     if (warnEl) {
-      if (candidates.length === 0) {
-        warnEl.textContent = `⚠ 고정 그룹 탐색: 후보 없음 — B+ 셀 포함 여부와 인접성을 확인하세요`;
-        warnEl.style.display = 'block';
-      } else {
-        warnEl.style.display = 'none';
-      }
+      warnEl.textContent = candidates.length === 0
+        ? '⚠ 고정 그룹 탐색: 후보 없음 — B+ 셀 포함 여부와 인접성을 확인하세요'
+        : '';
+      warnEl.style.display = candidates.length === 0 ? 'block' : 'none';
     }
-    _updateEnumStatus(presult);
+    _updateEnumStatus({ candidates });
     populateCandidatePanel();
     if (genBtn) genBtn.disabled = false;
     if (titleEl) titleEl.textContent = `셀 배열 후보 (고정 탐색 ${elapsed}s)`;

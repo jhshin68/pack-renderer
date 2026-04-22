@@ -1376,6 +1376,52 @@
               }
               for (const ci of fixed_g0) used[ci] = 0;
             }
+          } else if (pinnedIdxGroups.length > 0 && enumerate_g0_only) {
+            // pinned + G0-only 모드: G(k) 후보 목록 수집 (병렬 분할용)
+            const k = pinnedIdxGroups.length;
+            const pg0Valid = pinnedIdxGroups[0].some(i => bPlus.has(i));
+            if (pg0Valid) {
+              for (const grp of pinnedIdxGroups) for (const ci of grp) used[ci] = 1;
+              const lastPG = pinnedIdxGroups[k - 1];
+              const adjToLast = new Set();
+              for (const ci of lastPG)
+                for (const nb of adjL[ci]) { if (!used[nb]) adjToLast.add(nb); }
+              const gkStarts = [];
+              for (const ci of scanOrder) { if (!used[ci] && adjToLast.has(ci)) gkStarts.push(ci); }
+              const starts = gkStarts.length > 0
+                ? gkStarts
+                : (() => { for (const ci of scanOrder) { if (!used[ci]) return [ci]; } return []; })();
+              const gkConfigs = [];
+              const seenGk = new Set();
+              function dfsGk(curIdxs, frontier) {
+                if (curIdxs.length === P) {
+                  if (!passICC_bt(curIdxs)) return;
+                  if (!allow_I && _isLinearGroup(curIdxs.map(i => cells[i]))) return;
+                  const key = [...curIdxs].sort((a, b) => a - b).join(',');
+                  if (!seenGk.has(key)) { seenGk.add(key); gkConfigs.push([...curIdxs]); }
+                  return;
+                }
+                for (const cand of frontier) {
+                  if (curIdxs.length === P - 1 && !allow_I &&
+                      _isLinearGroup([...curIdxs.map(i => cells[i]), cells[cand]])) continue;
+                  used[cand] = 1; curIdxs.push(cand);
+                  const nf = new Set(frontier); nf.delete(cand);
+                  for (const nb of adjL[cand]) { if (!used[nb]) nf.add(nb); }
+                  dfsGk(curIdxs, nf);
+                  curIdxs.pop(); used[cand] = 0;
+                }
+              }
+              for (const s of starts) {
+                if (!used[s]) {
+                  used[s] = 1;
+                  dfsGk([s], new Set(adjL[s].filter(nb => !used[nb])));
+                  used[s] = 0;
+                }
+              }
+              for (const grp of pinnedIdxGroups) for (const ci of grp) used[ci] = 0;
+              return { g0_configs: gkConfigs, count: gkConfigs.length };
+            }
+            return { g0_configs: [], count: 0 };
           } else if (pinnedIdxGroups.length > 0) {
             // 부분 고정 탐색: G0..G(k-1) 고정, G(k)..G(S-1)만 DFS
             const k = pinnedIdxGroups.length;
@@ -1559,17 +1605,32 @@
 // Web Worker: G0 고정 병렬 탐색
 // importScripts 경로는 이 파일 위치(src/) 기준 상대경로
 self.onmessage = function (e) {
-  const { params, g0Configs, budgetMs, budgetPerG0, cells, pitch } = e.data;
+  const { params, g0Configs, budgetMs, budgetPerG0, cells, pitch, pinnedCellIdxGroups } = e.data;
   const { enumerateGroupAssignments } = self._GenEnum;
+
+  // pinnedCellIdxGroups: 고정 그룹 인덱스 배열 → {row,col}[] 변환 헬퍼
+  const toRowCol = idxArr => idxArr.map(i => ({ row: cells[i].row, col: cells[i].col }));
 
   const deadline = Date.now() + budgetMs;
   const results  = [];
 
-  for (const g0 of g0Configs) {
+  for (const gk of g0Configs) {
     const remaining = deadline - Date.now();
     if (remaining <= 0) break;
-    // budgetPerG0: G0 config별 균등 예산 (모든 G0 탐색 보장). 미설정 시 remaining 전체 사용.
     const g0Budget = budgetPerG0 ? Math.min(budgetPerG0, remaining) : remaining;
+
+    // pinned 모드: pinnedCellIdxGroups + gk 를 pinned_groups로 전달
+    // 일반 모드: fixed_g0 사용 (기존 동작)
+    const usesPinned = Array.isArray(pinnedCellIdxGroups) && pinnedCellIdxGroups.length > 0;
+    const callParams = usesPinned
+      ? {
+          pinned_groups: [...pinnedCellIdxGroups.map(toRowCol), toRowCol(gk)],
+          fixed_g0: null,
+        }
+      : {
+          fixed_g0: gk,
+          pinned_groups: null,
+        };
 
     const r = enumerateGroupAssignments({
       cells, S: params.S, P: params.P,
@@ -1580,11 +1641,11 @@ self.onmessage = function (e) {
       allow_I: params.allow_I, allow_U: params.allow_U,
       pitch,
       custom_stagger: params.custom_stagger || false,
-      fixed_g0: g0,
       max_candidates: 999999,
-      exhaustive: true,   // 시간 예산 안에서 무제한 탐색 (반복·adjStarts 캡 해제)
+      exhaustive: true,
       budget_ms: g0Budget,
       nickel_w: params.nickel_w,
+      ...callParams,
     });
     results.push(...(r.candidates || []));
   }
