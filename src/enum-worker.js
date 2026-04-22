@@ -10,6 +10,26 @@ self.onmessage = function (e) {
   // pinnedCellIdxGroups: 고정 그룹 인덱스 배열 → {row,col}[] 변환 헬퍼
   const toRowCol = idxArr => idxArr.map(i => ({ row: cells[i].row, col: cells[i].col }));
 
+  const usesPinned = Array.isArray(pinnedCellIdxGroups) && pinnedCellIdxGroups.length > 0;
+
+  // g0Configs=[] + pinnedCellIdxGroups → 전체 pinned 탐색 (단일 워커 폴백)
+  if ((!g0Configs || g0Configs.length === 0) && usesPinned) {
+    const r = enumerateGroupAssignments({
+      cells, S: params.S, P: params.P,
+      arrangement: 'custom',
+      b_plus_side:  params.b_plus_side,
+      b_minus_side: params.b_minus_side,
+      icc1: params.icc1, icc2: params.icc2, icc3: params.icc3,
+      allow_I: params.allow_I, allow_U: params.allow_U,
+      pitch, custom_stagger: params.custom_stagger || false,
+      max_candidates: 999999, exhaustive: true, budget_ms: budgetMs,
+      nickel_w: params.nickel_w,
+      pinned_groups: pinnedCellIdxGroups.map(toRowCol),
+    });
+    self.postMessage({ candidates: r.candidates || [], count: (r.candidates || []).length });
+    return;
+  }
+
   const deadline = Date.now() + budgetMs;
   const results  = [];
 

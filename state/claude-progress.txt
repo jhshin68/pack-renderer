@@ -1,9 +1,9 @@
 ========================================
-마지막 업데이트: 2026-04-22 (세션 49 — Fix 2~4 완료 + 다음 기능 계획 수립)
-버전: battery_pack_renderer.html, src/gen-enum.js, src/app-render.js, src/enum-worker.js, src/enum-worker-bundle.js
-테스트 상태: 846개 통과 (모든 수정 후)
-feature_list.json: 전체 passes: true + 신규 F37 추가 예정
-다음 기능: 부분 고정 탐색 (Pinned Groups Search) — 세션 50 시작 예정
+마지막 업데이트: 2026-04-22 (세션 51~52 — 고정 탐색 병렬 처리 안정화)
+버전: battery_pack_renderer.html, src/gen-enum.js, src/app-render.js, src/app-state.js, src/app-ui.js, src/enum-worker-bundle.js, src/enum-worker.js
+테스트 상태: 846 회귀 + 9 pinned_groups 테스트 통과
+커밋: (이번 세션 진행 중)
+다음 기능: 브라우저 콘솔 진단 확인 (gkConfigs 개수 파악) → G2 좌표 문제 해결
 
 ========================================
 ## 세션 46 핵심 성과

@@ -324,57 +324,78 @@ async function _runCustomSearch(usePinned = false) {
     try {
       const gkr = Generator.enumerateGroupAssignments({ ...enumBasePinned, enumerate_g0_only: true });
       gkConfigs = gkr.g0_configs || [];
-    } catch (_) {}
+      console.log('[pinned-parallel] pinnedGroups:', pinnedGroups.length, '개 고정, gkConfigs:', gkConfigs.length, '개');
+    } catch (e) {
+      console.error('[pinned-parallel] gkConfigs 열거 오류:', e);
+    }
 
     // cell idx 변환 (워커 전달용)
     const rcIdxMap = new Map(customPts.map((pt, i) => [`${pt.row},${pt.col}`, i]));
     const pinnedCellIdxGroups = pinnedGroups.map(grp =>
       grp.map(({row, col}) => rcIdxMap.get(`${row},${col}`)).filter(i => i !== undefined)
     ).filter(grp => grp.length > 0);
+    console.log('[pinned-parallel] pinnedCellIdxGroups 매칭:', pinnedCellIdxGroups.map(g => g.length), '셀');
+
+    const wParams = {
+      S, P, b_plus_side, b_minus_side, icc1, icc2, icc3,
+      nickel_w: nickel_w_mm * 1.5,
+      allow_I: state.allow_I, allow_U: state.allow_U,
+      custom_stagger: !!state.custom_stagger,
+    };
 
     let allCandidates = [];
 
-    if (gkConfigs.length >= 2 && typeof Worker !== 'undefined') {
-      // ── 병렬 탐색 ──────────────────────────────────────────────────
-      if (titleEl) titleEl.textContent = `고정 탐색 병렬중… (${pinnedGroups.length}개 고정, ${gkConfigs.length}분할, ${budgetLabelPinned})`;
-      const numW = Math.min(Math.max(1, (navigator.hardwareConcurrency || 4) - 2), gkConfigs.length);
-      const chunks = Array.from({ length: numW }, () => []);
-      gkConfigs.forEach((gk, i) => chunks[i % numW].push(gk));
-      const wParams = {
-        S, P, b_plus_side, b_minus_side, icc1, icc2, icc3,
-        nickel_w: nickel_w_mm * 1.5,
-        allow_I: state.allow_I, allow_U: state.allow_U,
-        custom_stagger: !!state.custom_stagger,
-      };
-      try {
-        const batches = await Promise.all(chunks.map(chunk => {
-          const budgetPerGk = Math.floor(budgetMsPinned / Math.max(1, chunk.length));
-          return new Promise((resolve, reject) => {
+    if (typeof Worker !== 'undefined') {
+      if (gkConfigs.length >= 1) {
+        // ── 병렬 탐색: gkConfigs를 워커에 분배 ──────────────────────
+        const numW = Math.min(Math.max(1, (navigator.hardwareConcurrency || 4) - 2), gkConfigs.length);
+        const chunks = Array.from({ length: numW }, () => []);
+        gkConfigs.forEach((gk, i) => chunks[i % numW].push(gk));
+        if (titleEl) titleEl.textContent = `고정 탐색 병렬중… (${pinnedGroups.length}개 고정, ${gkConfigs.length}분할, ${budgetLabelPinned})`;
+        try {
+          const batches = await Promise.all(chunks.map(chunk => {
+            const budgetPerGk = Math.floor(budgetMsPinned / Math.max(1, chunk.length));
+            return new Promise((resolve, reject) => {
+              const w = new Worker('src/enum-worker-bundle.js');
+              const killer = setTimeout(() => { w.terminate(); resolve([]); }, budgetMsPinned + 3000);
+              w.onmessage = ev => { clearTimeout(killer); w.terminate(); resolve(ev.data.candidates || []); };
+              w.onerror   = err => { clearTimeout(killer); w.terminate(); reject(err); };
+              w.postMessage({ params: wParams, g0Configs: chunk, budgetMs: budgetMsPinned, budgetPerG0: budgetPerGk,
+                              cells: customPts, pitch: customPitch, pinnedCellIdxGroups });
+            });
+          }));
+          const seen = new Set();
+          for (const batch of batches) {
+            for (const cand of batch) {
+              const key = (cand.groups || []).map(g =>
+                (g.cells || []).map(c => `${c.row},${c.col}`).sort().join('|')
+              ).join('§');
+              if (!seen.has(key)) { seen.add(key); allCandidates.push(cand); }
+            }
+          }
+        } catch (e) {
+          console.error('[pinned-parallel] 워커 오류:', e);
+        }
+      } else {
+        // ── gkConfigs=0: 단일 워커로 전체 pinned 탐색 (UI 비블로킹) ──
+        if (titleEl) titleEl.textContent = `고정 탐색 중… (${pinnedGroups.length}개 고정, 단일 워커, ${budgetLabelPinned})`;
+        console.log('[pinned-parallel] gkConfigs=0 → 단일 워커 fallback');
+        try {
+          allCandidates = await new Promise((resolve, reject) => {
             const w = new Worker('src/enum-worker-bundle.js');
             const killer = setTimeout(() => { w.terminate(); resolve([]); }, budgetMsPinned + 3000);
             w.onmessage = ev => { clearTimeout(killer); w.terminate(); resolve(ev.data.candidates || []); };
             w.onerror   = err => { clearTimeout(killer); w.terminate(); reject(err); };
-            w.postMessage({ params: wParams, g0Configs: chunk, budgetMs: budgetMsPinned, budgetPerG0: budgetPerGk,
+            // g0Configs=[] + pinnedCellIdxGroups → 워커 내부에서 전체 pinned 탐색
+            w.postMessage({ params: wParams, g0Configs: [], budgetMs: budgetMsPinned, budgetPerG0: budgetMsPinned,
                             cells: customPts, pitch: customPitch, pinnedCellIdxGroups });
           });
-        }));
-        const seen = new Set();
-        for (const batch of batches) {
-          for (const cand of batch) {
-            const key = (cand.groups || []).map(g =>
-              (g.cells || []).map(c => `${c.row},${c.col}`).sort().join('|')
-            ).join('§');
-            if (!seen.has(key)) { seen.add(key); allCandidates.push(cand); }
-          }
+        } catch (e) {
+          console.error('[pinned-parallel] 단일 워커 오류:', e);
         }
-      } catch (_) {
-        // 워커 실패 → 단일 스레드 폴백
-        gkConfigs = [];
       }
-    }
-
-    if (gkConfigs.length < 2) {
-      // ── 단일 스레드 폴백 ────────────────────────────────────────────
+    } else {
+      // ── Workers 미지원: 동기 실행 폴백 ──────────────────────────────
       if (titleEl) titleEl.textContent = `고정 탐색 중… (${pinnedGroups.length}개 고정, ${budgetLabelPinned})`;
       try {
         const presult = Generator.enumerateGroupAssignments({
