@@ -348,13 +348,17 @@ async function _runCustomSearch() {
 
     try {
       const allBatches = await Promise.all(
-        chunks.map(chunk => new Promise((resolve, reject) => {
-          const w = new Worker(workerUrl);
-          const killer = setTimeout(() => { w.terminate(); resolve([]); }, budgetMs + 3000);
-          w.onmessage = ev => { clearTimeout(killer); w.terminate(); resolve(ev.data.candidates || []); };
-          w.onerror   = err => { clearTimeout(killer); w.terminate(); reject(err); };
-          w.postMessage({ params: wParams, g0Configs: chunk, budgetMs, cells: customPts, pitch: customPitch });
-        }))
+        chunks.map(chunk => {
+          // G0 config별 균등 예산: 모든 G0 config가 탐색되도록 보장
+          const budgetPerG0 = Math.floor(budgetMs / Math.max(1, chunk.length));
+          return new Promise((resolve, reject) => {
+            const w = new Worker(workerUrl);
+            const killer = setTimeout(() => { w.terminate(); resolve([]); }, budgetMs + 3000);
+            w.onmessage = ev => { clearTimeout(killer); w.terminate(); resolve(ev.data.candidates || []); };
+            w.onerror   = err => { clearTimeout(killer); w.terminate(); reject(err); };
+            w.postMessage({ params: wParams, g0Configs: chunk, budgetMs, budgetPerG0, cells: customPts, pitch: customPitch });
+          });
+        })
       );
 
       // 중복 제거 병합
