@@ -1,43 +1,55 @@
 ========================================
-마지막 업데이트: 2026-04-22 (세션 44 — 사이드바-렌더러 인덱스 불일치 버그 수정)
-버전: battery_pack_renderer.html, src/app-state.js, src/app-panel.js, src/app-render.js
-테스트 상태: 브라우저 기능 확인 필요
-feature_list.json: 확인 필요
+마지막 업데이트: 2026-04-22 (세션 45 — 반복 상한 제거 + 워커 강제 종료 타이머)
+버전: battery_pack_renderer.html, src/gen-enum.js, src/app-render.js, src/enum-worker-bundle.js
+테스트 상태: 브라우저 기능 확인 완료 (104개 후보 탐색 성공)
+feature_list.json: 전체 passes: true (미완료 항목 없음)
 
 ========================================
-## 세션 44 핵심 성과
+## 세션 45 핵심 성과
 
-### 버그 발견 및 수정: 사이드바-렌더러 인덱스 불일치
+### 1. 반복 횟수 상한(5만·200만) + adjStarts 캡(5개) 완전 제거
 
-증상:
-  - 사이드바 "열 우선 L→R (2종)" 클릭 → "비표준 5" (3종) 이미지 표시
-  - 사이드바 "비표준 8 (3종)" 클릭 → "열 우선 R→L" (2종) 이미지 표시
-  - 이름·m_distinct 레이블과 렌더링 이미지가 2개씩 뒤바뀜
+변경 파일: src/gen-enum.js, src/enum-worker-bundle.js
 
-원인:
-  - enumerateGroupAssignments 반환 원본 배열 순서:
-      [0:열우선L→R(m=2), 1:비표준5(m=3), 2:비표준6, 3:비표준7,
-       4:비표준8(m=3), 5:열우선R→L(m=2), 6:보스트로페돈L→R, 7:보스트로페돈R→L]
-  - 사이드바는 m_distinct 오름차순 정렬 후 표시:
-      [0:열우선L→R, 1:열우선R→L, 2:비표준5, 3:비표준6,
-       4:비표준7, 5:비표준8, 6:보스트로페돈L→R, 7:보스트로페돈R→L]
-  - selected_ordering = 사이드바 위치 인덱스로 저장
-  - 렌더러는 원본 배열의 동일 인덱스를 사용 → 인덱스 불일치!
-  - 위치 1 클릭 → 원본[1]=비표준5 렌더링 (열우선R→L이 아님)
-  - 위치 5 클릭 → 원본[5]=열우선R→L 렌더링 (비표준8이 아님)
+수정 내용:
+  - MAX_ITER_BT = exhaustive ? Infinity : (custom ? 2000000 : 50000)
+    → MAX_ITER_BT = Infinity (분기 제거)
+  - if (!exhaustive && adjStarts.length >= 5) break;  × 2개 제거
+  - max_iter_hit: btIterations >= 50000  →  max_iter_hit: false (고정)
+  - enum-worker-bundle.js 재생성 (58.6 KB)
 
-수정 (3파일):
-  1. src/app-state.js: `let _sortedCandidates = null;` 변수 추가
-  2. src/app-panel.js:
-     - _renderCandCards() 에서 _sortedCandidates = candidates 저장
-     - _showCandDetail() 에서 _sortedCandidates[idx] 우선 사용
-     - _enumResult=null 시 _sortedCandidates=null 함께 리셋
-  3. src/app-render.js:
-     - effectiveCandidates = _sortedCandidates || ... 우선 사용
-     - _enumResult=null 시 _sortedCandidates=null 함께 리셋 (4곳)
+탐색 중단 조건 (최종):
+  1. 시간 초과: Date.now() - btStart > btBudgetMs
+  2. 탐색 공간 소진: DFS 자연 종료
+
+### 2. 워커 강제 종료 타이머 추가
+
+변경 파일: src/app-render.js
+
+문제: Promise.all에 타임아웃 없음 → 워커가 budget_ms를 조금이라도
+      초과하면 UI가 무한 대기
+수정: 각 워커에 killer setTimeout(budgetMs + 3000) 추가
+      - 정상 응답 시: clearTimeout(killer) → 즉시 resolve
+      - 초과 시: w.terminate() → resolve([])
+
+### 3. 탐색 결과 확인 (13S4P 커스텀 배열, 10분)
+
+파라미터: rows=[5,12,13,12,10], offsets=[-1,-2,-2,-2,0]
+          B+ 왼쪽, B- 오른쪽, G0앵커=TL, ICC①②ON/③OFF, I형OFF
+
+결과:
+  - 총 후보: 104개 (중복 제거 후)
+  - m_distinct=12: 1개  ← 최적 (유일)
+  - m_distinct=13: 23개
+  - m_distinct=14: 80개
+  - m_distinct=11: 없음 (구조적 한계)
 
 ========================================
 ## 이전 세션 요약
+
+세션 44:
+  - 사이드바-렌더러 인덱스 불일치 버그 수정
+  - _sortedCandidates 전역 변수 도입
 
 세션 41-43:
   - 탐색 시간 제한 UI (1분/10분/30분/1시간)
@@ -55,9 +67,15 @@ feature_list.json: 확인 필요
 ========================================
 ## 신규/수정 파일
 
-- src/app-state.js: _sortedCandidates 전역 변수 추가
-- src/app-panel.js: 인덱스 동기화 수정
-- src/app-render.js: 인덱스 동기화 수정
-- tests/gen_svgs.js: 신규 (3S2P 후보 SVG 생성 디버그 도구)
-- src/enum-worker.js: 신규 (웹워커, 미통합)
-- tests/parallel_search.js: CPU 최적화 수정
+- src/gen-enum.js: 반복 상한 제거 (MAX_ITER_BT, adjStarts 캡)
+- src/app-render.js: 워커 강제 종료 타이머 추가
+- src/enum-worker-bundle.js: 재생성 (58.6 KB)
+- src/enum-worker.js: exhaustive: true 고정
+- tests/parallel_search.js: g0_anchor TL 추가, exhaustive true
+- scripts/build-worker-bundle.js: 번들 생성 스크립트 신규
+
+========================================
+## 다음 작업 후보
+
+- feature_list.json 전체 passes: true → 신규 기능 필요 시 사용자 지시 대기
+- m_distinct=12 유일 후보를 기준으로 실제 제조 검토 (사용자 판단)
