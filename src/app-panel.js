@@ -245,26 +245,16 @@ function populateCandidatePanel() {
     return;
   }
 
-  // 열거기 실행
-  let result;
-  try {
-    result = Generator.enumerateGroupAssignments({
-      cells, S, P, arrangement,
-      b_plus_side, b_minus_side,
-      icc1, icc2, icc3,
-      nickel_w: nickel_w_mm * 1.5,
-      max_candidates: 999999,
-      g0_anchor: state.g0_anchor,
-      allow_I: state.allow_I,
-      allow_U: state.allow_U,
-    });
-  } catch (e) {
-    listEl.innerHTML = `<div class="hint" style="color:var(--red)">열거 오류: ${e.message}</div>`;
-    if (countEl) countEl.textContent = '오류';
+  // 탐색은 generateLayout()에서만 실행 — 캐시가 없으면 안내 메시지
+  if (_enumResult === null) {
+    listEl.innerHTML = '<div class="hint" style="color:var(--dt3);margin-top:8px">Generate Layout을 눌러 후보를 탐색하세요</div>';
+    if (countEl) countEl.textContent = '—';
+    _sortedCandidates = null;
+    _updateEnumStatus(null);
+    _showCandDetail(-1);
     return;
   }
-
-  _enumResult = result;
+  const result = _enumResult;
   _updateEnumStatus(result);
 
   // ① 후보 확정 (max_plates 필터 + 정렬)

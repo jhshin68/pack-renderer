@@ -245,6 +245,41 @@ async function generateLayout() {
   if (state.arrangement === 'custom') {
     await _runCustomSearch();
   } else {
+    const { S, P, arrangement, icc1, icc2, icc3, nickel_w_mm, b_plus_side, b_minus_side } = state;
+    const cells   = _getHolderCells();
+    const listEl  = document.getElementById('candList');
+    const countEl = document.getElementById('rpCandCount');
+    const titleEl = document.getElementById('rpCandTitle');
+    const genBtn  = document.querySelector('.render-btn');
+
+    // 로딩 표시 → 브라우저 repaint 보장 후 탐색
+    if (genBtn) genBtn.disabled = true;
+    if (titleEl) titleEl.textContent = '셀 배열 후보 탐색중…';
+    if (countEl) countEl.textContent = '…';
+    if (listEl) listEl.innerHTML = '<div class="hint" style="margin-top:6px;color:var(--dt3)">후보를 탐색하고 있습니다…</div>';
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+    if (cells && cells.length && typeof Generator !== 'undefined') {
+      try {
+        _enumResult = Generator.enumerateGroupAssignments({
+          cells, S, P, arrangement,
+          b_plus_side, b_minus_side, icc1, icc2, icc3,
+          nickel_w: nickel_w_mm * 1.5,
+          max_candidates: 999999,
+          g0_anchor: state.g0_anchor,
+          allow_I: state.allow_I,
+          allow_U: state.allow_U,
+        });
+      } catch (e) {
+        if (listEl) listEl.innerHTML = `<div class="hint" style="color:var(--red)">열거 오류: ${e.message}</div>`;
+        if (countEl) countEl.textContent = '오류';
+        if (genBtn) genBtn.disabled = false;
+        _renderSVG();
+        return;
+      }
+    }
+    if (genBtn) genBtn.disabled = false;
+    if (titleEl) titleEl.textContent = '셀 배열 후보';
     populateCandidatePanel();
   }
   _renderSVG();
@@ -463,55 +498,76 @@ async function _runCustomSearch(usePinned = false) {
 
   let result;
 
-  if (g0Configs.length >= 2 && typeof Worker !== 'undefined') {
-    // ─── Step 2: Web Workers 병렬 탐색 ────────────────────────────
-    const chunks = Array.from({ length: numWorkers }, () => []);
-    g0Configs.forEach((g0, i) => chunks[i % numWorkers].push(g0));
+  const wParams = {
+    S, P, b_plus_side, b_minus_side, icc1, icc2, icc3,
+    nickel_w: nickel_w_mm * 1.5,
+    allow_I: state.allow_I, allow_U: state.allow_U,
+    custom_stagger: !!state.custom_stagger,
+    exhaustive: true,
+  };
+  const workerUrl = 'src/enum-worker-bundle.js';
 
-    const wParams = {
-      S, P, b_plus_side, b_minus_side, icc1, icc2, icc3,
-      nickel_w: nickel_w_mm * 1.5,
-      allow_I: state.allow_I, allow_U: state.allow_U,
-      custom_stagger: !!state.custom_stagger,
-      exhaustive: true,   // 시간 예산 안에서 무제한 탐색
-    };
+  if (typeof Worker !== 'undefined') {
+    if (g0Configs.length >= 1) {
+      // ─── Step 2: Web Workers 병렬 탐색 ────────────────────────────
+      const chunks = Array.from({ length: numWorkers }, () => []);
+      g0Configs.forEach((g0, i) => chunks[i % numWorkers].push(g0));
 
-    // file:// 호환: importScripts 없는 번들 파일 사용 (gen-* 의존성 내장)
-    const workerUrl = 'src/enum-worker-bundle.js';
+      try {
+        const allBatches = await Promise.all(
+          chunks.map(chunk => {
+            // G0 config별 균등 예산: 모든 G0 config가 탐색되도록 보장
+            const budgetPerG0 = Math.floor(budgetMs / Math.max(1, chunk.length));
+            return new Promise((resolve, reject) => {
+              const w = new Worker(workerUrl);
+              const killer = setTimeout(() => { w.terminate(); resolve([]); }, budgetMs + 3000);
+              w.onmessage = ev => { clearTimeout(killer); w.terminate(); resolve(ev.data.candidates || []); };
+              w.onerror   = err => { clearTimeout(killer); w.terminate(); reject(err); };
+              w.postMessage({ params: wParams, g0Configs: chunk, budgetMs, budgetPerG0, cells: customPts, pitch: customPitch });
+            });
+          })
+        );
 
-    try {
-      const allBatches = await Promise.all(
-        chunks.map(chunk => {
-          // G0 config별 균등 예산: 모든 G0 config가 탐색되도록 보장
-          const budgetPerG0 = Math.floor(budgetMs / Math.max(1, chunk.length));
-          return new Promise((resolve, reject) => {
-            const w = new Worker(workerUrl);
-            const killer = setTimeout(() => { w.terminate(); resolve([]); }, budgetMs + 3000);
-            w.onmessage = ev => { clearTimeout(killer); w.terminate(); resolve(ev.data.candidates || []); };
-            w.onerror   = err => { clearTimeout(killer); w.terminate(); reject(err); };
-            w.postMessage({ params: wParams, g0Configs: chunk, budgetMs, budgetPerG0, cells: customPts, pitch: customPitch });
-          });
-        })
-      );
-
-      // 중복 제거 병합
-      const seen   = new Set();
-      const merged = [];
-      for (const batch of allBatches) {
-        for (const cand of batch) {
-          const key = (cand.groups || []).map(g =>
-            (g.cells || []).map(c => `${c.row},${c.col}`).sort().join('|')
-          ).join('§');
-          if (!seen.has(key)) { seen.add(key); merged.push(cand); }
+        // 중복 제거 병합
+        const seen   = new Set();
+        const merged = [];
+        for (const batch of allBatches) {
+          for (const cand of batch) {
+            const key = (cand.groups || []).map(g =>
+              (g.cells || []).map(c => `${c.row},${c.col}`).sort().join('|')
+            ).join('§');
+            if (!seen.has(key)) { seen.add(key); merged.push(cand); }
+          }
+        }
+        result = { candidates: merged, count: merged.length };
+      } catch (e) {
+        // Worker 실패 → 단일 스레드 폴백
+        try {
+          result = Generator.enumerateGroupAssignments({ ...enumBase, max_candidates: 999999, exhaustive: true, budget_ms: budgetMs });
+        } catch (e2) {
+          if (listEl) listEl.innerHTML = `<div class="hint" style="color:var(--red)">열거 오류: ${e2.message}</div>`;
+          if (countEl) countEl.textContent = '오류';
+          _enumResult = null; _sortedCandidates = null; _updateEnumStatus(null);
+          if (titleEl) titleEl.textContent = '셀 배열 후보';
+          if (genBtn) genBtn.disabled = false;
+          return;
         }
       }
-      result = { candidates: merged, count: merged.length };
-    } catch (e) {
-      // Worker 실패 → 단일 스레드 폴백
+    } else {
+      // ─── g0Configs=0: 단일 워커 fallback (UI 비블로킹) ─────────────
+      console.log('[custom-parallel] g0Configs=0 → 단일 워커 fallback');
+      if (titleEl) titleEl.textContent = `셀 배열 후보 탐색중… (단일 워커, ${budgetLabel})`;
       try {
-        result = Generator.enumerateGroupAssignments({ ...enumBase, max_candidates: 999999, exhaustive: true, budget_ms: budgetMs });
-      } catch (e2) {
-        if (listEl) listEl.innerHTML = `<div class="hint" style="color:var(--red)">열거 오류: ${e2.message}</div>`;
+        const cands = await new Promise((resolve, reject) => {
+          const w = new Worker(workerUrl);
+          const killer = setTimeout(() => { w.terminate(); resolve([]); }, budgetMs + 3000);
+          w.onmessage = ev => { clearTimeout(killer); w.terminate(); resolve(ev.data.candidates || []); };
+          w.onerror   = err => { clearTimeout(killer); w.terminate(); reject(err); };
+          w.postMessage({ params: wParams, g0Configs: [], budgetMs, budgetPerG0: budgetMs, cells: customPts, pitch: customPitch });
+        });
+        result = { candidates: cands, count: cands.length };
+      } catch (e) {
+        if (listEl) listEl.innerHTML = `<div class="hint" style="color:var(--red)">열거 오류: ${e.message}</div>`;
         if (countEl) countEl.textContent = '오류';
         _enumResult = null; _sortedCandidates = null; _updateEnumStatus(null);
         if (titleEl) titleEl.textContent = '셀 배열 후보';
@@ -520,9 +576,9 @@ async function _runCustomSearch(usePinned = false) {
       }
     }
   } else {
-    // ─── 단일 스레드 (G0 없음 또는 Workers 미지원) ─────────────────
+    // ─── Workers 미지원: 단일 스레드 폴백 ─────────────────────────
     try {
-      result = Generator.enumerateGroupAssignments({ ...enumBase, max_candidates: 999999, budget_ms: budgetMs });
+      result = Generator.enumerateGroupAssignments({ ...enumBase, max_candidates: 999999, exhaustive: true, budget_ms: budgetMs });
     } catch (e) {
       if (listEl) listEl.innerHTML = `<div class="hint" style="color:var(--red)">열거 오류: ${e.message}</div>`;
       if (countEl) countEl.textContent = '오류';

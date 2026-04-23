@@ -1621,8 +1621,9 @@ self.onmessage = function (e) {
 
   const usesPinned = Array.isArray(pinnedCellIdxGroups) && pinnedCellIdxGroups.length > 0;
 
-  // g0Configs=[] + pinnedCellIdxGroups → 전체 pinned 탐색 (단일 워커 폴백)
-  if ((!g0Configs || g0Configs.length === 0) && usesPinned) {
+  // g0Configs=[] 단일 워커 폴백: pinned·일반 모두 처리
+  // pinned: pinnedCellIdxGroups 전달, 일반: 없음
+  if (!g0Configs || g0Configs.length === 0) {
     const r = enumerateGroupAssignments({
       cells, S: params.S, P: params.P,
       arrangement: 'custom',
@@ -1633,7 +1634,7 @@ self.onmessage = function (e) {
       pitch, custom_stagger: params.custom_stagger || false,
       max_candidates: 999999, exhaustive: true, budget_ms: budgetMs,
       nickel_w: params.nickel_w,
-      pinned_groups: pinnedCellIdxGroups.map(toRowCol),
+      ...(usesPinned ? { pinned_groups: pinnedCellIdxGroups.map(toRowCol) } : {}),
     });
     self.postMessage({ candidates: r.candidates || [], count: (r.candidates || []).length });
     return;
@@ -1648,8 +1649,7 @@ self.onmessage = function (e) {
     const g0Budget = budgetPerG0 ? Math.min(budgetPerG0, remaining) : remaining;
 
     // pinned 모드: pinnedCellIdxGroups + gk 를 pinned_groups로 전달
-    // 일반 모드: fixed_g0 사용 (기존 동작)
-    const usesPinned = Array.isArray(pinnedCellIdxGroups) && pinnedCellIdxGroups.length > 0;
+    // 일반 모드: fixed_g0 사용
     const callParams = usesPinned
       ? {
           pinned_groups: [...pinnedCellIdxGroups.map(toRowCol), toRowCol(gk)],

@@ -26,7 +26,8 @@ function setArrangement(a) {
   document.getElementById('pinnedGroupsUI').style.display   = isCustom ? 'block' : 'none';
   document.getElementById('holderSizeGroup').style.display  = isCustom ? 'none'  : 'block';
   document.getElementById('stagDirGroup').style.display    = isStag   ? 'block' : 'none';
-  if (isCustom) { _enumResult = null; checkCustomConsistency(); }
+  _enumResult = null;
+  if (isCustom) { checkCustomConsistency(); }
   rerender();
 }
 
@@ -48,6 +49,7 @@ function setCustomAlign(a) {
 function toggleCustomStagger() {
   state.custom_stagger = !state.custom_stagger;
   document.getElementById('togCustomStagger').classList.toggle('on', state.custom_stagger);
+  _enumResult = null;
   rerender();
 }
 
@@ -248,6 +250,7 @@ function adjHolder(dim, d) {
   }
   updateHolderUI();
   state.selected_ordering = 0;
+  _enumResult = null;
   rerender();
 }
 
