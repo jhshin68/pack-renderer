@@ -1,77 +1,57 @@
 ========================================
-마지막 업데이트: 2026-04-23 (세션 53 — Worker Blob URL + 커스텀 디폴트)
-버전: battery_pack_renderer.html, src/app-render.js, src/app-ui.js, src/enum-worker.js, src/enum-worker-bundle.js, src/enum-worker-init.js (신규), scripts/build-worker-bundle.js
-테스트 상태: 846 회귀 + 9 pinned_groups 테스트 통과 (이전 세션 기준)
-커밋: 7615f8f (fix(worker-blob): file:// SecurityError 근본 해결 — Blob URL Worker)
-다음 기능: 추가 요청 대기 / 수정 3 (ICC① rowSpan 정의 정정) 보류 중
+마지막 업데이트: 2026-04-23 (세션 54 — 고정 탐색 Worker + 필터 수정)
+버전: src/app-render.js
+테스트 상태: 브라우저 확인 완료 (고정 탐색 1580개 후보, 필터 자동 적용)
+커밋: 56b0fce (fix(pinned-filter): 고정 탐색 완료 후 필터 자동 적용)
+다음 기능: 추가 요청 대기
 
 ========================================
-## 세션 53 핵심 성과
+## 세션 54 핵심 성과
 
-### 증상 (세션 시작 상태)
-- "G0 분할 계획중이 1분을 모두 소모합니다" — 메인 스레드 블로킹
-- "커스텀 선택 시 S=13 P=4 디폴트 설정 필요"
-- "검색 자체가 안됨. 그냥 종료해버림" — 수정 후 탐색 즉시 종료
+### 증상
+- 고정 탐색 실행 시 결과 없음 (작동 안 함)
+- 고정 탐색 완료 후 형상종류·품질 필터가 적용되지 않고 리스트 직접 출력
 
-### 수정 1 (커밋 0b630e1): G0 열거 Worker 이관
-- 문제: Generator.enumerateGroupAssignments({ enumerate_g0_only:true }) 메인 스레드 동기 호출 → 1분 블로킹
-- 수정: G0 열거를 전용 Worker로 이관, 7초 킬러 타이머 내장
-- 결과: G0 단계 비블로킹화 (Worker가 실패해도 graceful fallback)
+### 수정 1 (커밋 2b5b022): 고정 탐색 Worker Blob URL 적용
+- 원인: app-render.js 고정 탐색 Worker 생성 2곳 모두
+  new Worker('src/enum-worker-bundle.js') 파일 URL 사용
+  → Chrome file:// SecurityError (origin null) → candidates 0개
+- 세션 53에서 일반 탐색은 수정했으나 고정 탐색 코드 누락
+- 수정: pinnedWorkerUrl = window._enumWorkerBlobUrl || 절대경로 폴백
+- 병렬/단일 Worker 실패 시 단일 스레드 폴백 + rAF yield 추가
+- 결과: 고정 탐색 병렬중 (2개 고정, 146분할, 1분) → 1580개 후보
 
-### 수정 2 (커밋 55643b4): 커스텀 선택 시 디폴트 값 자동 적용
-- 커스텀 버튼 클릭 시: S=13, P=4, B+=Left, stagger=ON, 탐색=1분 자동 설정
-- 목적: 반복 테스트 편의성
+### 수정 2 (커밋 56b0fce): 고정 탐색 완료 후 필터 자동 적용
+- 원인: populateCandidatePanel() 직접 호출 → 필터 미적용
+- 일반 탐색: _renderCustomCandidates(result, true) — 필터 자동 적용 + 최솟값·최댓값 선택
+- 수정: populateCandidatePanel() → _renderCustomCandidates({candidates}, true)
 
-### 수정 3 (커밋 3ef00d8): 단일 Worker fallback 복구
-- 문제: g0Configs=0 경로에서 Worker onerror → 즉시 종료 (검색 결과 없음)
-- 수정: Worker 실패 시 Generator 단일 스레드 폴백 추가 (병렬 경로와 동일 패턴)
+========================================
+## 이전 세션 요약 (세션 53)
 
-### 수정 4 (커밋 5d4cf3e): Worker 실패 로깅 + UI repaint yield
-- Worker onerror에 console.error/warn 추가 (원인 파악용)
-- sync fallback 진입 전 double-rAF yield → 제목/힌트 메시지 화면에 반영
-- Worker URL을 new URL(…, location.href).href 절대경로로 변경
+- G0 Worker 이관, 커스텀 디폴트, Chrome file:// SecurityError 근본 해결
+- Blob URL Worker: 22 Workers 병렬, 4612개 후보, UI 비블로킹
+- build-worker-bundle.js → enum-worker-init.js 자동 생성
+- gen-enum.js / enum-worker.js 수정 시 반드시 node scripts/build-worker-bundle.js 실행
 
-### 핵심 발견: Chrome file:// SecurityError
-- 콘솔 에러: "SecurityError: Failed to construct 'Worker': Script at
-  'file:///…/src/enum-worker-bundle.js' cannot be accessed from origin 'null'."
-- 원인: file:// 로 열면 origin = null, Chrome이 다른 경로의 Worker 파일 로드 차단
-- 이전 동작: 모든 Worker 실패 → sync fallback 60s 블로킹 → 결과 523개
+========================================
+## 주의사항
 
-### 수정 5 (커밋 7615f8f): Blob URL Worker — 근본 해결
-- scripts/build-worker-bundle.js: enum-worker-init.js 자동 생성
-  - 번들 전체를 JSON.stringify로 인라인 문자열화
-  - Blob URL 사전 생성 → window._enumWorkerBlobUrl 등록
-- battery_pack_renderer.html: enum-worker-init.js 스크립트 태그 추가 (app-render.js 직전)
-- app-render.js: window._enumWorkerBlobUrl 우선 사용, 없으면 파일 URL 폴백
-- 결과: 22 Workers 병렬, UI 비블로킹, **4612개 후보** (sync fallback 523개 대비 8.8배)
-
-### 주의사항
 - gen-enum.js 또는 enum-worker.js 수정 시 반드시:
-  `node scripts/build-worker-bundle.js`
+  node scripts/build-worker-bundle.js
   → enum-worker-bundle.js + enum-worker-init.js 동시 재생성
-
-========================================
-## 이전 세션 요약 (세션 51~52)
-
-- 고정 탐색 병렬 처리 안정화 (pinned_groups + Worker 분산)
-- gkConfigs<2 시 UI 블록 방지 — 항상 Worker 사용 (ec20467)
-- 846 회귀 + 9 pinned_groups 테스트 통과
 
 ========================================
 ## 수정 계획 (잔여)
 
 ### 수정 3 (보류): ICC① 정의 정정
 - 코드: Math.min(rowSpan, colSpan) <= 2
-- 원칙 확인 후 rowSpan <= 2로 변경 고려 (nickel_plate_principles.md P10/P16)
-- pentomino_tiling.js:578도 동일 변경 필요
+- 원칙 확인 후 rowSpan <= 2로 변경 고려
 
 ### 수정 5 (보류): TL 앵커 후보 확장
-- bPlusStartCells가 1개일 때 인접 B+ 셀도 시작점 허용 (gen-enum.js ~638/752)
-- 현재 우선순위 낮음
+- bPlusStartCells가 1개일 때 인접 B+ 셀도 시작점 허용
 
 ========================================
 ## 다음 작업
 
-추가 사용자 요청 대기. 우선순위:
-1. 4612개 후보 품질 검토 / 필터링 개선
-2. 수정 3 ICC① rowSpan 정의 정정 (보류 중)
+추가 사용자 요청 대기.
