@@ -4,8 +4,30 @@
 importScripts('gen-math.js', 'gen-layout.js', 'gen-enum.js');
 
 self.onmessage = function (e) {
-  const { params, g0Configs, budgetMs, budgetPerG0, cells, pitch, pinnedCellIdxGroups } = e.data;
   const { enumerateGroupAssignments } = self._GenEnum;
+
+  // G0 열거 전용 모드 — 메인 스레드 블로킹 방지용 (budget_ms: 5000 강제)
+  if (e.data.g0_enum_only) {
+    const { params, cells, pitch } = e.data;
+    const r = enumerateGroupAssignments({
+      cells, S: params.S, P: params.P,
+      arrangement: 'custom',
+      b_plus_side:  params.b_plus_side,
+      b_minus_side: params.b_minus_side,
+      icc1: params.icc1, icc2: params.icc2, icc3: params.icc3,
+      allow_I: params.allow_I, allow_U: params.allow_U,
+      pitch,
+      custom_stagger: params.custom_stagger || false,
+      nickel_w: params.nickel_w,
+      g0_anchor: params.g0_anchor,
+      enumerate_g0_only: true,
+      budget_ms: 5000,
+    });
+    self.postMessage({ g0_configs: r.g0_configs || [] });
+    return;
+  }
+
+  const { params, g0Configs, budgetMs, budgetPerG0, cells, pitch, pinnedCellIdxGroups } = e.data;
 
   // pinnedCellIdxGroups: 고정 그룹 인덱스 배열 → {row,col}[] 변환 헬퍼
   const toRowCol = idxArr => idxArr.map(i => ({ row: cells[i].row, col: cells[i].col }));

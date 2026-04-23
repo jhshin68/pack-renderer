@@ -486,24 +486,49 @@ async function _runCustomSearch(usePinned = false) {
   if (titleEl) titleEl.textContent = `G0 분할 계획 중…`;
   await new Promise(r => requestAnimationFrame(r));
 
+  // G0 열거 — Worker에서 실행(메인 스레드 블로킹 방지), 7초 킬러 내장
+  const g0EnumStart = Date.now();
   let g0Configs = [];
   try {
-    const g0r = Generator.enumerateGroupAssignments({ ...enumBase, enumerate_g0_only: true });
-    g0Configs = g0r.g0_configs || [];
+    if (typeof Worker !== 'undefined') {
+      const g0r = await new Promise((resolve) => {
+        const w = new Worker('src/enum-worker-bundle.js');
+        const killer = setTimeout(() => { w.terminate(); resolve({ g0_configs: [] }); }, 7000);
+        w.onmessage = ev => { clearTimeout(killer); w.terminate(); resolve(ev.data); };
+        w.onerror   = ()  => { clearTimeout(killer); w.terminate(); resolve({ g0_configs: [] }); };
+        w.postMessage({
+          g0_enum_only: true,
+          cells: customPts,
+          pitch: customPitch,
+          params: {
+            S, P, b_plus_side, b_minus_side, icc1, icc2, icc3,
+            nickel_w: nickel_w_mm * 1.5,
+            allow_I: state.allow_I, allow_U: state.allow_U,
+            custom_stagger: !!state.custom_stagger,
+            g0_anchor: state.g0_anchor,
+          },
+        });
+      });
+      g0Configs = g0r.g0_configs || [];
+    } else {
+      const g0r = Generator.enumerateGroupAssignments({ ...enumBase, enumerate_g0_only: true, budget_ms: 5000 });
+      g0Configs = g0r.g0_configs || [];
+    }
   } catch (e) { console.error('[parallel] G0 열거 실패:', e); }
+  const g0ElapsedS = ((Date.now() - g0EnumStart) / 1000).toFixed(1);
 
   const numWorkers = Math.min(
     Math.max(1, (navigator.hardwareConcurrency || 4) - 2),
     g0Configs.length
   );
 
-  // G0 결과를 패널 본문에 표시 — 타이틀보다 눈에 잘 띔
+  // G0 결과를 패널 본문에 표시 (소요 시간 포함) — 타이틀보다 눈에 잘 띔
   const g0StatusColor = g0Configs.length >= 2 ? 'var(--slp-blue-500,#2563eb)' : 'var(--dt3)';
   const g0StatusMsg = g0Configs.length >= 2
-    ? `▶ G0 ${g0Configs.length}개 발견 → ${numWorkers} 워커 병렬 탐색 시작`
+    ? `▶ G0 ${g0Configs.length}개 (${g0ElapsedS}s) → ${numWorkers} 워커 병렬 탐색 시작`
     : g0Configs.length === 1
-      ? `▶ G0 1개 발견 → 단일 워커 탐색 시작`
-      : `▶ G0 0개 (단일 워커 전체 탐색)`;
+      ? `▶ G0 1개 (${g0ElapsedS}s) → 단일 워커 탐색 시작`
+      : `▶ G0 0개 (${g0ElapsedS}s) → 단일 워커 전체 탐색`;
   if (listEl) listEl.innerHTML = `<div class="hint" style="margin-top:6px;color:${g0StatusColor};font-weight:600">${g0StatusMsg}</div>`;
   await new Promise(r => requestAnimationFrame(r));
 
