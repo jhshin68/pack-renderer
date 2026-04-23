@@ -1464,6 +1464,10 @@
             }
           } else if (enumerate_g0_only) {
             // G0 열거 전용 모드: 유효한 G0 후보 목록만 수집
+            // 메인 스레드 블로킹 방지: 5초 또는 500개 수집 시 조기 종료
+            const G0_TIME_LIMIT = 5000;
+            const G0_COUNT_LIMIT = 500;
+            const g0Start = Date.now();
             const g0Configs = [];
             const seenG0 = new Set();
             function dfsG0(curIdxs, frontier) {
@@ -1475,6 +1479,8 @@
                 if (!seenG0.has(key)) { seenG0.add(key); g0Configs.push([...curIdxs]); }
                 return;
               }
+              // 시간/개수 한도 초과 시 조기 종료
+              if (g0Configs.length >= G0_COUNT_LIMIT || Date.now() - g0Start > G0_TIME_LIMIT) return;
               for (const cand of frontier) {
                 if (curIdxs.length === P - 1 && !allow_I) {
                   if (_isLinearGroup([...curIdxs.map(i => cells[i]), cells[cand]])) continue;
@@ -1490,6 +1496,7 @@
               }
             }
             for (const startCell of bPlusFiltered) {
+              if (g0Configs.length >= G0_COUNT_LIMIT || Date.now() - g0Start > G0_TIME_LIMIT) break;
               used[startCell] = 1;
               dfsG0([startCell], new Set(adjL[startCell].filter(nb => !used[nb])));
               used[startCell] = 0;
