@@ -380,6 +380,8 @@ async function _runCustomSearch(usePinned = false) {
 
     let allCandidates = [];
 
+    const pinnedWorkerUrl = window._enumWorkerBlobUrl || new URL('src/enum-worker-bundle.js', location.href).href;
+
     if (typeof Worker !== 'undefined') {
       if (gkConfigs.length >= 1) {
         // ── 병렬 탐색: gkConfigs를 워커에 분배 ──────────────────────
@@ -391,10 +393,10 @@ async function _runCustomSearch(usePinned = false) {
           const batches = await Promise.all(chunks.map(chunk => {
             const budgetPerGk = Math.floor(budgetMsPinned / Math.max(1, chunk.length));
             return new Promise((resolve, reject) => {
-              const w = new Worker('src/enum-worker-bundle.js');
+              const w = new Worker(pinnedWorkerUrl);
               const killer = setTimeout(() => { w.terminate(); resolve([]); }, budgetMsPinned + 3000);
               w.onmessage = ev => { clearTimeout(killer); w.terminate(); resolve(ev.data.candidates || []); };
-              w.onerror   = err => { clearTimeout(killer); w.terminate(); reject(err); };
+              w.onerror   = err => { console.error('[pinned-parallel] 워커 오류:', err && err.message); clearTimeout(killer); w.terminate(); reject(err); };
               w.postMessage({ params: wParams, g0Configs: chunk, budgetMs: budgetMsPinned, budgetPerG0: budgetPerGk,
                               cells: customPts, pitch: customPitch, pinnedCellIdxGroups });
             });
@@ -409,7 +411,14 @@ async function _runCustomSearch(usePinned = false) {
             }
           }
         } catch (e) {
-          console.error('[pinned-parallel] 워커 오류:', e);
+          // Worker 실패 → 단일 스레드 폴백
+          console.warn('[pinned-parallel] Worker 실패, 단일 스레드 폴백:', e);
+          if (titleEl) titleEl.textContent = `고정 탐색 중… (단일 스레드 폴백, ${budgetLabelPinned})`;
+          await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+          try {
+            const pr = Generator.enumerateGroupAssignments({ ...enumBasePinned, exhaustive: true, budget_ms: budgetMsPinned, max_candidates: 999999 });
+            allCandidates = pr.candidates || [];
+          } catch (_) {}
         }
       } else {
         // ── gkConfigs=0: 단일 워커로 전체 pinned 탐색 (UI 비블로킹) ──
@@ -417,16 +426,23 @@ async function _runCustomSearch(usePinned = false) {
         console.log('[pinned-parallel] gkConfigs=0 → 단일 워커 fallback');
         try {
           allCandidates = await new Promise((resolve, reject) => {
-            const w = new Worker('src/enum-worker-bundle.js');
+            const w = new Worker(pinnedWorkerUrl);
             const killer = setTimeout(() => { w.terminate(); resolve([]); }, budgetMsPinned + 3000);
             w.onmessage = ev => { clearTimeout(killer); w.terminate(); resolve(ev.data.candidates || []); };
-            w.onerror   = err => { clearTimeout(killer); w.terminate(); reject(err); };
+            w.onerror   = err => { console.error('[pinned-single] 워커 오류:', err && err.message); clearTimeout(killer); w.terminate(); reject(err); };
             // g0Configs=[] + pinnedCellIdxGroups → 워커 내부에서 전체 pinned 탐색
             w.postMessage({ params: wParams, g0Configs: [], budgetMs: budgetMsPinned, budgetPerG0: budgetMsPinned,
                             cells: customPts, pitch: customPitch, pinnedCellIdxGroups });
           });
         } catch (e) {
-          console.error('[pinned-parallel] 단일 워커 오류:', e);
+          // Worker 실패 → 단일 스레드 폴백
+          console.warn('[pinned-single] Worker 실패, 단일 스레드 폴백:', e);
+          if (titleEl) titleEl.textContent = `고정 탐색 중… (단일 스레드 폴백, ${budgetLabelPinned})`;
+          await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+          try {
+            const pr = Generator.enumerateGroupAssignments({ ...enumBasePinned, exhaustive: true, budget_ms: budgetMsPinned, max_candidates: 999999 });
+            allCandidates = pr.candidates || [];
+          } catch (_) {}
         }
       }
     } else {
