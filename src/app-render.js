@@ -483,6 +483,9 @@ async function _runCustomSearch(usePinned = false) {
     allow_I: state.allow_I, allow_U: state.allow_U,
     pitch: customPitch, custom_stagger: !!state.custom_stagger,
   };
+  if (titleEl) titleEl.textContent = `G0 분할 계획 중…`;
+  await new Promise(r => requestAnimationFrame(r));
+
   let g0Configs = [];
   try {
     const g0r = Generator.enumerateGroupAssignments({ ...enumBase, enumerate_g0_only: true });
@@ -493,8 +496,6 @@ async function _runCustomSearch(usePinned = false) {
     Math.max(1, (navigator.hardwareConcurrency || 4) - 2),
     g0Configs.length
   );
-  console.log('[parallel] g0Configs:', g0Configs.length, '개, numWorkers:', numWorkers,
-              'hardwareConcurrency:', navigator.hardwareConcurrency);
 
   let result;
 
@@ -510,6 +511,7 @@ async function _runCustomSearch(usePinned = false) {
   if (typeof Worker !== 'undefined') {
     if (g0Configs.length >= 1) {
       // ─── Step 2: Web Workers 병렬 탐색 ────────────────────────────
+      if (titleEl) titleEl.textContent = `병렬 탐색중… (G0 ${g0Configs.length}개 → ${numWorkers} 워커, ${budgetLabel})`;
       const chunks = Array.from({ length: numWorkers }, () => []);
       g0Configs.forEach((g0, i) => chunks[i % numWorkers].push(g0));
 
@@ -590,7 +592,8 @@ async function _runCustomSearch(usePinned = false) {
   }
 
   const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
-  if (titleEl) titleEl.textContent = '셀 배열 후보';
+  const foundCount = (result && result.candidates) ? result.candidates.length : 0;
+  if (titleEl) titleEl.textContent = `셀 배열 후보 (${elapsed}s, ${foundCount}개 발견)`;
   if (genBtn) genBtn.disabled = false;
   _enumResult = result;
   _updateEnumStatus(result);
