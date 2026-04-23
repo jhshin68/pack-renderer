@@ -497,6 +497,16 @@ async function _runCustomSearch(usePinned = false) {
     g0Configs.length
   );
 
+  // G0 결과를 패널 본문에 표시 — 타이틀보다 눈에 잘 띔
+  const g0StatusColor = g0Configs.length >= 2 ? 'var(--slp-blue-500,#2563eb)' : 'var(--dt3)';
+  const g0StatusMsg = g0Configs.length >= 2
+    ? `▶ G0 ${g0Configs.length}개 발견 → ${numWorkers} 워커 병렬 탐색 시작`
+    : g0Configs.length === 1
+      ? `▶ G0 1개 발견 → 단일 워커 탐색 시작`
+      : `▶ G0 0개 (단일 워커 전체 탐색)`;
+  if (listEl) listEl.innerHTML = `<div class="hint" style="margin-top:6px;color:${g0StatusColor};font-weight:600">${g0StatusMsg}</div>`;
+  await new Promise(r => requestAnimationFrame(r));
+
   let result;
 
   const wParams = {
