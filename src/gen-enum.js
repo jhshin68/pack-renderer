@@ -448,6 +448,14 @@
           grp.map(({row, col}) => rcIdxMap.get(`${row},${col}`)).filter(i => i !== undefined)
         ).filter(grp => grp.length > 0)
       : [];
+    // B+ 그룹을 앞으로, B- 그룹을 뒤로 정렬 — 사용자가 임의 순서로 입력해도 pg0Valid 충족
+    if (pinnedIdxGroups.length > 1) {
+      const bPlusIdx = pinnedIdxGroups.findIndex(grp => grp.some(i => bPlus.has(i)));
+      if (bPlusIdx > 0) pinnedIdxGroups.unshift(pinnedIdxGroups.splice(bPlusIdx, 1)[0]);
+      const bMinusIdx = pinnedIdxGroups.findIndex(grp => grp.some(i => bMinus.has(i)));
+      const last = pinnedIdxGroups.length - 1;
+      if (bMinusIdx >= 0 && bMinusIdx < last) pinnedIdxGroups.push(pinnedIdxGroups.splice(bMinusIdx, 1)[0]);
+    }
 
     function cellInBoundary(c, bndSet) {
       const idx = cellIdxMap.get(xyKey(c));

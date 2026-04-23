@@ -452,12 +452,14 @@ async function _runCustomSearch(usePinned = false) {
   try {
     const g0r = Generator.enumerateGroupAssignments({ ...enumBase, enumerate_g0_only: true });
     g0Configs = g0r.g0_configs || [];
-  } catch (_) { /* G0 열거 실패 시 단일 스레드로 폴백 */ }
+  } catch (e) { console.error('[parallel] G0 열거 실패:', e); }
 
   const numWorkers = Math.min(
     Math.max(1, (navigator.hardwareConcurrency || 4) - 2),
     g0Configs.length
   );
+  console.log('[parallel] g0Configs:', g0Configs.length, '개, numWorkers:', numWorkers,
+              'hardwareConcurrency:', navigator.hardwareConcurrency);
 
   let result;
 
