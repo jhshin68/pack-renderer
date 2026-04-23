@@ -1525,6 +1525,73 @@
               }
               for (const grp of pinnedIdxGroups) for (const ci of grp) used[ci] = 0;
             }
+          } else if (usesSparse && enumerate_g0_only) {
+            // sparse + enumerate_g0_only: 첫 번째 자유 그룹(Gk) 후보 수집 → 병렬 분할용
+            // k = sparsePinnedMap에 없는 첫 번째 그룹 인덱스 (보통 1, G0이 핀이면)
+            let spFirstFree = 0;
+            while (sparsePinnedMap.has(spFirstFree)) spFirstFree++;
+
+            for (const idxs of sparsePinnedMap.values()) for (const ci of idxs) used[ci] = 2;
+
+            // spFirstFree 이전의 sparse pins를 순서대로 used=1 마킹
+            let spLastPinIdxs = null;
+            for (let gi = 0; gi < spFirstFree; gi++) {
+              if (sparsePinnedMap.has(gi)) {
+                for (const ci of sparsePinnedMap.get(gi)) used[ci] = 1;
+                spLastPinIdxs = sparsePinnedMap.get(gi);
+              }
+            }
+
+            const SP_GK_TIME = 5000;
+            const SP_GK_COUNT = 500;
+            const spGkStart = Date.now();
+            const spGkConfigs = [];
+            const seenSpGk = new Set();
+
+            // Gk 시작점: 직전 sparse pin에 인접한 셀, 없으면 B+ 셀
+            let spGkStarts;
+            if (spLastPinIdxs) {
+              const adjSet = new Set();
+              for (const ci of spLastPinIdxs) for (const nb of adjL[ci]) { if (!used[nb]) adjSet.add(nb); }
+              const adjs = [];
+              for (const ci of scanOrder) { if (!used[ci] && adjSet.has(ci)) adjs.push(ci); }
+              spGkStarts = adjs.length > 0 ? adjs : (() => { for (const ci of scanOrder) { if (!used[ci]) return [ci]; } return []; })();
+            } else {
+              spGkStarts = bPlusFiltered.filter(ci => !used[ci]);
+            }
+
+            function dfsSpGk(curIdxs, frontier) {
+              if (curIdxs.length === P) {
+                if (!passICC_bt(curIdxs)) return;
+                if (!allow_I && _isLinearGroup(curIdxs.map(i => cells[i]))) return;
+                if (spFirstFree === 0 && !curIdxs.some(i => bPlus.has(i))) return;
+                const key = [...curIdxs].sort((a, b) => a - b).join(',');
+                if (!seenSpGk.has(key)) { seenSpGk.add(key); spGkConfigs.push([...curIdxs]); }
+                return;
+              }
+              if (spGkConfigs.length >= SP_GK_COUNT || Date.now() - spGkStart > SP_GK_TIME) return;
+              for (const cand of frontier) {
+                if (curIdxs.length === P - 1 && !allow_I && _isLinearGroup([...curIdxs.map(i => cells[i]), cells[cand]])) continue;
+                used[cand] = 1; curIdxs.push(cand);
+                const nf = new Set(frontier); nf.delete(cand);
+                for (const nb of adjL[cand]) { if (!used[nb]) nf.add(nb); }
+                dfsSpGk(curIdxs, nf);
+                curIdxs.pop(); used[cand] = 0;
+              }
+            }
+
+            for (const s of spGkStarts) {
+              if (spGkConfigs.length >= SP_GK_COUNT || Date.now() - spGkStart > SP_GK_TIME) break;
+              if (!used[s]) {
+                used[s] = 1;
+                dfsSpGk([s], new Set(adjL[s].filter(nb => !used[nb])));
+                used[s] = 0;
+              }
+            }
+
+            for (const idxs of sparsePinnedMap.values()) for (const ci of idxs) used[ci] = 0;
+            return { g0_configs: spGkConfigs, count: spGkConfigs.length, sparse_first_free_idx: spFirstFree };
+
           } else if (enumerate_g0_only) {
             // G0 열거 전용 모드: 유효한 G0 후보 목록만 수집
             // 메인 스레드 블로킹 방지: 5초 또는 500개 수집 시 조기 종료
@@ -1724,7 +1791,8 @@ self.onmessage = function (e) {
     return;
   }
 
-  const { params, g0Configs, budgetMs, budgetPerG0, cells, pitch, pinnedCellIdxGroups, pinnedCellIdxGroupsSparse } = e.data;
+  const { params, g0Configs, budgetMs, budgetPerG0, cells, pitch,
+          pinnedCellIdxGroups, pinnedCellIdxGroupsSparse, sparseFirstFreeIdx } = e.data;
 
   // cell index 배열 → {row,col}[] 변환 헬퍼
   const toRowCol = idxArr => idxArr.map(i => ({ row: cells[i].row, col: cells[i].col }));
@@ -1754,15 +1822,24 @@ self.onmessage = function (e) {
 
   const deadline = Date.now() + budgetMs;
   const results  = [];
+  const freeIdx  = (sparseFirstFreeIdx !== undefined) ? sparseFirstFreeIdx : 0;
 
   for (const gk of g0Configs) {
     const remaining = deadline - Date.now();
     if (remaining <= 0) break;
     const g0Budget = budgetPerG0 ? Math.min(budgetPerG0, remaining) : remaining;
 
+    // sparse 모드: 기존 sparse 핀 + gk(첫 자유 그룹) 를 pinned_groups_sparse로 전달
     // pinned 모드: pinnedCellIdxGroups + gk 를 pinned_groups로 전달
     // 일반 모드: fixed_g0 사용
-    const callParams = usesPinned
+    const callParams = usesSparse
+      ? {
+          pinned_groups_sparse: [
+            ...pinnedCellIdxGroupsSparse.map(({groupIdx, cells: ci}) => ({ groupIdx, cells: toRowCol(ci) })),
+            { groupIdx: freeIdx, cells: toRowCol(gk) },
+          ],
+        }
+      : usesPinned
       ? {
           pinned_groups: [...pinnedCellIdxGroups.map(toRowCol), toRowCol(gk)],
           fixed_g0: null,

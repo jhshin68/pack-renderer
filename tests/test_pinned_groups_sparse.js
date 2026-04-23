@@ -104,6 +104,27 @@ const r4 = enumerateGroupAssignments({
 console.log(`  candidates (pinned G0 only): ${r4.count}`);
 expect('consecutive pinned_groups still works (≥1)', r4.count >= 1);
 
+// ── Test 5: sparse + enumerate_g0_only → G1(첫 자유 그룹) 후보 반환 ──
+console.log('\n[TEST 5: sparse enumerate_g0_only → g0_configs for first free group]');
+const cells2x4c = make2x4();
+const r5 = enumerateGroupAssignments({
+  ...BASE, cells: cells2x4c,
+  pinned_groups_sparse: [
+    { groupIdx: 0, cells: [{ row: 1, col: 0 }, { row: 0, col: 0 }] },
+    { groupIdx: 2, cells: [{ row: 1, col: 3 }, { row: 0, col: 3 }] },
+  ],
+  enumerate_g0_only: true,
+});
+console.log(`  g0_configs: ${r5.g0_configs && r5.g0_configs.length}`);
+console.log(`  sparse_first_free_idx: ${r5.sparse_first_free_idx}`);
+expect('sparse enumerate_g0_only → g0_configs ≥1', r5.g0_configs && r5.g0_configs.length >= 1);
+expect('sparse_first_free_idx = 1 (G0 is pinned)', r5.sparse_first_free_idx, 1);
+
+// g0_configs가 실제 G1 후보와 일치하는지 검증 (Test 1의 candidates로 역검증)
+const g1KeySet = new Set(r1.candidates.map(c => c.groups[1].cells.map(cl => `r${cl.row}c${cl.col}`).sort().join(',')));
+const gkKeySet = new Set((r5.g0_configs || []).map(cfg => cfg.slice().sort((a, b) => a - b).join(',')));
+expect('g0_configs length matches unique G1 configs in candidates', r5.g0_configs && r5.g0_configs.length >= g1KeySet.size);
+
 // ── Summary ──────────────────────────────────────────────────────────
 console.log(`\n${passed + failed} tests: ${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

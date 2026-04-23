@@ -27,7 +27,8 @@ self.onmessage = function (e) {
     return;
   }
 
-  const { params, g0Configs, budgetMs, budgetPerG0, cells, pitch, pinnedCellIdxGroups, pinnedCellIdxGroupsSparse } = e.data;
+  const { params, g0Configs, budgetMs, budgetPerG0, cells, pitch,
+          pinnedCellIdxGroups, pinnedCellIdxGroupsSparse, sparseFirstFreeIdx } = e.data;
 
   // cell index 배열 → {row,col}[] 변환 헬퍼
   const toRowCol = idxArr => idxArr.map(i => ({ row: cells[i].row, col: cells[i].col }));
@@ -57,15 +58,24 @@ self.onmessage = function (e) {
 
   const deadline = Date.now() + budgetMs;
   const results  = [];
+  const freeIdx  = (sparseFirstFreeIdx !== undefined) ? sparseFirstFreeIdx : 0;
 
   for (const gk of g0Configs) {
     const remaining = deadline - Date.now();
     if (remaining <= 0) break;
     const g0Budget = budgetPerG0 ? Math.min(budgetPerG0, remaining) : remaining;
 
+    // sparse 모드: 기존 sparse 핀 + gk(첫 자유 그룹) 를 pinned_groups_sparse로 전달
     // pinned 모드: pinnedCellIdxGroups + gk 를 pinned_groups로 전달
     // 일반 모드: fixed_g0 사용
-    const callParams = usesPinned
+    const callParams = usesSparse
+      ? {
+          pinned_groups_sparse: [
+            ...pinnedCellIdxGroupsSparse.map(({groupIdx, cells: ci}) => ({ groupIdx, cells: toRowCol(ci) })),
+            { groupIdx: freeIdx, cells: toRowCol(gk) },
+          ],
+        }
+      : usesPinned
       ? {
           pinned_groups: [...pinnedCellIdxGroups.map(toRowCol), toRowCol(gk)],
           fixed_g0: null,

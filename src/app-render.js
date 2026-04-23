@@ -361,16 +361,16 @@ async function _runCustomSearch(usePinned = false) {
         : { pinned_groups: pinnedGroups }),
     };
 
-    // G(k) 후보 열거 — 병렬 분할 기준 (sparse 모드는 병렬 분할 생략)
+    // G(k) 후보 열거 — 병렬 분할 기준 (sparse/consecutive 모두 지원)
     let gkConfigs = [];
-    if (!isSparse) {
-      try {
-        const gkr = Generator.enumerateGroupAssignments({ ...enumBasePinned, enumerate_g0_only: true });
-        gkConfigs = gkr.g0_configs || [];
-        console.log('[pinned-parallel] pinnedGroups:', pinnedGroups.length, '개 고정, gkConfigs:', gkConfigs.length, '개');
-      } catch (e) {
-        console.error('[pinned-parallel] gkConfigs 열거 오류:', e);
-      }
+    let sparseFirstFreeIdx = 1;
+    try {
+      const gkr = Generator.enumerateGroupAssignments({ ...enumBasePinned, enumerate_g0_only: true });
+      gkConfigs = gkr.g0_configs || [];
+      if (isSparse && gkr.sparse_first_free_idx !== undefined) sparseFirstFreeIdx = gkr.sparse_first_free_idx;
+      console.log(`[pinned-parallel] ${isSparse ? 'sparse' : 'consecutive'} gkConfigs:`, gkConfigs.length, '개', isSparse ? `(firstFreeIdx=${sparseFirstFreeIdx})` : '');
+    } catch (e) {
+      console.error('[pinned-parallel] gkConfigs 열거 오류:', e);
     }
 
     // cell idx 변환 (워커 전달용)
@@ -426,7 +426,8 @@ async function _runCustomSearch(usePinned = false) {
               w.onmessage = ev => { clearTimeout(killer); w.terminate(); resolve(ev.data.candidates || []); };
               w.onerror   = err => { console.error('[pinned-parallel] 워커 오류:', err && err.message); clearTimeout(killer); w.terminate(); reject(err); };
               w.postMessage({ params: wParams, g0Configs: chunk, budgetMs: budgetMsPinned, budgetPerG0: budgetPerGk,
-                              cells: customPts, pitch: customPitch, pinnedCellIdxGroups });
+                              cells: customPts, pitch: customPitch, pinnedCellIdxGroups,
+                              pinnedCellIdxGroupsSparse, sparseFirstFreeIdx });
             });
           }));
           const seen = new Set();
