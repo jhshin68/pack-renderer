@@ -961,6 +961,9 @@
               const starts = gkStarts.length > 0
                 ? gkStarts
                 : (() => { for (const ci of scanOrder) { if (!used[ci]) return [ci]; } return []; })();
+              const GK_TIME_LIMIT = 5000;
+              const GK_COUNT_LIMIT = 500;
+              const gkStart = Date.now();
               const gkConfigs = [];
               const seenGk = new Set();
               function dfsGk(curIdxs, frontier) {
@@ -971,6 +974,7 @@
                   if (!seenGk.has(key)) { seenGk.add(key); gkConfigs.push([...curIdxs]); }
                   return;
                 }
+                if (gkConfigs.length >= GK_COUNT_LIMIT || Date.now() - gkStart > GK_TIME_LIMIT) return;
                 for (const cand of frontier) {
                   if (curIdxs.length === P - 1 && !allow_I &&
                       _isLinearGroup([...curIdxs.map(i => cells[i]), cells[cand]])) continue;
@@ -982,6 +986,7 @@
                 }
               }
               for (const s of starts) {
+                if (gkConfigs.length >= GK_COUNT_LIMIT || Date.now() - gkStart > GK_TIME_LIMIT) break;
                 if (!used[s]) {
                   used[s] = 1;
                   dfsGk([s], new Set(adjL[s].filter(nb => !used[nb])));
