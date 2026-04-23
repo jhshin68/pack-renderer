@@ -492,10 +492,11 @@ async function _runCustomSearch(usePinned = false) {
   try {
     if (typeof Worker !== 'undefined') {
       const g0r = await new Promise((resolve) => {
-        const w = new Worker('src/enum-worker-bundle.js');
+        const g0Url = new URL('src/enum-worker-bundle.js', location.href).href;
+        const w = new Worker(g0Url);
         const killer = setTimeout(() => { w.terminate(); resolve({ g0_configs: [] }); }, 7000);
         w.onmessage = ev => { clearTimeout(killer); w.terminate(); resolve(ev.data); };
-        w.onerror   = ()  => { clearTimeout(killer); w.terminate(); resolve({ g0_configs: [] }); };
+        w.onerror   = ev => { console.error('[G0 Worker] 실패:', ev && ev.message, ev); clearTimeout(killer); w.terminate(); resolve({ g0_configs: [] }); };
         w.postMessage({
           g0_enum_only: true,
           cells: customPts,
@@ -541,7 +542,7 @@ async function _runCustomSearch(usePinned = false) {
     custom_stagger: !!state.custom_stagger,
     exhaustive: true,
   };
-  const workerUrl = 'src/enum-worker-bundle.js';
+  const workerUrl = new URL('src/enum-worker-bundle.js', location.href).href;
 
   if (typeof Worker !== 'undefined') {
     if (g0Configs.length >= 1) {
@@ -559,7 +560,7 @@ async function _runCustomSearch(usePinned = false) {
               const w = new Worker(workerUrl);
               const killer = setTimeout(() => { w.terminate(); resolve([]); }, budgetMs + 3000);
               w.onmessage = ev => { clearTimeout(killer); w.terminate(); resolve(ev.data.candidates || []); };
-              w.onerror   = err => { clearTimeout(killer); w.terminate(); reject(err); };
+              w.onerror   = err => { console.error('[병렬 Worker] 실패:', err && err.message, err); clearTimeout(killer); w.terminate(); reject(err); };
               w.postMessage({ params: wParams, g0Configs: chunk, budgetMs, budgetPerG0, cells: customPts, pitch: customPitch });
             });
           })
@@ -579,6 +580,10 @@ async function _runCustomSearch(usePinned = false) {
         result = { candidates: merged, count: merged.length };
       } catch (e) {
         // Worker 실패 → 단일 스레드 폴백
+        console.warn('[병렬 Workers] 실패, 단일 스레드 폴백:', e);
+        if (titleEl) titleEl.textContent = `셀 배열 후보 탐색중… (단일 스레드 폴백, ${budgetLabel})`;
+        if (listEl) listEl.innerHTML = '<div class="hint" style="margin-top:6px;color:var(--dt3)">⚠ Worker 불가 — 단일 스레드로 탐색합니다 (UI 일시 정지)</div>';
+        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
         try {
           result = Generator.enumerateGroupAssignments({ ...enumBase, max_candidates: 999999, exhaustive: true, budget_ms: budgetMs });
         } catch (e2) {
@@ -607,6 +612,8 @@ async function _runCustomSearch(usePinned = false) {
         // Worker 실패 → 단일 스레드 폴백
         console.warn('[custom-single-worker] Worker 실패, 단일 스레드 폴백:', e);
         if (titleEl) titleEl.textContent = `셀 배열 후보 탐색중… (단일 스레드 폴백, ${budgetLabel})`;
+        if (listEl) listEl.innerHTML = '<div class="hint" style="margin-top:6px;color:var(--dt3)">⚠ Worker 불가 — 단일 스레드로 탐색합니다 (UI 일시 정지)</div>';
+        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
         try {
           result = Generator.enumerateGroupAssignments({ ...enumBase, max_candidates: 999999, exhaustive: true, budget_ms: budgetMs });
         } catch (e2) {
