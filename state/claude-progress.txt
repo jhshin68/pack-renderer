@@ -1,29 +1,65 @@
 ========================================
-마지막 업데이트: 2026-04-23 (세션 55 — 비연속 그룹 고정 탐색 구현)
+마지막 업데이트: 2026-04-23 (세션 55 — Sparse 고정 탐색 + 병렬 분할 완성)
 버전: src/gen-enum.js + app-state.js + app-render.js + enum-worker.js
-테스트 상태: 6/6 sparse TDD + 9/9 consecutive 회귀 (총 15 green)
+테스트 상태: 9/9 sparse TDD + 9/9 consecutive 회귀 (총 18 green)
+브라우저 확인: 커스텀 배열 병렬 ✓, 고정 탐색(sparse) 병렬 ✓
 다음 기능: 추가 요청 대기
+
+========================================
+## 세션 55 핵심 성과 — 비연속 그룹 고정 탐색 (Sparse Pinned Groups)
+
+### 기능 개요
+기존 pinned_groups는 G0, G1, ... 연속 순서로만 고정 가능.
+이번 세션에서 임의 인덱스 고정(sparse)을 구현:
+  예) G0 고정 + G11·G12 고정, G1~G10만 DFS 탐색
+
+### 입력 형식
+  연속: 줄당 1그룹 (기존 동작 유지)
+  Sparse: "그룹번호: 셀목록" 형식
+    0: r3c0 r2c0 r1c0 r2c1
+    11: r3c10 r2c11 r1c10 r0c8
+    12: r3c11 r2c12 r1c11 r0c9
+  한 줄 입력도 지원: "0: ... 11: ... 12: ..." (자동 분리)
+
+### 커밋 이력
+- 847caf9: feat(sparse-pinned) — 핵심 알고리즘 구현 (TDD 6/6)
+  - gen-enum.js: sparsePinnedMap, useSparsePin(), dfsCustom sparse 체크
+  - app-state.js: parsePinnedGroups() → {mode, groups|sparseGroups}
+  - app-render.js: sparse 분기, pinnedCellIdxGroupsSparse 워커 전달
+  - enum-worker.js: pinnedCellIdxGroupsSparse 수신·변환
+  - battery_pack_renderer.html: 도움말 sparse 형식 추가
+
+- cfc9472: fix(sparse-parser) — 한 줄 입력 파서 버그 수정
+  - 원인: "0: ... 11: ... 12: ..."가 한 줄로 입력되면
+    11:·12: 패턴을 G0 셀로 모두 귀속 → G0만 12셀로 인식
+  - 수정: split(/(?=\s\d+\s*:)/) lookahead로 인라인 그룹 분리
+  - app-render.js: sparse 셀 매칭 실패 시 콘솔 경고 + UI 워닝 추가
+
+- 76e0fb7: feat(sparse-parallel) — sparse 병렬 분할 지원 (TDD 9/9)
+  - gen-enum.js: usesSparse && enumerate_g0_only 브랜치
+    → 첫 번째 자유 그룹(Gk) 후보 수집 + sparse_first_free_idx 반환
+  - app-render.js: isSparse guard 제거, sparseFirstFreeIdx 수집·전달
+  - enum-worker.js: sparse + gk 조합 → pinned_groups_sparse 확장 전달
+  - 결과: G0 sparse 핀 시 G1 후보 N개 병렬 분할 탐색
+
+### 동작 원리 (G0+G11+G12 핀 예시, S=13)
+1. G1 후보 목록 수집 (enumerate_g0_only + sparse)
+2. G1 후보 수만큼 워커에 분배
+3. 각 워커: pinned_groups_sparse = {G0, G1(고정), G11, G12}로
+   G2~G10만 DFS → G11·G12 인접 검증 후 commitCandidate
 
 ========================================
 ## 세션 54 핵심 성과
 
-### 증상
-- 고정 탐색 실행 시 결과 없음 (작동 안 함)
-- 고정 탐색 완료 후 형상종류·품질 필터가 적용되지 않고 리스트 직접 출력
-
 ### 수정 1 (커밋 2b5b022): 고정 탐색 Worker Blob URL 적용
-- 원인: app-render.js 고정 탐색 Worker 생성 2곳 모두
-  new Worker('src/enum-worker-bundle.js') 파일 URL 사용
-  → Chrome file:// SecurityError (origin null) → candidates 0개
-- 세션 53에서 일반 탐색은 수정했으나 고정 탐색 코드 누락
+- 원인: app-render.js 고정 탐색 Worker new Worker('src/...') 파일 URL
+  → Chrome file:// SecurityError → candidates 0개
 - 수정: pinnedWorkerUrl = window._enumWorkerBlobUrl || 절대경로 폴백
-- 병렬/단일 Worker 실패 시 단일 스레드 폴백 + rAF yield 추가
 - 결과: 고정 탐색 병렬중 (2개 고정, 146분할, 1분) → 1580개 후보
 
 ### 수정 2 (커밋 56b0fce): 고정 탐색 완료 후 필터 자동 적용
 - 원인: populateCandidatePanel() 직접 호출 → 필터 미적용
-- 일반 탐색: _renderCustomCandidates(result, true) — 필터 자동 적용 + 최솟값·최댓값 선택
-- 수정: populateCandidatePanel() → _renderCustomCandidates({candidates}, true)
+- 수정: → _renderCustomCandidates({candidates}, true)
 
 ========================================
 ## 이전 세션 요약 (세션 53)
