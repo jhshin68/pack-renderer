@@ -492,7 +492,7 @@ async function _runCustomSearch(usePinned = false) {
   try {
     if (typeof Worker !== 'undefined') {
       const g0r = await new Promise((resolve) => {
-        const g0Url = new URL('src/enum-worker-bundle.js', location.href).href;
+        const g0Url = window._enumWorkerBlobUrl || new URL('src/enum-worker-bundle.js', location.href).href;
         const w = new Worker(g0Url);
         const killer = setTimeout(() => { w.terminate(); resolve({ g0_configs: [] }); }, 7000);
         w.onmessage = ev => { clearTimeout(killer); w.terminate(); resolve(ev.data); };
@@ -542,7 +542,7 @@ async function _runCustomSearch(usePinned = false) {
     custom_stagger: !!state.custom_stagger,
     exhaustive: true,
   };
-  const workerUrl = new URL('src/enum-worker-bundle.js', location.href).href;
+  const workerUrl = window._enumWorkerBlobUrl || new URL('src/enum-worker-bundle.js', location.href).href;
 
   if (typeof Worker !== 'undefined') {
     if (g0Configs.length >= 1) {

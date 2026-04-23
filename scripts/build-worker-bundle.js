@@ -41,3 +41,18 @@ bundle += workerSrc.trimEnd() + '\n';
 
 fs.writeFileSync(out, bundle, 'utf8');
 console.log(`✓ ${path.relative(process.cwd(), out)} 생성 완료 (${(bundle.length / 1024).toFixed(1)} KB)`);
+
+// enum-worker-init.js — Blob URL Worker 초기화 (file:// origin 제약 우회)
+const initOut = path.join(src, 'enum-worker-init.js');
+const initSrc =
+  '// AUTO-GENERATED — do not edit. Regenerate: node scripts/build-worker-bundle.js\n' +
+  '// file:// 환경에서 Worker SecurityError 우회용 Blob URL 사전 생성\n' +
+  '(function(){\n' +
+  '  try {\n' +
+  '    var src=' + JSON.stringify(bundle) + ';\n' +
+  '    var blob=new Blob([src],{type:"text/javascript"});\n' +
+  '    window._enumWorkerBlobUrl=URL.createObjectURL(blob);\n' +
+  '  } catch(e){ console.warn("[enum-worker-init] Blob URL 생성 실패:",e); }\n' +
+  '})();\n';
+fs.writeFileSync(initOut, initSrc, 'utf8');
+console.log(`✓ ${path.relative(process.cwd(), initOut)} 생성 완료 (${(initSrc.length / 1024).toFixed(1)} KB)`);
