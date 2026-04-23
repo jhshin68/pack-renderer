@@ -334,10 +334,15 @@ async function _runCustomSearch(usePinned = false) {
   }
 
   // ─── 부분 고정 탐색: 전용 버튼 호출 시에만 실행 (일반 탐색과 분리) ──
-  const pinnedGroups = usePinned ? parsePinnedGroups() : [];
-  if (pinnedGroups.length > 0) {
+  const pinnedResult = usePinned ? parsePinnedGroups() : { mode: 'consecutive', groups: [] };
+  const isSparse = pinnedResult.mode === 'sparse';
+  const pinnedGroups = isSparse ? [] : (pinnedResult.groups || []);
+  const pinnedGroupsSparse = isSparse ? (pinnedResult.sparseGroups || []) : [];
+  const hasPinned = pinnedGroups.length > 0 || pinnedGroupsSparse.length > 0;
+  if (hasPinned) {
     const budgetMsPinned = (state.search_budget_ms !== undefined) ? state.search_budget_ms : 600000;
     const budgetLabelPinned = budgetMsPinned >= 60000 ? `${budgetMsPinned / 60000}분` : `${budgetMsPinned / 1000}초`;
+    const pinnedCountLabel = isSparse ? pinnedGroupsSparse.length : pinnedGroups.length;
     if (genBtn) genBtn.disabled = true;
     if (countEl) countEl.textContent = '…';
     if (listEl) listEl.innerHTML = '<div class="hint" style="margin-top:6px;color:var(--dt3)">고정 그룹 탐색 중…</div>';
@@ -351,17 +356,21 @@ async function _runCustomSearch(usePinned = false) {
       nickel_w: nickel_w_mm * 1.5,
       allow_I: state.allow_I, allow_U: state.allow_U,
       pitch: customPitch, custom_stagger: !!state.custom_stagger,
-      pinned_groups: pinnedGroups,
+      ...(isSparse
+        ? { pinned_groups_sparse: pinnedGroupsSparse }
+        : { pinned_groups: pinnedGroups }),
     };
 
-    // G(k) 후보 열거 — 병렬 분할 기준
+    // G(k) 후보 열거 — 병렬 분할 기준 (sparse 모드는 병렬 분할 생략)
     let gkConfigs = [];
-    try {
-      const gkr = Generator.enumerateGroupAssignments({ ...enumBasePinned, enumerate_g0_only: true });
-      gkConfigs = gkr.g0_configs || [];
-      console.log('[pinned-parallel] pinnedGroups:', pinnedGroups.length, '개 고정, gkConfigs:', gkConfigs.length, '개');
-    } catch (e) {
-      console.error('[pinned-parallel] gkConfigs 열거 오류:', e);
+    if (!isSparse) {
+      try {
+        const gkr = Generator.enumerateGroupAssignments({ ...enumBasePinned, enumerate_g0_only: true });
+        gkConfigs = gkr.g0_configs || [];
+        console.log('[pinned-parallel] pinnedGroups:', pinnedGroups.length, '개 고정, gkConfigs:', gkConfigs.length, '개');
+      } catch (e) {
+        console.error('[pinned-parallel] gkConfigs 열거 오류:', e);
+      }
     }
 
     // cell idx 변환 (워커 전달용)
@@ -369,7 +378,11 @@ async function _runCustomSearch(usePinned = false) {
     const pinnedCellIdxGroups = pinnedGroups.map(grp =>
       grp.map(({row, col}) => rcIdxMap.get(`${row},${col}`)).filter(i => i !== undefined)
     ).filter(grp => grp.length > 0);
-    console.log('[pinned-parallel] pinnedCellIdxGroups 매칭:', pinnedCellIdxGroups.map(g => g.length), '셀');
+    const pinnedCellIdxGroupsSparse = pinnedGroupsSparse.map(({groupIdx, cells: gc}) => ({
+      groupIdx,
+      cells: gc.map(({row, col}) => rcIdxMap.get(`${row},${col}`)).filter(i => i !== undefined),
+    })).filter(e => e.cells.length > 0);
+    if (!isSparse) console.log('[pinned-parallel] pinnedCellIdxGroups 매칭:', pinnedCellIdxGroups.map(g => g.length), '셀');
 
     const wParams = {
       S, P, b_plus_side, b_minus_side, icc1, icc2, icc3,
@@ -388,7 +401,7 @@ async function _runCustomSearch(usePinned = false) {
         const numW = Math.min(Math.max(1, (navigator.hardwareConcurrency || 4) - 2), gkConfigs.length);
         const chunks = Array.from({ length: numW }, () => []);
         gkConfigs.forEach((gk, i) => chunks[i % numW].push(gk));
-        if (titleEl) titleEl.textContent = `고정 탐색 병렬중… (${pinnedGroups.length}개 고정, ${gkConfigs.length}분할, ${budgetLabelPinned})`;
+        if (titleEl) titleEl.textContent = `고정 탐색 병렬중… (${pinnedCountLabel}개 고정, ${gkConfigs.length}분할, ${budgetLabelPinned})`;
         try {
           const batches = await Promise.all(chunks.map(chunk => {
             const budgetPerGk = Math.floor(budgetMsPinned / Math.max(1, chunk.length));
@@ -421,8 +434,9 @@ async function _runCustomSearch(usePinned = false) {
           } catch (_) {}
         }
       } else {
-        // ── gkConfigs=0: 단일 워커로 전체 pinned 탐색 (UI 비블로킹) ──
-        if (titleEl) titleEl.textContent = `고정 탐색 중… (${pinnedGroups.length}개 고정, 단일 워커, ${budgetLabelPinned})`;
+        // ── gkConfigs=0 (또는 sparse 모드): 단일 워커로 전체 pinned 탐색 (UI 비블로킹) ──
+        const modeLabel = isSparse ? 'sparse' : '단일 워커';
+        if (titleEl) titleEl.textContent = `고정 탐색 중… (${pinnedCountLabel}개 고정, ${modeLabel}, ${budgetLabelPinned})`;
         console.log('[pinned-parallel] gkConfigs=0 → 단일 워커 fallback');
         try {
           allCandidates = await new Promise((resolve, reject) => {
@@ -430,9 +444,8 @@ async function _runCustomSearch(usePinned = false) {
             const killer = setTimeout(() => { w.terminate(); resolve([]); }, budgetMsPinned + 3000);
             w.onmessage = ev => { clearTimeout(killer); w.terminate(); resolve(ev.data.candidates || []); };
             w.onerror   = err => { console.error('[pinned-single] 워커 오류:', err && err.message); clearTimeout(killer); w.terminate(); reject(err); };
-            // g0Configs=[] + pinnedCellIdxGroups → 워커 내부에서 전체 pinned 탐색
             w.postMessage({ params: wParams, g0Configs: [], budgetMs: budgetMsPinned, budgetPerG0: budgetMsPinned,
-                            cells: customPts, pitch: customPitch, pinnedCellIdxGroups });
+                            cells: customPts, pitch: customPitch, pinnedCellIdxGroups, pinnedCellIdxGroupsSparse });
           });
         } catch (e) {
           // Worker 실패 → 단일 스레드 폴백
@@ -447,7 +460,7 @@ async function _runCustomSearch(usePinned = false) {
       }
     } else {
       // ── Workers 미지원: 동기 실행 폴백 ──────────────────────────────
-      if (titleEl) titleEl.textContent = `고정 탐색 중… (${pinnedGroups.length}개 고정, ${budgetLabelPinned})`;
+      if (titleEl) titleEl.textContent = `고정 탐색 중… (${pinnedCountLabel}개 고정, ${budgetLabelPinned})`;
       try {
         const presult = Generator.enumerateGroupAssignments({
           ...enumBasePinned, exhaustive: true, budget_ms: budgetMsPinned, max_candidates: 999999,

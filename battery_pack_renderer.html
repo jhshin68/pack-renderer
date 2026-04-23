@@ -230,10 +230,11 @@
       <div id="pinnedGroupsUI" style="display:none">
         <div class="ctrl-label">부분 고정 탐색 <span style="font-size:8px;color:var(--dt3)">(커스텀 배열 전용)</span></div>
         <div style="font-size:9px;color:var(--dt3);margin-bottom:5px;line-height:1.6">
-          한 줄 = 한 그룹 (순서: G0, G1, …)<br>
-          셀 좌표 ON → 화면에서 확인<br>
+          <b>연속</b> (G0부터 순서대로): 한 줄 = 한 그룹<br>
           예: <span style="font-family:'JetBrains Mono',monospace">r3c0 r2c0 r1c0 r2c1</span><br>
-          B+ 셀 포함 그룹 → 자동으로 G0 배정
+          <b>비연속 (sparse)</b>: 줄 앞에 그룹번호: 접두사<br>
+          예: <span style="font-family:'JetBrains Mono',monospace">0: r3c0 r2c0</span>  <span style="font-family:'JetBrains Mono',monospace">2: r3c4 r2c4</span><br>
+          셀 좌표 ON → 화면에서 확인 / B+ 셀 → G0 자동 배정
         </div>
         <textarea id="pinnedGroupsInput" rows="5"
           style="font-size:10px;font-family:'JetBrains Mono',monospace;width:100%;box-sizing:border-box;resize:vertical;background:var(--sb2);color:var(--dt);border:1px solid var(--sb-bdr);border-radius:4px;padding:6px;margin-bottom:4px">r3c0 r2c0 r1c0 r2c1

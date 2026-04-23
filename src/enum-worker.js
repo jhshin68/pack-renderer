@@ -27,15 +27,15 @@ self.onmessage = function (e) {
     return;
   }
 
-  const { params, g0Configs, budgetMs, budgetPerG0, cells, pitch, pinnedCellIdxGroups } = e.data;
+  const { params, g0Configs, budgetMs, budgetPerG0, cells, pitch, pinnedCellIdxGroups, pinnedCellIdxGroupsSparse } = e.data;
 
-  // pinnedCellIdxGroups: 고정 그룹 인덱스 배열 → {row,col}[] 변환 헬퍼
+  // cell index 배열 → {row,col}[] 변환 헬퍼
   const toRowCol = idxArr => idxArr.map(i => ({ row: cells[i].row, col: cells[i].col }));
 
   const usesPinned = Array.isArray(pinnedCellIdxGroups) && pinnedCellIdxGroups.length > 0;
+  const usesSparse = Array.isArray(pinnedCellIdxGroupsSparse) && pinnedCellIdxGroupsSparse.length > 0;
 
-  // g0Configs=[] 단일 워커 폴백: pinned·일반 모두 처리
-  // pinned: pinnedCellIdxGroups 전달, 일반: 없음
+  // g0Configs=[] 단일 워커 폴백: sparse·pinned·일반 모두 처리
   if (!g0Configs || g0Configs.length === 0) {
     const r = enumerateGroupAssignments({
       cells, S: params.S, P: params.P,
@@ -47,7 +47,9 @@ self.onmessage = function (e) {
       pitch, custom_stagger: params.custom_stagger || false,
       max_candidates: 999999, exhaustive: true, budget_ms: budgetMs,
       nickel_w: params.nickel_w,
-      ...(usesPinned ? { pinned_groups: pinnedCellIdxGroups.map(toRowCol) } : {}),
+      ...(usesSparse
+        ? { pinned_groups_sparse: pinnedCellIdxGroupsSparse.map(({groupIdx, cells: ci}) => ({ groupIdx, cells: toRowCol(ci) })) }
+        : usesPinned ? { pinned_groups: pinnedCellIdxGroups.map(toRowCol) } : {}),
     });
     self.postMessage({ candidates: r.candidates || [], count: (r.candidates || []).length });
     return;

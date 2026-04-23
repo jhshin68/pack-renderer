@@ -122,22 +122,41 @@ function _parseCustomRowsRaw() {
 function parseCustomRows()    { return _parseCustomRowsRaw().counts; }
 function parseRowOffsets()    { return _parseCustomRowsRaw().offsets; }
 
-// ── 고정 그룹 파싱 (UI 입력 → [{row,col}[]] 배열) ──
-// 형식: 각 줄 = 한 그룹, 공백 구분 셀 좌표 "r{row}c{col}"
-// 예: "r4c0 r3c0 r3c1 r4c1" → [{row:4,col:0},{row:3,col:0},...]
+// ── 고정 그룹 파싱 (UI 입력 → {mode, groups|sparseGroups}) ──
+// 연속 형식: 각 줄 = 한 그룹, 공백 구분 셀 좌표 "r{row}c{col}"
+//   예: "r4c0 r3c0"
+// 비연속(sparse) 형식: 줄 시작에 "그룹인덱스:" 접두사
+//   예: "0: r4c0 r3c0"  "2: r4c3 r3c3"
 function parsePinnedGroups() {
   const el = document.getElementById('pinnedGroupsInput');
-  if (!el) return [];
-  const result = [];
-  for (const line of el.value.split('\n').map(s => s.trim()).filter(Boolean)) {
+  if (!el) return { mode: 'consecutive', groups: [] };
+  const lines = el.value.split('\n').map(s => s.trim()).filter(Boolean);
+  const isSparse = lines.some(l => /^\d+\s*:/.test(l));
+  if (isSparse) {
+    const sparseGroups = [];
+    for (const line of lines) {
+      const m = line.match(/^(\d+)\s*:(.*)/);
+      if (!m) continue;
+      const groupIdx = parseInt(m[1], 10);
+      const cells = [];
+      for (const tok of m[2].trim().split(/\s+/)) {
+        const cm = tok.match(/^r(-?\d+)c(-?\d+)$/i);
+        if (cm) cells.push({ row: parseInt(cm[1], 10), col: parseInt(cm[2], 10) });
+      }
+      if (cells.length > 0) sparseGroups.push({ groupIdx, cells });
+    }
+    return { mode: 'sparse', sparseGroups };
+  }
+  const groups = [];
+  for (const line of lines) {
     const cells = [];
     for (const tok of line.split(/\s+/)) {
       const m = tok.match(/^r(-?\d+)c(-?\d+)$/i);
       if (m) cells.push({ row: parseInt(m[1], 10), col: parseInt(m[2], 10) });
     }
-    if (cells.length > 0) result.push(cells);
+    if (cells.length > 0) groups.push(cells);
   }
-  return result;
+  return { mode: 'consecutive', groups };
 }
 
 function clearPinnedGroups() {

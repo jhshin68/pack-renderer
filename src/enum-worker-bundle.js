@@ -662,6 +662,7 @@
       fixed_g0 = null,        // ★ 병렬탐색: G0 셀 인덱스 배열 고정 → G1..G(S-1)만 백트래킹
       enumerate_g0_only = false, // ★ 병렬탐색: true → G0 후보 목록만 반환 (backtracking 생략)
       pinned_groups = null,  // ★ 부분 고정: [{row,col}[]] | null — G0..G(k-1) 고정, 나머지 탐색
+      pinned_groups_sparse = null, // ★ 비연속 고정: [{groupIdx,cells:[{row,col}]}] — 임의 인덱스 고정
     } = ctx || {};
 
     if (!cells || cells.length === 0 || S < 1 || P < 1) {
@@ -895,6 +896,17 @@
       if (bMinusIdx >= 0 && bMinusIdx < last) pinnedIdxGroups.push(pinnedIdxGroups.splice(bMinusIdx, 1)[0]);
     }
 
+    // sparsePinnedMap: groupIdx → cellIdxArr (비연속 고정 탐색용)
+    const sparsePinnedMap = new Map();
+    if (Array.isArray(pinned_groups_sparse)) {
+      for (const { groupIdx, cells: gc } of pinned_groups_sparse) {
+        const idxs = gc.map(({row, col}) => rcIdxMap.get(`${row},${col}`))
+                       .filter(i => i !== undefined);
+        if (idxs.length > 0) sparsePinnedMap.set(groupIdx, idxs);
+      }
+    }
+    const usesSparse = sparsePinnedMap.size > 0;
+
     function cellInBoundary(c, bndSet) {
       const idx = cellIdxMap.get(xyKey(c));
       return idx !== undefined && bndSet.has(idx);
@@ -936,8 +948,8 @@
     let btIterations = 0;
     let strategy = 'standard';
 
-    // ★ pinned_groups 모드: 표준 순서·DLX 생략, 백트래킹만 실행
-    if (!pinnedIdxGroups.length) {
+    // ★ pinned_groups / sparse 모드: 표준 순서·DLX 생략, 백트래킹만 실행
+    if (!pinnedIdxGroups.length && !usesSparse) {
       const STANDARD = [
         { name: '보스트로페돈 L→R', desc: '행 우선 · 짝수행 L→R', fn: () => makeBoustrophedon(true)  },
         { name: '보스트로페돈 R→L', desc: '행 우선 · 짝수행 R→L', fn: () => makeBoustrophedon(false) },
@@ -962,9 +974,9 @@
       }
     }
 
-    // ── Phase 4: 폴리오미노 DLX (P>=2; G0 열거 단계 제외, pinned 모드 제외) ──
+    // ── Phase 4: 폴리오미노 DLX (P>=2; G0 열거 단계 제외, pinned/sparse 모드 제외) ──
     // validateCandidate(P28③)로 사후 필터링 → _pendingPentResults에 임시 저장
-    if (_PT && P >= 2 && S >= 2 && !enumerate_g0_only && !pinnedIdxGroups.length) {
+    if (_PT && P >= 2 && S >= 2 && !enumerate_g0_only && !pinnedIdxGroups.length && !usesSparse) {
       _pendingPentResults = _PT.enumeratePentominoTilings(cells, S, P, {
         b_plus_side, b_minus_side,
         g0_anchor,
@@ -1082,8 +1094,8 @@
         // DFS가 불규칙 행 배치에서 탐색 공간 폭발로 0개를 반환하는 문제 해결.
         // x 오름차순 스캔, 각 그룹은 BFS 확장 + MRV(최소 남은 이웃) 선택.
         // 결정론적(1후보)이므로 먼저 실행하고 DFS로 추가 후보를 시도한다.
-        // fixed_g0 모드(worker) / G0 열거 전용 모드 / pinned_groups 고정 탐색에서는 BFS Greedy 생략
-        if (!fixed_g0 && !enumerate_g0_only && !pinnedIdxGroups.length) {
+        // fixed_g0 모드(worker) / G0 열거 전용 모드 / pinned/sparse 고정 탐색에서는 BFS Greedy 생략
+        if (!fixed_g0 && !enumerate_g0_only && !pinnedIdxGroups.length && !usesSparse) {
           const scanByX = [...Array(N).keys()]
             .sort((a, b) => cells[a].x - cells[b].x || cells[a].y - cells[b].y);
 
@@ -1164,7 +1176,7 @@
         } // end if (!fixed_g0) BFS Greedy
 
         // ── Phase 2: Beam Search (pickCompact × 4 프리셋 × beam_width=5) ────────────
-        if (!fixed_g0 && !enumerate_g0_only && !pinnedIdxGroups.length && use_beam_search && Date.now() - btStart < btBudgetMs) {
+        if (!fixed_g0 && !enumerate_g0_only && !pinnedIdxGroups.length && !usesSparse && use_beam_search && Date.now() - btStart < btBudgetMs) {
           const BEAM_W = 5;
           const PC_PRESETS = [
             {wh:1.0, wv:0.5, wd:0.3, wc:1.0, ws:0.8, piso:0.8, picc:2.0}, // HORIZ_FIRST
@@ -1316,6 +1328,13 @@
                 return;
               }
 
+              // 다음 그룹이 sparse pin이면 useSparsePin 호출
+              const nextG = gIdx + 1;
+              if (sparsePinnedMap.has(nextG)) {
+                useSparsePin(nextG, allSnaps);
+                return;
+              }
+
               // 인접 우선: 현재 그룹에 인접한 미사용 셀 최대 5개 시도
               // 인접 셀 없으면 scan order 첫 미사용 셀 1개 (비인접 fallback)
               const adjToSnap = new Set();
@@ -1354,6 +1373,45 @@
               used[cand] = 0;
             }
           };
+
+          // 비연속 sparse pin 처리 — dfsCustom과 상호 재귀 (hoisted function declaration)
+          function useSparsePin(gIdx, snapGroups) {
+            const pinnedIdxs = sparsePinnedMap.get(gIdx);
+            // P21B: 직전 그룹과 인접 확인
+            const prevSnap = snapGroups[snapGroups.length - 1];
+            if (prevSnap) {
+              const adj = prevSnap.some(pi => pinnedIdxs.some(ni => adjL[pi].includes(ni)));
+              if (!adj) return;
+            }
+            if (!passICC_bt(pinnedIdxs)) return;
+            for (const ci of pinnedIdxs) used[ci] = 1;
+            const snap = [...pinnedIdxs];
+            const allSnaps = snapGroups.concat([snap]);
+            if (gIdx === S - 1) {
+              if (snap.some(i => bMinus.has(i))) commitCandidate(allSnaps);
+              for (const ci of pinnedIdxs) used[ci] = 2;
+              return;
+            }
+            const nextG = gIdx + 1;
+            if (sparsePinnedMap.has(nextG)) {
+              useSparsePin(nextG, allSnaps);
+            } else {
+              const adjSet = new Set();
+              for (const ci of snap) for (const nb of adjL[ci]) { if (!used[nb]) adjSet.add(nb); }
+              const adjStarts = [];
+              for (const ci of scanOrder) { if (!used[ci] && adjSet.has(ci)) adjStarts.push(ci); }
+              const starts = adjStarts.length > 0
+                ? adjStarts
+                : (() => { for (const ci of scanOrder) { if (!used[ci]) return [ci]; } return []; })();
+              for (const ns of starts) {
+                if (Date.now() - btStart > btBudgetMs) break;
+                used[ns] = 1;
+                dfsCustom(nextG, allSnaps, [ns], new Set(adjL[ns].filter(nb => !used[nb])));
+                used[ns] = 0;
+              }
+            }
+            for (const ci of pinnedIdxs) used[ci] = 2;
+          }
 
           const bPlusInOrder = scanOrder.filter(i => bPlus.has(i));
           const bPlusFiltered = anchorCells
@@ -1508,6 +1566,24 @@
             }
             // enumerate_g0_only 모드는 g0Configs만 반환 (backtracking 결과 무시)
             return { g0_configs: g0Configs, count: g0Configs.length };
+          } else if (usesSparse) {
+            // 비연속 sparse 고정 탐색: 모든 sparse 셀을 2(예약)로 마킹 후 진입
+            for (const idxs of sparsePinnedMap.values()) for (const ci of idxs) used[ci] = 2;
+            if (sparsePinnedMap.has(0)) {
+              // G0이 sparse pin인 경우: B+ 게이트 확인 후 useSparsePin 직접 호출
+              if (sparsePinnedMap.get(0).some(i => bPlus.has(i))) {
+                useSparsePin(0, []);
+              }
+            } else {
+              // G0은 자유 탐색, 이후 sparse pin에서 useSparsePin 진입
+              for (const startCell of bPlusFiltered) {
+                if (Date.now() - btStart > btBudgetMs) break;
+                used[startCell] = 1;
+                dfsCustom(0, [], [startCell], new Set(adjL[startCell].filter(nb => !used[nb])));
+                used[startCell] = 0;
+              }
+            }
+            for (const idxs of sparsePinnedMap.values()) for (const ci of idxs) used[ci] = 0;
           } else {
             for (const startCell of bPlusFiltered) {
               if (Date.now() - btStart > btBudgetMs) break;
@@ -1648,15 +1724,15 @@ self.onmessage = function (e) {
     return;
   }
 
-  const { params, g0Configs, budgetMs, budgetPerG0, cells, pitch, pinnedCellIdxGroups } = e.data;
+  const { params, g0Configs, budgetMs, budgetPerG0, cells, pitch, pinnedCellIdxGroups, pinnedCellIdxGroupsSparse } = e.data;
 
-  // pinnedCellIdxGroups: 고정 그룹 인덱스 배열 → {row,col}[] 변환 헬퍼
+  // cell index 배열 → {row,col}[] 변환 헬퍼
   const toRowCol = idxArr => idxArr.map(i => ({ row: cells[i].row, col: cells[i].col }));
 
   const usesPinned = Array.isArray(pinnedCellIdxGroups) && pinnedCellIdxGroups.length > 0;
+  const usesSparse = Array.isArray(pinnedCellIdxGroupsSparse) && pinnedCellIdxGroupsSparse.length > 0;
 
-  // g0Configs=[] 단일 워커 폴백: pinned·일반 모두 처리
-  // pinned: pinnedCellIdxGroups 전달, 일반: 없음
+  // g0Configs=[] 단일 워커 폴백: sparse·pinned·일반 모두 처리
   if (!g0Configs || g0Configs.length === 0) {
     const r = enumerateGroupAssignments({
       cells, S: params.S, P: params.P,
@@ -1668,7 +1744,9 @@ self.onmessage = function (e) {
       pitch, custom_stagger: params.custom_stagger || false,
       max_candidates: 999999, exhaustive: true, budget_ms: budgetMs,
       nickel_w: params.nickel_w,
-      ...(usesPinned ? { pinned_groups: pinnedCellIdxGroups.map(toRowCol) } : {}),
+      ...(usesSparse
+        ? { pinned_groups_sparse: pinnedCellIdxGroupsSparse.map(({groupIdx, cells: ci}) => ({ groupIdx, cells: toRowCol(ci) })) }
+        : usesPinned ? { pinned_groups: pinnedCellIdxGroups.map(toRowCol) } : {}),
     });
     self.postMessage({ candidates: r.candidates || [], count: (r.candidates || []).length });
     return;
