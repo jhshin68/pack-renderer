@@ -468,7 +468,7 @@ async function _runCustomSearch(usePinned = false) {
       warnEl.style.display = candidates.length === 0 ? 'block' : 'none';
     }
     _updateEnumStatus({ candidates });
-    populateCandidatePanel();
+    _renderCustomCandidates({ candidates }, true);  // 필터 자동 적용 + 최솟값·최댓값 자동 선택
     if (genBtn) genBtn.disabled = false;
     if (titleEl) titleEl.textContent = `셀 배열 후보 (고정 탐색 ${elapsed}s)`;
     if (countEl) countEl.textContent = candidates.length;
