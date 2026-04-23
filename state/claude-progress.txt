@@ -1,172 +1,64 @@
 ========================================
-마지막 업데이트: 2026-04-22 (세션 51~52 — 고정 탐색 병렬 처리 안정화)
-버전: battery_pack_renderer.html, src/gen-enum.js, src/app-render.js, src/app-state.js, src/app-ui.js, src/enum-worker-bundle.js, src/enum-worker.js
-테스트 상태: 846 회귀 + 9 pinned_groups 테스트 통과
-커밋: (이번 세션 진행 중)
-다음 기능: 브라우저 콘솔 진단 확인 (gkConfigs 개수 파악) → G2 좌표 문제 해결
+마지막 업데이트: 2026-04-23 (세션 53 — Worker Blob URL + 커스텀 디폴트)
+버전: battery_pack_renderer.html, src/app-render.js, src/app-ui.js, src/enum-worker.js, src/enum-worker-bundle.js, src/enum-worker-init.js (신규), scripts/build-worker-bundle.js
+테스트 상태: 846 회귀 + 9 pinned_groups 테스트 통과 (이전 세션 기준)
+커밋: 7615f8f (fix(worker-blob): file:// SecurityError 근본 해결 — Blob URL Worker)
+다음 기능: 추가 요청 대기 / 수정 3 (ICC① rowSpan 정의 정정) 보류 중
 
 ========================================
-## 세션 46 핵심 성과
+## 세션 53 핵심 성과
 
-### 분석: 13S4P 커스텀 배열 (10,12:-2,13:-2,12:-2,5:-1, 엇배열 ON, TL) 후보 0개 원인
+### 증상 (세션 시작 상태)
+- "G0 분할 계획중이 1분을 모두 소모합니다" — 메인 스레드 블로킹
+- "커스텀 선택 시 S=13 P=4 디폴트 설정 필요"
+- "검색 자체가 안됨. 그냥 종료해버림" — 수정 후 탐색 즉시 종료
 
-#### 원인 1 (치명적): 열거 엔진이 custom_stagger=false 강제
-- app-render.js:283: `custom_stagger: false` 하드코딩
-- 결과: pitchY=pitch(rectangular) vs 실제 헥사 pitchY=pitch×√3/2=0.866p
-- ICC② ratio 오계산: 2행 3열 그룹이 rect에서 ratio=2.0(통과) → hex에서 ratio=2.31(실패)
-- 탐색 좌표와 렌더링 좌표 불일치
+### 수정 1 (커밋 0b630e1): G0 열거 Worker 이관
+- 문제: Generator.enumerateGroupAssignments({ enumerate_g0_only:true }) 메인 스레드 동기 호출 → 1분 블로킹
+- 수정: G0 열거를 전용 Worker로 이관, 7초 킬러 타이머 내장
+- 결과: G0 단계 비블로킹화 (Worker가 실패해도 graceful fallback)
 
-#### 원인 2: ICC① 정의 불일치
-- 코드: Math.min(rowSpan, colSpan) <= 2  ("더 짧은 쪽 ≤ 2")
-- UI: "행 스팬 ≤ 2" (rowSpan ≤ 2)
-- 두 정의가 다름 — 원칙 문서 기준으로 정정 필요
+### 수정 2 (커밋 55643b4): 커스텀 선택 시 디폴트 값 자동 적용
+- 커스텀 버튼 클릭 시: S=13, P=4, B+=Left, stagger=ON, 탐색=1분 자동 설정
+- 목적: 반복 테스트 편의성
 
-#### 원인 3: Row 3↔4 인접 단절 (기하학적)
-- offset 차이=2 → row 3 col=0은 row 4 어떤 셀과도 thr=1.5p 내 인접 불가
-- row 3 col=0을 포함하는 그룹은 rows 2-3에만 속해야 함
+### 수정 3 (커밋 3ef00d8): 단일 Worker fallback 복구
+- 문제: g0Configs=0 경로에서 Worker onerror → 즉시 종료 (검색 결과 없음)
+- 수정: Worker 실패 시 Generator 단일 스레드 폴백 추가 (병렬 경로와 동일 패턴)
 
-#### 원인 4 (알고리즘 한계): Phase 4 DLX 커스텀 배열 제외
-- gen-enum.js:492: `arrangement !== 'custom'` 조건으로 DLX 완전 제외
-- 13×4 완전 분할 = Exact Cover 문제 → DLX가 최적
-- BFS+Beam 휴리스틱만으로는 해 탐색 실패
+### 수정 4 (커밋 5d4cf3e): Worker 실패 로깅 + UI repaint yield
+- Worker onerror에 console.error/warn 추가 (원인 파악용)
+- sync fallback 진입 전 double-rAF yield → 제목/힌트 메시지 화면에 반영
+- Worker URL을 new URL(…, location.href).href 절대경로로 변경
 
-#### 원인 5: TL 앵커가 G0 시작점을 1개로 제한
-- bPlusStartCells = [row=0, col=0] 단 1개
-- 탐색 다양성 부족
+### 핵심 발견: Chrome file:// SecurityError
+- 콘솔 에러: "SecurityError: Failed to construct 'Worker': Script at
+  'file:///…/src/enum-worker-bundle.js' cannot be accessed from origin 'null'."
+- 원인: file:// 로 열면 origin = null, Chrome이 다른 경로의 Worker 파일 로드 차단
+- 이전 동작: 모든 Worker 실패 → sync fallback 60s 블로킹 → 결과 523개
 
-========================================
-## 세션 47 핵심 성과
+### 수정 5 (커밋 7615f8f): Blob URL Worker — 근본 해결
+- scripts/build-worker-bundle.js: enum-worker-init.js 자동 생성
+  - 번들 전체를 JSON.stringify로 인라인 문자열화
+  - Blob URL 사전 생성 → window._enumWorkerBlobUrl 등록
+- battery_pack_renderer.html: enum-worker-init.js 스크립트 태그 추가 (app-render.js 직전)
+- app-render.js: window._enumWorkerBlobUrl 우선 사용, 없으면 파일 URL 폴백
+- 결과: 22 Workers 병렬, UI 비블로킹, **4612개 후보** (sync fallback 523개 대비 8.8배)
 
-### Fix 1 구현 완료: 커스텀 배열 DLX 활성화 + adj_thr 정합성
-
-#### 변경 파일
-- `src/pentomino_tiling.js`:
-  - `calcCustomBoundarySet()` 추가 — 커스텀 배열 행별 경계 셀 감지
-  - `buildAdj(cells, pitch, adj_thr)` — adj_thr 인자 추가
-  - `_isPhysConnected(gcells, thr)` — 물리적 연결성 BFS 검증 헬퍼
-  - `generatePlacements(cells, shapes, pitch, adj_thr)` — 물리 연결성 필터 추가
-  - `buildGroupAdj(groupCellIdxArrays, cells, pitch, adj_thr)` — adj_thr 전달 (1.05p→1.5p for custom)
-  - `enumeratePentominoTilings()` — arrangement, adj_thr 옵트 추가; 커스텀 시 1.5p 사용
-- `src/gen-enum.js`:
-  - Phase 4 DLX: `arrangement !== 'custom'` 제거 → 커스텀도 DLX 시도
-  - `adj_thr: thr` 전달 (thr=pitch×1.5 for custom, 1.05p for square)
-- `src/enum-worker-bundle.js`:
-  - `node scripts/build-worker-bundle.js` 로 재빌드 (58.6 KB)
-
-#### 검증 결과 (test_notl.js)
-- No anchor:  15 candidates  5012ms
-- TL anchor:  15 candidates  5008ms  warning=null
-- TL, no ICC: 0 candidates   5006ms  (ICC 없이 탐색공간 과다 → 예상 동작)
-
-#### 중요 발견
-- DLX 자체는 0 반환 (52셀 불규칙 그리드를 L/J/S/Z/O만으로 exact cover 불가)
-- Phase 2 backtracking이 15개 후보 발견 (5s 예산 내)
-- TL 앵커는 원인이 아님 (TL+ICC①② ON → 15개)
-- buildGroupAdj가 1.05p 임계값으로 대각 접촉(√2p≈1.41p) 누락 → 1.5p로 수정
-
-#### 회귀 테스트
-- 846개 테스트 모두 통과
+### 주의사항
+- gen-enum.js 또는 enum-worker.js 수정 시 반드시:
+  `node scripts/build-worker-bundle.js`
+  → enum-worker-bundle.js + enum-worker-init.js 동시 재생성
 
 ========================================
-## 세션 49 핵심 성과
+## 이전 세션 요약 (세션 51~52)
 
-### Fix 2 완료 (커밋 24558c8): custom_stagger 하드코딩 해제
-
-#### 변경 파일
-- `src/app-render.js`:
-  - customParams: `custom_stagger: false` → `!!state.custom_stagger`
-  - enumBase: 동일
-  - wParams: `custom_stagger: !!state.custom_stagger` 추가
-- `src/enum-worker.js`:
-  - enumerateGroupAssignments: `custom_stagger: false` → `params.custom_stagger || false`
-- `src/enum-worker-bundle.js`: 재빌드 (59.5 KB)
-
-#### 효과
-- stagger=false: 기존 동작 완전 동일 (회귀 없음)
-- stagger=true: pitchY = pitch×√3/2 (28.58mm) 사용 → 표시 좌표 = 탐색 좌표 일치
-  - 탐색 공간이 실제 헥사 배열에 맞게 재구성됨
-  - G0 configs: stagger=false 100개 → stagger=true 39개 (L앵커 기준)
-  - 10초 탐색 → 2개 후보, spans 2r×3c (S/Z 형상) 확인
-
-#### 검증
-- 846개 회귀 테스트 모두 통과
-- test_p28_render_thr, test_g0_anchor, test_f14_custom_rows 모두 통과
-
-### Fix 3 (커밋 19d6c87): enumerate_g0_only 시 BFS Greedy·Beam Search 생략
-- 문제: stagger=true로 변경 후 헥사 6-방향 인접 그래프에서 BFS/Beam이
-  enumerate_g0_only=true 메인 스레드에서 실행되어 UI 블록 재발
-- 수정: gen-enum.js BFS Greedy(618줄) + Beam Search(699줄)에 !enumerate_g0_only 가드 추가
-- 결과: G0 열거 시간 L앵커 5ms, TL앵커 1ms → UI 블록 없음
-
-### Fix 4 (커밋 10ae70a): G0 config별 균등 예산 분배
-- 문제: 22워커×39 G0 configs 분배 시, 워커당 G0 2개이면
-  첫 번째 G0가 전체 예산 소모 → 두 번째 G0 미탐색 (17개 G0 누락)
-- 수정: budgetPerG0 = budgetMs / chunk.length → G0별 균등 예산
-  enum-worker.js: g0Budget = min(budgetPerG0, remaining) 사용
-- 효과: 39개 G0 config 전부 탐색 보장
-
-### 세션 49 핵심 진단: 생산 설계(image1.png) 미검출 원인 분석
-- ICC② 임계값: passICC_bt에서 custom 배열은 maxRatio=4.0 적용 → ratio=2.31 통과
-  (ICC② ON/OFF 동일 결과 확인 → ICC② 문제 아님)
-- 근본 원인: 탐색 공간 크기 (~10³⁰) vs 탐색량 불일치
-  생산 설계는 수작업 설계로 알고리즘이 그 경로를 탐색하지 못함
-
-### 다음 기능 계획: 부분 고정 탐색 (Pinned Groups Search) — 세션 50 시작 예정
-
-#### 개요
-사용자가 일부 그룹(셀 좌표 지정)을 고정하면, 알고리즘이 나머지만 탐색하는 기능.
-생산 설계의 일부 그룹을 입력하여 전체 설계를 역추적/검증하는 목적.
-
-#### 단계별 구현 계획
-1. 셀 좌표 레이블 SVG 표시 (r{row}c{col}): 토글 체크박스
-2. 고정 그룹 입력 UI: 사이드바 패널, "r4c0 r3c0 r3c1 r4c1" 형식
-   - B+ 경계 포함 그룹 → G0 자동 배정
-   - B- 경계 포함 그룹 → G(S-1) 자동 배정
-3. 알고리즘 확장: pinned_groups 파라미터 추가
-   - 고정 그룹 셀 used[] 사전 표시
-   - 나머지 셀만 백트래킹
-4. 워커 통합 + 결과 "고정 그룹 포함" 태그 표시
-
-========================================
-## 세션 48 핵심 성과
-
-### 커밋 1 (1475ed6): 커스텀 배열 DLX 활성화 (세션 47 → 48 이행)
-- Fix 1 완료 기록 (세션 47 작업, 세션 48 초입 커밋)
-
-### 커밋 2 (24b4375): L/R 앵커 추가 + Phase4 enumerate_g0_only 가드
-- gen-enum.js: 'L' (행별 최좌단 전체) / 'R' (행별 최우단 전체) 앵커 추가
-  - 13S4P 5행 레이아웃에서 L 앵커 = {row0~row4의 각 최좌단 셀}
-  - 23번 셀(내부 row=2, col=0: 중간 행 최좌단)이 L 앵커로 G0 시작점 포함됨
-- Phase 4 DLX에 !enumerate_g0_only 가드 추가
-  - G0 열거 1단계(메인 스레드)에서 DLX 불필요 실행 차단
-  - "응답 대기/페이지 나가기" 다이얼로그 해소 확인
-- HTML 앵커 드롭다운에 '좌측 전체(L)', '우측 전체(R)' 옵션 추가
-- 워커 번들 재빌드 (59.3 KB)
-
-### 커밋 3 (830c297): fixed_g0 모드에서 BFS Greedy·Beam Search 생략
-- 문제: 워커가 fixed_g0 수신 시 BFS Greedy·Beam Search도 실행
-  → 두 단계가 fixed_g0를 무시하고 자체 G0 선택 → 예산 낭비
-- 수정: !fixed_g0 가드 추가로 워커에서 두 단계 완전 생략
-- 결과: CPU 사용률 10% → 95% 회복 (사용자 확인)
-- 워커 번들 재빌드 (59.4 KB)
-- 846개 회귀 테스트 통과
-
-### 세션 48 핵심 발견
-- 23번 셀 위치: 내부 좌표 row=2, col=0 (중간 행=13셀 행의 최좌단)
-  - 사용자 번호체계(아래→위 행순, 좌→우 셀순): 행 row=0(하단 10셀: 1~10),
-    row=1(12셀: 11~22), row=2(13셀: 23~35), row=3(12셀: 36~47), row=4(상단 5셀: 48~52)
-  - 23번 = row=2, col=0 → TL/BL/TR/BR 모두 해당 안 됨 → L 앵커 필요
-- CPU <10% 원인 규명: BFS Greedy/Beam Search가 fixed_g0 무시하고 독자 탐색
-  → 수정 후 24코어 머신에서 22개 워커 병렬 실행 → CPU 95% 확인
+- 고정 탐색 병렬 처리 안정화 (pinned_groups + Worker 분산)
+- gkConfigs<2 시 UI 블록 방지 — 항상 Worker 사용 (ec20467)
+- 846 회귀 + 9 pinned_groups 테스트 통과
 
 ========================================
 ## 수정 계획 (잔여)
-
-### 수정 2 (완료 — 세션 49, 커밋 24558c8): 열거 엔진 stagger 좌표 전달
-- app-render.js 3곳 + enum-worker.js 1곳: `custom_stagger: false` → `!!state.custom_stagger` / `params.custom_stagger||false`
-- stagger=true 시 pitchY=pitch×√3/2 → 탐색 좌표 = 표시 좌표 일치
-- stagger=true, L anchor, 10s → 2개 후보 확인 (spans 2r×3c = S/Z 형상)
-- 846개 회귀 통과
 
 ### 수정 3 (보류): ICC① 정의 정정
 - 코드: Math.min(rowSpan, colSpan) <= 2
@@ -175,29 +67,11 @@
 
 ### 수정 5 (보류): TL 앵커 후보 확장
 - bPlusStartCells가 1개일 때 인접 B+ 셀도 시작점 허용 (gen-enum.js ~638/752)
-- Fix 1만으로 15개 후보 확인 → 현재 우선순위 낮음
-
-========================================
-## 이전 세션 요약
-
-세션 45:
-  - 반복 횟수 상한(5만·200만) + adjStarts 캡(5개) 완전 제거
-  - 워커 강제 종료 타이머 추가 (budgetMs+3s)
-  - 13S4P 104개 후보 탐색 성공 확인
-
-세션 44:
-  - 사이드바-렌더러 인덱스 불일치 버그 수정
-  - _sortedCandidates 전역 변수 도입
-
-세션 41-43:
-  - 탐색 시간 제한 UI (1분/10분/30분/1시간)
-  - 형상종류/품질 필터 콤보박스
-  - 후보 표시 상한 200개
-  - CPU 최적화 병렬 탐색 (os.cpus()-2)
-  - 커스텀 배열 stagger 열거 버그 수정
-  - 필터 갱신 순서 보장
+- 현재 우선순위 낮음
 
 ========================================
 ## 다음 작업
 
-수정 1~5 구현 + 브라우저 검증 (13S4P 커스텀 배열 후보 생성 확인)
+추가 사용자 요청 대기. 우선순위:
+1. 4612개 후보 품질 검토 / 필터링 개선
+2. 수정 3 ICC① rowSpan 정의 정정 (보류 중)
