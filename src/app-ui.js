@@ -27,7 +27,32 @@ function setArrangement(a) {
   document.getElementById('holderSizeGroup').style.display  = isCustom ? 'none'  : 'block';
   document.getElementById('stagDirGroup').style.display    = isStag   ? 'block' : 'none';
   _enumResult = null;
-  if (isCustom) { checkCustomConsistency(); }
+  if (isCustom) {
+    // 커스텀 선택 시 디폴트: 13S4P, B+ 좌측, 엇배열 ON, 1분 탐색
+    state.S = 13; state.P = 4;
+    const sEl = document.getElementById('valS');
+    const pEl = document.getElementById('valP');
+    if (sEl) sEl.value = 13;
+    if (pEl) pEl.value = 4;
+
+    state.b_plus_side = 'left';
+    ['Top','Left','Right','Bottom'].forEach(d => {
+      const el = document.getElementById('bp' + d);
+      if (el) el.classList.toggle('active', d === 'Left');
+    });
+
+    state.custom_stagger = true;
+    const togEl = document.getElementById('togCustomStagger');
+    if (togEl) togEl.classList.add('on');
+
+    state.search_budget_ms = 60000;
+    ['bgt1','bgt10','bgt30','bgt60'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.classList.toggle('active', id === 'bgt1');
+    });
+
+    checkCustomConsistency();
+  }
   rerender();
 }
 
