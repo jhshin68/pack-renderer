@@ -1,9 +1,38 @@
 ========================================
-마지막 업데이트: 2026-04-23 (세션 55 — Sparse 고정 탐색 + 병렬 분할 완성)
+마지막 업데이트: 2026-04-23 (세션 56 — 부분 고정 탐색 기본값 변경 + 사용자 매뉴얼 작성)
 버전: src/gen-enum.js + app-state.js + app-render.js + enum-worker.js
 테스트 상태: 9/9 sparse TDD + 9/9 consecutive 회귀 (총 18 green)
 브라우저 확인: 커스텀 배열 병렬 ✓, 고정 탐색(sparse) 병렬 ✓
 다음 기능: 추가 요청 대기
+
+========================================
+## 세션 56 핵심 성과
+
+### 수정 1: 부분 고정 탐색 textarea 기본값 변경
+- 파일: battery_pack_renderer.html (line 240-242)
+- 변경 전: 연속 모드 예시 (r3c0 r2c0 r1c0 r2c1 / r4c0 r4c1 r3c1 r3c2 / ...)
+- 변경 후: sparse 형식 기본값
+    0: r3c0 r2c0 r1c0 r2c1
+    11: r3c10 r2c11 r1c10 r0c8
+    12: r3c11 r2c12 r1c11 r0c9
+  (13S4P 배열에서 G0, G11, G12 고정 예시)
+
+### 수정 2: 사용자 매뉴얼 작성
+- docs/manual/user-manual.md — 마크다운 매뉴얼 (14장, 스크린샷 12장 포함)
+- docs/manual/images/ — Playwright로 자동 촬영한 스크린샷 12장
+    01_overview.png          초기 화면
+    02_generated_result.png  3S3P 생성 결과
+    03_top_face_view.png     상면 단독 뷰
+    04_bottom_face_view.png  하면 단독 뷰
+    05_zoomed_canvas.png     캔버스 확대(130%)
+    06_sidebar_top.png       좌측 패널 상단
+    08_sidebar_bottom.png    Pack Summary + Export
+    09_custom_arrangement.png 커스텀 배열 모드
+    10_pinned_groups.png     부분 고정 탐색 섹션
+    11_candidates_panel.png  후보 카드 목록
+    12_candidate_selected.png 후보 선택 후 변경
+- docs/manual/build_docx.py — Word 문서 자동 생성 스크립트 (python-docx 기반)
+- docs/manual/user-manual.docx — 생성된 Word 문서 (1.2MB, 이미지 포함)
 
 ========================================
 ## 세션 55 핵심 성과 — 비연속 그룹 고정 탐색 (Sparse Pinned Groups)
@@ -23,51 +52,8 @@
 
 ### 커밋 이력
 - 847caf9: feat(sparse-pinned) — 핵심 알고리즘 구현 (TDD 6/6)
-  - gen-enum.js: sparsePinnedMap, useSparsePin(), dfsCustom sparse 체크
-  - app-state.js: parsePinnedGroups() → {mode, groups|sparseGroups}
-  - app-render.js: sparse 분기, pinnedCellIdxGroupsSparse 워커 전달
-  - enum-worker.js: pinnedCellIdxGroupsSparse 수신·변환
-  - battery_pack_renderer.html: 도움말 sparse 형식 추가
-
 - cfc9472: fix(sparse-parser) — 한 줄 입력 파서 버그 수정
-  - 원인: "0: ... 11: ... 12: ..."가 한 줄로 입력되면
-    11:·12: 패턴을 G0 셀로 모두 귀속 → G0만 12셀로 인식
-  - 수정: split(/(?=\s\d+\s*:)/) lookahead로 인라인 그룹 분리
-  - app-render.js: sparse 셀 매칭 실패 시 콘솔 경고 + UI 워닝 추가
-
 - 76e0fb7: feat(sparse-parallel) — sparse 병렬 분할 지원 (TDD 9/9)
-  - gen-enum.js: usesSparse && enumerate_g0_only 브랜치
-    → 첫 번째 자유 그룹(Gk) 후보 수집 + sparse_first_free_idx 반환
-  - app-render.js: isSparse guard 제거, sparseFirstFreeIdx 수집·전달
-  - enum-worker.js: sparse + gk 조합 → pinned_groups_sparse 확장 전달
-  - 결과: G0 sparse 핀 시 G1 후보 N개 병렬 분할 탐색
-
-### 동작 원리 (G0+G11+G12 핀 예시, S=13)
-1. G1 후보 목록 수집 (enumerate_g0_only + sparse)
-2. G1 후보 수만큼 워커에 분배
-3. 각 워커: pinned_groups_sparse = {G0, G1(고정), G11, G12}로
-   G2~G10만 DFS → G11·G12 인접 검증 후 commitCandidate
-
-========================================
-## 세션 54 핵심 성과
-
-### 수정 1 (커밋 2b5b022): 고정 탐색 Worker Blob URL 적용
-- 원인: app-render.js 고정 탐색 Worker new Worker('src/...') 파일 URL
-  → Chrome file:// SecurityError → candidates 0개
-- 수정: pinnedWorkerUrl = window._enumWorkerBlobUrl || 절대경로 폴백
-- 결과: 고정 탐색 병렬중 (2개 고정, 146분할, 1분) → 1580개 후보
-
-### 수정 2 (커밋 56b0fce): 고정 탐색 완료 후 필터 자동 적용
-- 원인: populateCandidatePanel() 직접 호출 → 필터 미적용
-- 수정: → _renderCustomCandidates({candidates}, true)
-
-========================================
-## 이전 세션 요약 (세션 53)
-
-- G0 Worker 이관, 커스텀 디폴트, Chrome file:// SecurityError 근본 해결
-- Blob URL Worker: 22 Workers 병렬, 4612개 후보, UI 비블로킹
-- build-worker-bundle.js → enum-worker-init.js 자동 생성
-- gen-enum.js / enum-worker.js 수정 시 반드시 node scripts/build-worker-bundle.js 실행
 
 ========================================
 ## 주의사항
