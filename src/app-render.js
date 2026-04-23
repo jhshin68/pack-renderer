@@ -604,12 +604,19 @@ async function _runCustomSearch(usePinned = false) {
         });
         result = { candidates: cands, count: cands.length };
       } catch (e) {
-        if (listEl) listEl.innerHTML = `<div class="hint" style="color:var(--red)">열거 오류: ${e.message}</div>`;
-        if (countEl) countEl.textContent = '오류';
-        _enumResult = null; _sortedCandidates = null; _updateEnumStatus(null);
-        if (titleEl) titleEl.textContent = '셀 배열 후보';
-        if (genBtn) genBtn.disabled = false;
-        return;
+        // Worker 실패 → 단일 스레드 폴백
+        console.warn('[custom-single-worker] Worker 실패, 단일 스레드 폴백:', e);
+        if (titleEl) titleEl.textContent = `셀 배열 후보 탐색중… (단일 스레드 폴백, ${budgetLabel})`;
+        try {
+          result = Generator.enumerateGroupAssignments({ ...enumBase, max_candidates: 999999, exhaustive: true, budget_ms: budgetMs });
+        } catch (e2) {
+          if (listEl) listEl.innerHTML = `<div class="hint" style="color:var(--red)">열거 오류: ${e2.message}</div>`;
+          if (countEl) countEl.textContent = '오류';
+          _enumResult = null; _sortedCandidates = null; _updateEnumStatus(null);
+          if (titleEl) titleEl.textContent = '셀 배열 후보';
+          if (genBtn) genBtn.disabled = false;
+          return;
+        }
       }
     }
   } else {
