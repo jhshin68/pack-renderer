@@ -130,7 +130,15 @@ function parseRowOffsets()    { return _parseCustomRowsRaw().offsets; }
 function parsePinnedGroups() {
   const el = document.getElementById('pinnedGroupsInput');
   if (!el) return { mode: 'consecutive', groups: [] };
-  const lines = el.value.split('\n').map(s => s.trim()).filter(Boolean);
+  // 줄바꿈으로 나누되, 한 줄 안에 "N:" 패턴이 여러 번 나오면 추가 분리
+  // 예: "0: r3c0  11: r3c10  12: r3c11" → 세 토큰 그룹으로 분리
+  const rawLines = el.value.split('\n').map(s => s.trim()).filter(Boolean);
+  const lines = [];
+  for (const raw of rawLines) {
+    // lookahead으로 "숫자:" 앞에서 분리 (첫 번째 제외)
+    const parts = raw.split(/(?=\s\d+\s*:)/).map(s => s.trim()).filter(Boolean);
+    lines.push(...parts);
+  }
   const isSparse = lines.some(l => /^\d+\s*:/.test(l));
   if (isSparse) {
     const sparseGroups = [];

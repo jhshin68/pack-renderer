@@ -378,10 +378,25 @@ async function _runCustomSearch(usePinned = false) {
     const pinnedCellIdxGroups = pinnedGroups.map(grp =>
       grp.map(({row, col}) => rcIdxMap.get(`${row},${col}`)).filter(i => i !== undefined)
     ).filter(grp => grp.length > 0);
-    const pinnedCellIdxGroupsSparse = pinnedGroupsSparse.map(({groupIdx, cells: gc}) => ({
-      groupIdx,
-      cells: gc.map(({row, col}) => rcIdxMap.get(`${row},${col}`)).filter(i => i !== undefined),
-    })).filter(e => e.cells.length > 0);
+    const pinnedCellIdxGroupsSparse = pinnedGroupsSparse.map(({groupIdx, cells: gc}) => {
+      const matched = gc.map(({row, col}) => {
+        const idx = rcIdxMap.get(`${row},${col}`);
+        if (idx === undefined) console.warn(`[sparse] G${groupIdx}: r${row}c${col} → 그리드에 없음`);
+        return idx;
+      }).filter(i => i !== undefined);
+      console.log(`[sparse] G${groupIdx}: 입력 ${gc.length}셀 → 매칭 ${matched.length}셀`, matched);
+      return { groupIdx, cells: matched };
+    }).filter(e => e.cells.length > 0);
+    if (isSparse) {
+      console.log('[sparse] sparsePinnedMap 최종:', pinnedCellIdxGroupsSparse.map(e => `G${e.groupIdx}(${e.cells.length}셀)`).join(', ') || '비어있음');
+      const warnEl = document.getElementById('pinnedGroupsWarn');
+      const missingGroups = pinnedGroupsSparse.filter((_, i) => !pinnedCellIdxGroupsSparse[i]);
+      const allMissing = pinnedCellIdxGroupsSparse.length === 0;
+      if (allMissing && warnEl) {
+        warnEl.textContent = '⚠ Sparse 고정: 모든 셀 좌표가 그리드와 불일치 — 콘솔 확인';
+        warnEl.style.display = 'block';
+      }
+    }
     if (!isSparse) console.log('[pinned-parallel] pinnedCellIdxGroups 매칭:', pinnedCellIdxGroups.map(g => g.length), '셀');
 
     const wParams = {
